@@ -5,6 +5,7 @@
  * Constraints: photos stay local; never clears carts, checks out, or reads credentials.
  */
 import {BULLSEYE_ORIGIN, BULLSEYE_CART_URL, BULLSEYE_LOGIN_URL, validateCartItems, runBullseyeStoreAction} from './lib/commerce.js';
+import {findLinkedImage} from './lib/page-image.js';
 
 const IMAGE_MENU = 'bullseye-palette-from-image';
 const CAPTURE_MENU = 'bullseye-palette-from-page';
@@ -15,7 +16,7 @@ let cartFlight = null;
 
 async function configure() {
   await chrome.contextMenus.removeAll();
-  chrome.contextMenus.create({id: IMAGE_MENU, title: 'Create Bullseye palette', contexts: ['image']});
+  chrome.contextMenus.create({id: IMAGE_MENU, title: 'Create Bullseye palette', contexts: ['image', 'link']});
   chrome.contextMenus.create({id: CAPTURE_MENU, title: 'Create Bullseye palette from visible page', contexts: ['page']});
   await chrome.sidePanel.setPanelBehavior({openPanelOnActionClick: true});
 }
@@ -35,8 +36,26 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
         const result = await captureVisible(tab.windowId);
         await publish({...result, sourceUrl: tab.url || '', captured: true}, requestId);
       } else {
-        await publish({loading: true, sourceUrl: info.srcUrl}, requestId);
-        await fetchSelectedImage(info.srcUrl, requestId);
+        let sourceUrl = info.srcUrl || '';
+        await publish({loading: true, sourceUrl}, requestId);
+        if (!sourceUrl && info.linkUrl) {
+          // Pinterest's hover overlay is a link, even when its photo is visible.
+          // The context-menu gesture grants activeTab for this one DOM lookup.
+          let results;
+          try {
+            results = await chrome.scripting.executeScript({
+              target: {tabId: tab.id, frameIds: [Number.isInteger(info.frameId) ? info.frameId : 0]},
+              world: 'ISOLATED', func: findLinkedImage, args: [info.linkUrl],
+            });
+          } catch {
+            throw new Error('Chrome could not read that linked photo. Open the photo directly or use Capture page.');
+          }
+          const resolved = results?.[0]?.result;
+          sourceUrl = typeof resolved === 'string' ? resolved : '';
+        }
+        if (requestId !== currentImageRequest) return;
+        if (!sourceUrl) throw new Error('No photo was found in that link. Open the photo directly or use Capture page.');
+        await fetchSelectedImage(sourceUrl, requestId);
       }
     } catch (error) {
       await publish({error: readableError(error), sourceUrl: info.srcUrl || ''}, requestId).catch(() => {});

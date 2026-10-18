@@ -2,7 +2,9 @@
 
 **Right-click a photo, move its color points, choose matching Bullseye frit, and send the selected jars to your signed-in cart.**
 
-Version **0.2.0** puts the image first, its editable palette directly below, and the glass results in one compact vertical list. Its **32-product catalog contains 1,268 measured material samples and 85 real jar variants**: 27 colored transparent medium-frit products, three transparent grays, regular Black, and Opalescent White. Colorless clear is excluded.
+Version **0.2.1** puts the image first, its editable palette directly below, and the glass results in one compact vertical list. Its **32-product catalog contains 1,268 measured material samples and 85 real jar variants**: 27 colored transparent medium-frit products, three transparent grays, regular Black, and Opalescent White. Colorless clear is excluded.
+
+**Pinterest fix:** the right-click command also appears on photo links and their hover overlays. It reads the visible photo inside the clicked link, using its displayed image source. No additional permissions are required.
 
 ![Bullseye Palette Picker: image and draggable points above an editable palette and compact glass list](https://raw.githubusercontent.com/Keyslah/Bullseye-Palette-Picker/main/docs/picker-preview.png)
 
@@ -76,7 +78,7 @@ npm run check
 npm run package
 ```
 
-Development requires Node 20 or later. Packaging also uses Python 3's standard library and creates `dist/Bullseye-Palette-Picker-v0.2.0.zip`, with the manifest at the ZIP root. Extract that packaged ZIP and load its root folder in Chrome.
+Development requires Node 20 or later. Packaging also uses Python 3's standard library and creates `dist/Bullseye-Palette-Picker-v0.2.1.zip`, with the manifest at the ZIP root. Extract that packaged ZIP and load its root folder in Chrome.
 
 To rebuild the catalog from the documented public product sources:
 

@@ -158,15 +158,16 @@ async function workerHarness(t) {
     async convertToBlob() { return new Blob([this.label], { type: 'image/png' }); }
   };
 
-  harness.clickImage = (sourceUrl) => {
+  harness.clickContext = (info) => {
     harness.inGesture = true;
     try {
       events.context.emit(
-        { menuItemId: 'bullseye-palette-from-image', srcUrl: sourceUrl },
+        { menuItemId: 'bullseye-palette-from-image', ...info },
         { id: 7, windowId: 2, url: 'https://page.example/photos' },
       );
     } finally { harness.inGesture = false; }
   };
+  harness.clickImage = (sourceUrl) => harness.clickContext({srcUrl: sourceUrl});
   harness.send = (request) => new Promise((resolve) => {
     const results = events.message.emit(
       request,
@@ -193,10 +194,76 @@ test('MV3 worker imports without DOM globals and registers/configures its entry 
   harness.events.installed.emit();
   await waitFor(() => harness.panelBehavior !== null, 'Install configuration did not complete.');
   assert.deepEqual(harness.menus.map((menu) => [menu.id, menu.contexts]), [
-    ['bullseye-palette-from-image', ['image']],
+    ['bullseye-palette-from-image', ['image', 'link']],
     ['bullseye-palette-from-page', ['page']],
   ]);
   assert.deepEqual(harness.panelBehavior, { openPanelOnActionClick: true });
+});
+
+test('Pinterest link-only clicks resolve the linked image in the clicked frame', async (t) => {
+  const harness = await workerHarness(t);
+  for (const frameId of [undefined, 9]) {
+    const linkUrl = 'https://www.pinterest.com/pin/123456/';
+    const sourceUrl = `https://images.example/pin-${frameId ?? 0}.png`;
+    harness.scriptImpl = async options => {
+      assert.deepEqual(options.target, {tabId: 7, frameIds: [frameId ?? 0]});
+      assert.equal(options.world, 'ISOLATED');
+      assert.equal(options.func.name, 'findLinkedImage');
+      assert.deepEqual(options.args, [linkUrl]);
+      return sourceUrl;
+    };
+    harness.clickContext({linkUrl, frameId});
+    await waitFor(() => harness.session.pendingImage?.sourceUrl === sourceUrl && !!harness.session.pendingImage?.dataUrl,
+      'The photo underneath the link was not handed to the picker.');
+  }
+  assert.ok(harness.openingGestures.every(Boolean), 'Link selection must still open the panel inside the original gesture.');
+});
+
+test('a directly clicked image takes precedence over its surrounding link', async (t) => {
+  const harness = await workerHarness(t);
+  const sourceUrl = 'https://images.example/direct.png';
+  harness.clickContext({srcUrl: sourceUrl, linkUrl: 'https://www.pinterest.com/pin/123456/'});
+  await waitFor(() => !!harness.session.pendingImage?.dataUrl, 'The direct image did not load.');
+  assert.equal(harness.session.pendingImage.sourceUrl, sourceUrl);
+  assert.equal(harness.scripts.length, 0, 'Ordinary image clicks do not need page inspection.');
+});
+
+test('missing linked images and denied page access give capture feedback without guessing an image', async (t) => {
+  const harness = await workerHarness(t);
+  for (const outcome of ['missing', 'malformed', 'denied']) {
+    harness.scriptImpl = async () => {
+      if (outcome === 'denied') throw new Error('Cannot access frame');
+      return outcome === 'missing' ? '' : {unrelated: 'not an image URL'};
+    };
+    harness.clickContext({linkUrl: 'https://www.pinterest.com/pin/123456/'});
+    await flushTasks();
+    assert.match(harness.session.pendingImage.error, /Capture page/);
+    assert.equal(harness.session.pendingImage.dataUrl, undefined);
+  }
+  assert.equal(harness.fetchCalls.length, 0, 'An unresolved link must never be fetched as though it were a photo.');
+});
+
+test('a delayed linked-image lookup cannot replace or download over a newer photo', async (t) => {
+  const harness = await workerHarness(t);
+  const slow = deferred();
+  const olderUrl = 'https://images.example/older-link.png';
+  const newerUrl = 'https://images.example/newer-direct.png';
+  let obsoleteFetched = false;
+  harness.scriptImpl = async () => slow.promise;
+  harness.fetchImpl = async url => {
+    if (url === olderUrl) obsoleteFetched = true;
+    return imageResponse('newer-direct');
+  };
+  harness.clickContext({linkUrl: 'https://www.pinterest.com/pin/123456/'});
+  await waitFor(() => harness.scripts.length === 1, 'The link lookup did not start.');
+  harness.clickImage(newerUrl);
+  await waitFor(() => harness.session.pendingImage?.sourceUrl === newerUrl && !!harness.session.pendingImage?.dataUrl,
+    'The newer direct image did not finish.');
+  slow.resolve(olderUrl);
+  await flushTasks();
+  assert.equal(harness.session.pendingImage.sourceUrl, newerUrl);
+  assert.equal(harness.session.pendingImage.error, undefined);
+  assert.equal(obsoleteFetched, false, 'A stale lookup should stop before downloading its image.');
 });
 
 test('latest image selection wins over an earlier slow success or error', async (t) => {

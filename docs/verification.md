@@ -1,3 +1,13 @@
+# Version 0.2.1 Pinterest patch
+
+Verified on 2026-10-18. Pinterest's current home-feed photo hover overlay was inspected in the connected Chrome tab: the overlay sits inside the photo's link and intercepts the image context. The new `findLinkedImage` resolver returned that photo's actual displayed `currentSrc` when run against the live page.
+
+The main context-menu entry now covers both images and links. Direct image clicks retain their existing path. Link-only clicks use a one-time isolated DOM lookup in the clicked frame; no manifest permissions were added. Only photos within the exact clicked link are considered. Hidden carousel slides, small icons, and ambiguous choices are excluded.
+
+The complete JavaScript suite passes **71 tests**, including 12 serialized DOM resolver checks and four new worker regressions for linked-photo handoff, direct-image precedence, missing/denied page access, and stale lookup cancellation. The code and packaging checks also pass.
+
+After replacing the installed files, reload the extension at `chrome://extensions`, refresh the Pinterest tab, and reopen the picker. Publishing this patch does not update an existing unpacked installation. The live-page check verifies the new image lookup; it does not establish that the user's installed copy has been updated.
+
 # Version 0.2.0 verification
 
 Verified on 2026-10-18 with Node 24.19.0, Python/Pillow, and an isolated Google Chrome for Testing 155.0.8059.84 profile.

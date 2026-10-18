@@ -1,6 +1,6 @@
 {
   "name": "bullseye-palette-picker",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "description": "Editable photo palettes matched to real Bullseye colored and neutral medium frit, with saved palettes and direct cart additions.",
