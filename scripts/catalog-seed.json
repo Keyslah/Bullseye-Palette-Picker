@@ -1,0 +1,152 @@
+{
+  "description": "Reviewed colored transparent medium-frit products. Source photos show fired frit; product IDs and variants are read from Bullseye, never inferred.",
+  "defaults": {
+    "sampleCount": 40,
+    "sampleRect": [
+      0.025,
+      0.1,
+      0.86,
+      0.9
+    ],
+    "sampleBandWidth": 0.025,
+    "imageMaxPixels": 600,
+    "imageSelection": "Complete fired medium-frit gradient photograph; dense glass at left and increasingly scattered grains at right. All samples come from the fired image."
+  },
+  "products": [
+    {
+      "handle": "spring-green-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "6cd6849becadf298af56799c23ca63cf4842d003ab15f40cd4332acc3f8f95a2"
+    },
+    {
+      "handle": "red-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "2bad09243bf0a84abddb966caeb1909a3737fc40e57b27975006a83f29be3725"
+    },
+    {
+      "handle": "orange-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "2e7bc00616e742628dee19cba6f6c2d7999427bc9dee2f026cc278bc439f925b"
+    },
+    {
+      "handle": "marigold-yellow-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "bfb9610720a3a4018af65b4953ae30af1e5231bc55743d0070bec76517463ff4"
+    },
+    {
+      "handle": "yellow-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "ba1eccd3e5bdbe59470a6d211f9ef3c899fcb1be1259ad124434ee9616ba8bd8"
+    },
+    {
+      "handle": "medium-amber-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "9974967132ce6af684797626a3331152aef7b4ea600793a50e394b6cdf99edae"
+    },
+    {
+      "handle": "light-amber-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "148111141bd7e170429a016c8798eff650df8c0ada99710c9cbcd94a1f0a492b"
+    },
+    {
+      "handle": "dark-amber-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "4622ec27b7b06a7c4eb04205b8bc18f137111aea9f36c12700395cfd33c176ec"
+    },
+    {
+      "handle": "sienna-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "61929c85701f6d1a25b593ae456c2da3184932556f7874e79ce9274a0a707ea2"
+    },
+    {
+      "handle": "cranberry-pink-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "d50a0cec3ce8802859bdc1b5e8ccfcc740603cd40892f1693616393029f5c16a"
+    },
+    {
+      "handle": "light-pink-striker-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "7e708b7163e9e249e1a8a8a66d6d65e17afcebec9f77ba9b0798cbcff47cf4a0"
+    },
+    {
+      "handle": "garnet-red-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "fd200ac4681235da0751dde4afedee0baac017a965e4c5b856d26fd1389914e5"
+    },
+    {
+      "handle": "violet-striker-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "21ee43e4a81bf7cf12cd8bca9538e5effae87b407e2a2ae75e45e40c5722dfc3"
+    },
+    {
+      "handle": "deep-royal-purple-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "caba7a6669dc443426a2e8a883f76f0bfac0a1f5d70313a27a9c9642cf31164e"
+    },
+    {
+      "handle": "deep-royal-blue-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "31601dec27506a5f36e218d47315ead11af50bbe43f06664c349ede92c637a06"
+    },
+    {
+      "handle": "midnight-blue-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "cbaf90184c752a813652b8ffb269f249759341bcea80551cf8c33a3206f108dd"
+    },
+    {
+      "handle": "true-blue-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "57ab99e4168d633380baaa1610434f7471921ae27506e84383d98be5111f08d9"
+    },
+    {
+      "handle": "sea-blue-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "04c36a53e969402e99d3f58b123e4f6066392a2ea3719038455e77cd8882c29e"
+    },
+    {
+      "handle": "peacock-blue-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "16bdf5dad866c2a278e937016f58c0baa46ac3669ffe9fe797afa620820871f0"
+    },
+    {
+      "handle": "light-sky-blue-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "76c22e83b58523f6ed8d348aa570840ce57f2b2d096ad23a60be472227dd1785"
+    },
+    {
+      "handle": "turquoise-blue-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "3ba0c21a1d90cc3ca2f54d97644e112cf0b61a112f988f327b4ffc52f48e3ffe"
+    },
+    {
+      "handle": "light-aquamarine-blue-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "cb6e4abb2111f7c9f993c5cafbac34f9a77a49066f5a6bd4dae0e667de5a3af0"
+    },
+    {
+      "handle": "steel-blue-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "430ecfe274b8bae4129df303682569343e2a9434de1294f6e7c2ae2c0e597131"
+    },
+    {
+      "handle": "light-green-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "9640f1073561d4f08a467b880e01ad1eaa50f6cd3f2367000c15bec39a907b1b"
+    },
+    {
+      "handle": "emerald-green-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "6132b4d34bda56767b421cdfa5d8cf20f233c6724e82dcfd0c3809ede8bad066"
+    },
+    {
+      "handle": "kelly-green-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "6c1d17602392c190884179bc28a00fd31b907e8f82de4465636762bee0fe7f72"
+    },
+    {
+      "handle": "fern-green-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "f03b3e9868cfb9fa9760c2fdfc1be7b72fce3dc7c7ff86c2f7480728c979d3a8"
+    }
+  ]
+}

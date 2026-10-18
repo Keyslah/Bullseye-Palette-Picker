@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Bullseye Palette Picker",
+  "version": "0.1.0",
+  "description": "Find colored transparent Bullseye medium-frit matches for a photo, with actual sample colors and darkness percentages.",
+  "minimum_chrome_version": "116",
+  "permissions": ["contextMenus", "sidePanel", "storage", "activeTab", "scripting"],
+  "host_permissions": ["https://shop.bullseyeglass.com/*"],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
+  "background": { "service_worker": "service-worker.js", "type": "module" },
+  "side_panel": { "default_path": "picker.html" },
+  "action": {
+    "default_title": "Open Bullseye Palette Picker",
+    "default_icon": { "16": "assets/icon-16.png", "32": "assets/icon-32.png", "48": "assets/icon-48.png", "128": "assets/icon-128.png" }
+  },
+  "icons": { "16": "assets/icon-16.png", "32": "assets/icon-32.png", "48": "assets/icon-48.png", "128": "assets/icon-128.png" },
+  "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'none';" }
+}

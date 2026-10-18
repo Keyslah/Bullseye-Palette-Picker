@@ -1,0 +1,2 @@
+# Catalog rebuild only; the Chrome extension has no Python runtime dependency.
+Pillow>=12.3.0,<13
