@@ -1,8 +1,88 @@
 # Verification record
 
-## Version 0.3.0
+## Version 0.4.0
 
-Verified on 2026-10-18 with Node 24.19.0, Python/Pillow, and an isolated Google Chrome for Testing 155.0.8059.84 profile. This section describes the current release; the 0.2.x records below retain the results and catalog sizes of those earlier versions.
+Verified on 2026-10-18 with Node 24.19.0 and isolated Google Chrome for Testing 155.0.8059.84 profiles. This section describes the current release; the records below retain the results of earlier versions.
+
+### Project checks
+
+```sh
+npm test
+npm run check
+npm run package
+```
+
+The final JavaScript suite passes **125 tests, with zero failures**. The existing full-color, neutral, thickness, image-handoff, signed-in cart, and replay-protection regressions remain in the suite. New coverage includes automatic selection ownership and opt-outs, available 5 lb. defaults, legacy workspace migration, real product formats, unchanged color matching across all forms, saved-cart normalization, and isolated explicit settings storage.
+
+Structural checks pass for Manifest V3 entry points, module syntax/imports, local assets, package/manifest version 0.4.0, and the complete product-format mapping. The separate color guide remains version **0.3.0**, byte for byte unchanged. Its SHA-256 is checked against the new format index, along with all original sample, source-review, and bundled-image checks. The photographs and sampling code were not changed or resampled in this release; the earlier Python sampling results remain recorded below. No Chrome permissions were added.
+
+### One color guide, five purchase forms
+
+All five purchase forms retain the same **141 colors, 5,484 measured full-color samples, and 141 reviewed medium-frit photographs**. The guide still contains 75 transparent colors and 66 in the opalescent group, with clear/colorless and mixed-color listings excluded.
+
+| Purchase form | Colors with a verified listing | Colors with an available option in the snapshot | Actual variants |
+| --- | ---: | ---: | ---: |
+| Sheets | 137 | 134 | 650 |
+| Powder frit | 141 | 135 | 353 |
+| Fine frit | 141 | 139 | 351 |
+| Medium frit | 141 | 137 | 369 |
+| Coarse frit | 141 | 138 | 365 |
+| **Total distinct purchase variants** | | | **2,088** |
+
+The format index records actual public Bullseye product and variant IDs, SKUs, titles, source URLs, retrieval times, and source hashes. Product-format tests check exact base-color codes and grain families; sheet records keep their source-specific thickness and size. The offline builder reproduced the index byte for byte from its source cache. See [format coverage and source rules](product-formats.md).
+
+Every one of the 141 guide colors has an explicit entry for each form. The four colors without a verified standard sheet listing are Blue Black 000102, Medieval Green 001242, Light Mineral Green 001247, and Dark Amber Tint 001838. Native Chrome verified that an explicitly chosen missing-sheet color remains visible without a selected item, an incorrect product link, or an unrelated product fetch. No variant is invented by changing a SKU segment.
+
+### Native Chrome checks
+
+| Suite | Passed check executions |
+| --- | ---: |
+| Main palette and automatic-selection regression, rerun after the full integration | 36 |
+| Purchase forms, mixed saved carts, sheet refreshes, and direct sending | 49 |
+| Explicit settings and workspace/palette restoration | 15 |
+| Named saved-cart interface | 25 |
+| Native IndexedDB saved-cart storage | 13 |
+| **Total** | **138** |
+
+These suites have some deliberately overlapping coverage. All reported zero browser page errors.
+
+The main palette starts with the eligible, available suggested glass selected and **Send to my cart** enabled. Available 5 lb. jars are preferred. Changing the global jar preference uses the requested available size, with another available option used when necessary. Shared color matches select one variant with a shared quantity. Explicit unchecked choices, alternative selections, edited sizes and quantities, and manual extras survive the intended dot, filter, photo, and restore operations. Legacy partial selections remain partial; a deliberately empty current selection is not silently refilled. The pink fixture chooses available Light Pink Striker while sold-out Fuchsia remains visible in its full-color alternatives.
+
+All five form buttons were exercised against the real bundled index. The selected variant IDs and SKUs change to the requested purchase form, while source photographs, point coordinates, color-guide samples, and **thickness percentages remain present, including for Sheets**. Quantities and deliberate opt-outs are preserved during global remapping. Changing forms, settings, or saved-cart contents performs no store cart write.
+
+Sheet selections prefer an available 3 mm choice and retain actual 2 mm and 6 mm choices where listed. The result-row code, detail code, and product link follow the selected variant. Refreshing the selected sheet's own product handle updates that source's inventory without erasing variants belonging to the other sheet thicknesses. Physical sheet millimeters remain part of the purchase-size label; the percentage continues to use the unchanged medium-frit photo guide.
+
+Saved-cart checks cover named creation, quantity/size/form edits, adding and removing colors, multiple saved records, duplication from both list and editor, independent copies, rename, deletion, empty-cart storage, and reload. Saved mixed-form carts retain their exact IDs and quantities when the global format changes. New colors added to an editor use the current form and jar preference. Unavailable saved variants remain visible for editing. Saving or editing a cart leaves the complete photo palette intact. IndexedDB checks confirm transaction completion, duplicate-name disambiguation, copy isolation, and rejection of updates to deleted records.
+
+Explicit settings checks verify the separate `bullseyeSettingsV1` key, all supported forms and jar sizes, material filters, starting automatic-color count, and image size. A current workspace or a named palette restores its own choices ahead of saved future defaults. Settings-only read/write failures are reported without overwriting workspace/cart storage or falling back to preview storage.
+
+### Layout and saved photographs
+
+The final 1440 × 900 Chrome viewport, at normal browser zoom, measured:
+
+| Source photo height | Fully visible glass rows | Bottom of fifth row | Bottom of sixth row |
+| --- | ---: | ---: | ---: |
+| 750 px | **5** | 836.8 px | 931.8 px |
+
+The sixth row continues below the viewport. The top form controls, 5 lb. default, selected palette, and direct Send action remain visible. The 552- and 360-pixel layouts have no horizontal overflow. The saved-cart editor also fits a 420 × 900 viewport with its Send footer visible while the item list scrolls.
+
+The final main regression confirms that movable image points, complete saved photos, exact selections, and restoration still work with the new shopping controls. Portrait/landscape placement, image sizing, Show full palette, and the leftmost All palettes control are retained. The repository preview is an original geometric portrait fixture with no personal image or account data. Its account-status display comes from an intercepted test session.
+
+### Direct cart verification and limits
+
+The main palette and saved-cart controls share the existing signed-in direct-cart action and transaction journal. Native tests verify a fresh signed-out result blocks sending, an authenticated fixture sends the exact variant IDs and quantities once, existing website cart quantities are preserved, and the just-sent selection cannot be added again through a repeated click or reopen. The form suite independently sent one sheet order and one Fine-frit order, producing exactly two authenticated fixture POSTs with the expected real catalog variants. Settings and editing operations produced none.
+
+The 125-test suite also retains uncertain-response, partial-stock, lost-response recovery, concurrent-click, interrupted-worker, and replay protection checks. No live personal Bullseye account or cart was used. These results verify the extension in disposable native Chrome profiles with intercepted store traffic; Bullseye remains responsible for live stock, final prices, and accepting the selected quantities.
+
+The thickness header remains **100% thickness = 6 mm solid glass, 16 mm fine frit**. Percentages are the requested estimate from photographed color strength, not a newly measured sheet or frit-depth calibration. They never change full-color match scores.
+
+Replace files in the same installed unpacked extension folder, click **Reload** at `chrome://extensions`, refresh already-open source pages, and reopen the picker. Keeping the same extension installation preserves profile-local saved palettes, saved carts, and settings. Publishing GitHub alone does not reload an installed unpacked copy.
+
+---
+
+## Version 0.3.0 — historical
+
+Verified on 2026-10-18 with Node 24.19.0, Python/Pillow, and an isolated Google Chrome for Testing 155.0.8059.84 profile. This section retains the results and catalog size of version 0.3.0.
 
 ### Repeatable checks
 

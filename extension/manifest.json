@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Bullseye Palette Picker",
-  "version": "0.3.0",
-  "description": "Pick and move photo colors, match real Bullseye medium frit, save palettes, and send selected jars to your signed-in cart.",
+  "version": "0.4.0",
+  "description": "Match photo colors to Bullseye sheets or frit, save palettes and carts, and send selected glass to your signed-in cart.",
   "minimum_chrome_version": "116",
   "permissions": ["contextMenus", "sidePanel", "storage", "activeTab", "scripting"],
   "host_permissions": ["https://shop.bullseyeglass.com/*"],

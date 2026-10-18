@@ -27,7 +27,26 @@ for (const file of [manifest.background.service_worker, manifest.side_panel.defa
 
 const catalog = readJson('data/catalog.json');
 const seed = JSON.parse(fs.readFileSync(path.join(root, 'scripts/catalog-seed.json'), 'utf8'));
-assert.equal(catalog.version, manifest.version, 'The bundled catalog must match this release.');
+// UI-only patches reuse the reviewed catalog without relabeling its source data.
+assert.equal(catalog.version, '0.3.0', 'This release uses the reviewed 0.3.0 catalog.');
+const formats=readJson('data/product-formats.json');
+assert.equal(formats.version,1);
+assert.equal(formats.colorGuideVersion,catalog.version);
+assert.equal(formats.colorGuideSha256,createHash('sha256').update(fs.readFileSync(path.join(extension,'data/catalog.json'))).digest('hex'),
+  'Purchase forms must use this exact reviewed color guide.');
+assert.deepEqual(Object.keys(formats.products).sort(),catalog.products.map(product=>product.id).sort());
+const purchaseVariants=new Set();
+for(const product of catalog.products)for(const form of ['sheets','powder','fine','medium','coarse']){
+  const entry=formats.products[product.id][form];assert.equal(entry.form,form);
+  assert.ok(Array.isArray(entry.variants));
+  if(entry.missing){assert.equal(entry.variants.length,0);assert.ok(entry.reason);}
+  for(const variant of entry.variants){
+    assert.ok(Number.isSafeInteger(variant.id)&&variant.id>0&&!purchaseVariants.has(variant.id));purchaseVariants.add(variant.id);
+    assert.ok(variant.sku.startsWith(product.id+'-'));assert.equal(variant.form,form);
+    assert.equal(variant.productUrl,`https://shop.bullseyeglass.com/products/${variant.handle}`);
+  }
+}
+assert.equal(purchaseVariants.size,Object.values(formats.counts).reduce((sum,count)=>sum+count.variants,0));
 assert.deepEqual(catalog.products.map(product => product.handle).sort(), seed.products.map(product => product.handle).sort(),
   'Every reviewed, in-scope product must be included exactly once.');
 assert.equal(catalog.products.length + seed.discovery.excludedProducts.length, seed.discovery.mediumFritProductCount,
@@ -105,4 +124,4 @@ for (const match of html.matchAll(/(?:src|href)=["']([^"']+)["']/g)) {
   if (/^(?:https?:|data:|#)/.test(match[1])) continue;
   assert.ok(fs.existsSync(path.join(extension, match[1].split('?')[0])), `Missing HTML asset ${match[1]}`);
 }
-console.log(`Verified Manifest V3, module syntax/imports, ${ids.size} colored and neutral medium-frit glasses, ${samples} eligible full-color samples, and ${variants.size} real jar variants.`);
+console.log(`Verified Manifest V3, module syntax/imports, ${ids.size} shared glass colors, ${samples} full-color samples, and ${purchaseVariants.size} real sheet/frit variants across five forms.`);

@@ -12,14 +12,20 @@ import {rgbToLab, rgbToHex} from './lib/color.js';
 import {extractPalette, matchCatalog, sampleThickness as measureSampleThickness} from './lib/palette.js';
 import * as bridge from './lib/extension.js';
 import {listPalettes, savePalette, loadPalette, deletePalette} from './lib/saved-palettes.js';
+import {availableVariant, emptySelection, restoreSelection, reconcileSelection, setItemSelected, changeSelectedVariant} from './lib/selection.js';
+import {initializeCartLibrary} from './lib/cart-library.js';
+import {normalizeCartItems} from './lib/saved-carts.js';
+import {FORM_OPTIONS, normalizeForm, productForForm, defaultFormatVariant} from './lib/product-formats.js';
+import {loadSettings, saveSettings, normalizeSettings} from './lib/settings.js';
 
 const $ = id => document.getElementById(id);
 const MAX_TARGETS = 20;
 const state = {
-  products: [], sourceDataUrl: '', sourceName: '', sourceUrl: '', sourceThumbnail: '', imageData: null,
+  products: [], baseProducts: [], formatIndex: null, format:'medium', preferredJarSize:'5lb',
+  sourceDataUrl: '', sourceName: '', sourceUrl: '', sourceThumbnail: '', imageData: null,
   paletteCount: 6, targets: [], activeTargetId: null,
   glassTypes: {transparent: true, opalescent: true}, imageSize: 'fit',
-  view: 'palette', query: '', selectedVariants: {}, quantities: {}, chosenMatches: {}, cart: [],
+  view: 'palette', query: '', selectedVariants: {}, quantities: {}, chosenMatches: {}, cart: [], selection: emptySelection(),
   lastPendingImageAt: 0, savedPaletteId: null, savedPaletteName: '',
   account: {signedIn: null, status: 'checking'}, sending: false,
   sentCartFingerprint: '', cartUnconfirmed: '',
@@ -34,6 +40,8 @@ let imageLoadId = 0, cancellingImageId = 0, manualTargetId = 0;
 let captureBase = null, captureSelection = null, captureStart = null;
 let emptyAction = null, pendingReceivedThisSession = false;
 let draggingPoint = null, pointRenderFrame = 0, accountCheck = null, lastAccountCheck = 0;
+let cartLibrary = null, sendingFingerprint = '';
+let savedSettingsFingerprint = '', settingsSaving = false;
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -55,27 +63,80 @@ function sampleThickness(sample, product) { const value = measureSampleThickness
 function sampleLabel(product, sample) { const thickness = sampleThickness(sample, product); return thickness === null ? `${product.name} · Thickness unavailable` : `${product.name} at ${thickness}% thickness`; }
 function variantKey(product, variant) { return `${product.id}:${String(variant.id || variant.sku)}`; }
 function getProduct(id) { return state.products.find(product => product.id === id); }
-function getVariant(product, id) { return product?.variants?.find(variant => String(variant.id) === String(id)); }
+function getVariant(product, id) { return product?.variants?.find(variant => String(variant.id) === String(id)) || product?.allVariants?.find(variant => String(variant.id) === String(id)); }
 function currentVariant(product) {
-  return getVariant(product, state.selectedVariants[product.id])
-    || product.variants?.find(variant => variant.available && /5\s*oz/i.test(variant.title))
-    || product.variants?.find(variant => variant.available) || product.variants?.[0] || null;
+  return defaultFormatVariant(product,state.format,state.selectedVariants[product.id],state.preferredJarSize)
+    || product.variants?.find(variant=>String(variant.id)===String(state.selectedVariants[product.id])) || product.variants?.[0] || null;
 }
+function purchaseCode(product, variant = currentVariant(product)) { return variant?.sku?.split('-').slice(0,3).join('-') || product.code; }
+function cartUnits(items) { return items.some(item=>item.form==='sheets')?'items':'jars'; }
 function selectedItem(product, variant) { return variant && state.cart.find(item => variantKey(product, variant) === item.key); }
-function cartFingerprint() { return JSON.stringify(state.cart.map(item => [String(item.variantId), item.quantity]).sort((a,b) => a[0].localeCompare(b[0]))); }
+function cartFingerprint(items = state.cart) { return JSON.stringify(items.map(item => [String(item.variantId), item.quantity]).sort((a,b) => a[0].localeCompare(b[0]))); }
+function cartSendState(items) {
+  const fingerprint = cartFingerprint(items);
+  return {busy:state.sending, sending:state.sending && sendingFingerprint === fingerprint,
+    sent:Boolean(items.length && state.sentCartFingerprint === fingerprint),
+    uncertain:Boolean(items.length && state.cartUnconfirmed === fingerprint)};
+}
+function currentSettings() { return normalizeSettings({format:state.format,preferredJarSize:state.preferredJarSize,glassTypes:state.glassTypes,paletteCount:state.paletteCount,imageSize:state.imageSize}); }
+function renderSettings() {
+  for (const option of FORM_OPTIONS) {
+    const button=$(`form-${option.id}`);button.setAttribute('aria-pressed',String(state.format===option.id));button.disabled=!state.products.length;
+  }
+  $('preferred-jar-size').value=state.preferredJarSize;
+  $('preferred-jar-size').disabled=!state.products.length||state.format==='sheets';
+  $('save-settings').disabled=!state.products.length||settingsSaving;
+  $('save-settings').textContent=settingsSaving?'Saving…':'Save settings';
+  const unchanged=savedSettingsFingerprint===JSON.stringify(currentSettings());
+  $('settings-status').textContent=savedSettingsFingerprint?(unchanged?'Settings saved':'Settings changed'):'';
+}
+function rebuildProducts() {
+  state.products=state.baseProducts.map(product=>productForForm(product,state.formatIndex,state.format));
+  matchCache.clear();
+}
+function changePurchaseOptions(form, preferredJarSize=state.preferredJarSize, forceSize=false) {
+  if(state.sending){notify('Wait for the current cart addition to finish.');return;}
+  const nextForm=normalizeForm(form),products=state.baseProducts.map(product=>productForForm(product,state.formatIndex,nextForm));
+  const selectedVariants={...state.selectedVariants};
+  if(forceSize)for(const product of products)delete selectedVariants[product.id];
+  const items=[],skipped=[];let selection=state.selection;
+  try {
+    for(const item of state.cart){
+      const product=products.find(product=>product.id===item.productId);
+      const variant=defaultFormatVariant(product,nextForm,selectedVariants[product?.id],preferredJarSize);
+      if(!variant){skipped.push(item.name);selection={...selection,manualKeys:selection.manualKeys.filter(key=>key!==item.key)};continue;}
+      const updated=makeCartItem(product,variant,item.quantity);items.push(updated);
+      selection=changeSelectedVariant(selection,item.key,updated.key);selectedVariants[product.id]=String(variant.id);
+    }
+    const cart=normalizeCartItems(items);
+    state.format=nextForm;state.preferredJarSize=preferredJarSize;state.products=products;
+    state.selectedVariants=selectedVariants;state.selection=selection;state.cart=cart;matchCache.clear();
+    for(const item of cart)state.quantities[item.key]=item.quantity;
+    if(detailProduct)$('detail-dialog').close();
+    reconcilePaletteSelection();renderAll();persist();
+    if(skipped.length)notify(`No available ${FORM_OPTIONS.find(option=>option.id===nextForm).grain.toLowerCase()} size for ${[...new Set(skipped)].join(', ')}. Those sizes are not selected.`,false,7500);
+  } catch(error){notify(error.message||'The purchase options could not change.',true);}
+}
+async function saveCurrentSettings() {
+  if(settingsSaving)return;settingsSaving=true;renderSettings();
+  try{const saved=await saveSettings(currentSettings());savedSettingsFingerprint=JSON.stringify(saved);notify('Settings saved: glass form, jar size, glass types, starting colors, and image size.');}
+  catch(error){notify(error.message||'These settings could not be saved.',true);}
+  finally{settingsSaving=false;renderSettings();}
+}
 function workspaceSnapshot() {
   return {
-    version:3, sourceDataUrl:state.sourceDataUrl, sourceName:state.sourceName, sourceUrl:state.sourceUrl,
+    version:4, format:state.format, preferredJarSize:state.preferredJarSize,
+    sourceDataUrl:state.sourceDataUrl, sourceName:state.sourceName, sourceUrl:state.sourceUrl,
     thumbnailDataUrl:state.sourceThumbnail, glassTypes:state.glassTypes, imageSize:state.imageSize, imageLayout:'auto',
     paletteCount:state.paletteCount, targets:state.targets, activeTargetId:state.activeTargetId,
     view:state.view, selectedVariants:state.selectedVariants,
-    quantities:state.quantities, chosenMatches:state.chosenMatches, cart:state.cart,
+    quantities:state.quantities, chosenMatches:state.chosenMatches, cart:state.cart, selection:state.selection,
     lastPendingImageAt:state.lastPendingImageAt, savedPaletteId:state.savedPaletteId,
     savedPaletteName:state.savedPaletteName, sentCartFingerprint:state.sentCartFingerprint,
     cartUnconfirmed:state.cartUnconfirmed,
   };
 }
-function persist() { clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 250); }
+function persist() { renderSettings(); clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 250); }
 async function flushSave() {
   if (!saveTimer) return; clearTimeout(saveTimer); saveTimer = undefined;
   try { await bridge.saveState(workspaceSnapshot()); }
@@ -92,6 +153,9 @@ function normalizeTarget(target, index = 0) {
 }
 function restoreWorkspace(saved) {
   if (!saved || typeof saved !== 'object') return;
+  state.format = normalizeForm(saved.format || 'medium');
+  if (['5lb','1lb','5oz'].includes(saved.preferredJarSize)) state.preferredJarSize=saved.preferredJarSize;
+  rebuildProducts();
   state.paletteCount = clamp(Math.round(Number(saved.paletteCount) || 6), 2, 12);
   state.glassTypes = {
     transparent: saved.glassTypes?.transparent !== false,
@@ -113,9 +177,12 @@ function restoreWorkspace(saved) {
   for (const previous of Array.isArray(saved.cart) ? saved.cart : []) {
     const product = getProduct(previous.productId), variant = getVariant(product, previous.variantId);
     if (!product || !variant) continue;
+    if (!state.selectedVariants[product.id]) state.selectedVariants[product.id] = String(variant.id);
     const item = makeCartItem(product, variant, previous.quantity), existing = state.cart.find(entry => entry.key === item.key);
     if (existing) existing.quantity = clamp(existing.quantity + item.quantity,1,999); else state.cart.push(item);
   }
+  state.selection = restoreSelection(saved.selection, selectionSuggestions(), state.cart);
+  reconcilePaletteSelection();
 }
 
 function renderPalette() {
@@ -157,7 +224,8 @@ function renderImageLayout() {
   const stage = $('image-stage');
   const availableWidth = Math.max(1, stage.clientWidth - 2);
   const beside = portrait && window.innerWidth >= 900;
-  const fitHeight = beside ? Math.max(360, window.innerHeight - 112) : Math.max(220, Math.min(360, window.innerHeight * .34));
+  const settingsHeight = document.querySelector('.global-settings')?.offsetHeight || 0;
+  const fitHeight = beside ? Math.max(300, window.innerHeight - 112 - settingsHeight) : Math.max(220, Math.min(360, window.innerHeight * .34));
   const maxHeight = state.imageSize === 'full' ? Infinity : state.imageSize === 'larger' ? fitHeight * 1.65 : fitHeight;
   const scale = Math.min(availableWidth / sourceCanvas.width, maxHeight / sourceCanvas.height);
   const width = sourceCanvas.width * scale, height = sourceCanvas.height * scale;
@@ -241,13 +309,13 @@ function movePointDrag(event) {
   const target = state.targets.find(entry => entry.id === draggingPoint.id);
   if (!target || !setPointColor(target,pointerPoint(event,true))) return;
   renderPoints();
-  if (!pointRenderFrame) pointRenderFrame = requestAnimationFrame(() => { pointRenderFrame=0; renderPalette(); renderResults(); });
+  if (!pointRenderFrame) pointRenderFrame = requestAnimationFrame(() => { pointRenderFrame=0; reconcilePaletteSelection(); renderPalette(); renderResults(); });
 }
 function finishPointDrag(event) {
   if (!draggingPoint || event.pointerId !== draggingPoint.pointerId) return;
   event.currentTarget.classList.remove('is-dragging');
   if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-  draggingPoint = null; renderPalette(); renderResults(); persist();
+  draggingPoint = null; reconcilePaletteSelection(); renderPalette(); renderResults(); persist();
 }
 function nudgePoint(event,id) {
   const target = state.targets.find(entry=>entry.id===id);
@@ -260,7 +328,7 @@ function nudgePoint(event,id) {
   if (event.key==='ArrowUp') point.y -= step/sourceCanvas.height;
   if (event.key==='ArrowDown') point.y += step/sourceCanvas.height;
   point.x=clamp(point.x,0,1);point.y=clamp(point.y,0,1);
-  if (setPointColor(target,point)) {renderPalette();renderResults();persist();}
+  if (setPointColor(target,point)) {reconcilePaletteSelection();renderPalette();renderResults();persist();}
 }
 function nearestSourcePoint(rgb) {
   if (!state.imageData) return null;
@@ -292,7 +360,19 @@ function matchesFor(target) {
 }
 function primaryMatch(target) {
   const matches=matchesFor(target), chosen=state.chosenMatches[target.id];
-  return matches.find(entry=>entry.product.id===chosen) || matches[0] || null;
+  return matches.find(entry=>entry.product.id===chosen)
+    || matches.find(entry=>defaultFormatVariant(entry.product,state.format,state.selectedVariants[entry.product.id],state.preferredJarSize)) || matches[0] || null;
+}
+function selectionSuggestions() {
+  return state.targets.map(target => {
+    const product=primaryMatch(target)?.product, variant=product&&currentVariant(product);
+    return {targetId:target.id, item:variant?makeCartItem(product,variant,state.quantities[variantKey(product,variant)]||1):null};
+  });
+}
+function reconcilePaletteSelection() {
+  const result=reconcileSelection(state.selection,selectionSuggestions(),state.cart,{freeze:!state.glassTypes.transparent&&!state.glassTypes.opalescent});
+  state.selection=result.selection;state.cart=result.cart;
+  renderCart();if(detailProduct)renderDetailPurchase();
 }
 function renderResults() {
   const focusedKey=document.activeElement?.dataset?.focusKey;
@@ -311,7 +391,7 @@ function renderResults() {
   }
   const products=includedProducts();
   $('library-count').textContent=String(products.length);
-  $('catalog-scope').textContent=`${products.length} colors · Medium frit`;
+  $('catalog-scope').textContent=`${products.length} colors · ${FORM_OPTIONS.find(option=>option.id===state.format).grain}`;
   $('results-title').textContent=state.view==='library'?'All Bullseye colors':'Bullseye colors for your palette';
   $('alternatives-heading').hidden=state.view!=='alternatives';
   const target=activeTarget();
@@ -351,27 +431,28 @@ function renderProduct(entry) {
   const {product,sample,target}=entry,variant=currentVariant(product);
   const row=element('article',`product-card${selectedItem(product,variant)?' is-selected':''}`);row.dataset.productId=product.id;if(target)row.dataset.targetId=target.id;
   const photo=element('button','photo-button');photo.type='button';photo.setAttribute('aria-label',`Inspect ${product.name} color photograph`);photo.append(photoElement(product,sample));photo.addEventListener('click',()=>openDetail(product,sample));
-  const body=element('div','product-card-content');body.append(element('h3','product-name',product.name),element('p','product-code',product.code));
+  const body=element('div','product-card-content');body.append(element('h3','product-name',product.name),element('p','product-code',purchaseCode(product,variant)));
   if (sample) {
     const label=element('p','match-label'),swatch=element('span','small-swatch'),thickness=sampleThickness(sample,product);swatch.style.backgroundColor=sample.hex||colorHex(sample.rgb);label.title='Photo-based thickness estimate; see the reference guide at the top.';
     if(target)label.append(element('span','target-tag',`Color ${targetNumber(target)}`));
     label.append(swatch,element('span','',thickness===null?'Thickness unavailable':`${thickness}% thickness`));body.append(label);
     const quality=element('p','match-quality',entry.deltaE<=5?'Very close match':state.view==='alternatives'?'Alternative color':state.chosenMatches[target?.id]===product.id?'Chosen color':'Closest available color');quality.title=`Full-color difference: ${Number(entry.deltaE).toFixed(1)} ΔE00`;
     if (target && state.view==='palette') {const alternatives=element('button','row-alternatives','Alternatives');alternatives.type='button';alternatives.addEventListener('click',()=>showAlternatives(target.id));quality.append(alternatives);}
-    else if(target && state.view==='alternatives') {const choose=element('button','row-alternatives','Use for this color');choose.type='button';choose.addEventListener('click',()=>{state.chosenMatches[target.id]=product.id;setView('palette');});quality.append(choose);}
+    else if(target && state.view==='alternatives') {const choose=element('button','row-alternatives','Use for this color');choose.type='button';choose.addEventListener('click',()=>{state.chosenMatches[target.id]=product.id;reconcilePaletteSelection();setView('palette');});quality.append(choose);}
     body.append(quality);
   } else {
     const strip=element('div','sample-strip');strip.setAttribute('aria-label',`Sampled colors for ${product.name}`);
     for(const photographed of product.samples||[]){const swatch=element('span');swatch.style.backgroundColor=photographed.hex||colorHex(photographed.rgb);swatch.title=sampleLabel(product,photographed);strip.append(swatch);}body.append(strip);
   }
   body.append(element('p','product-sample-caption',`${product.type || 'Glass'} · ${product.grain || 'Medium frit'}`));
+  if(product.formatMissing)body.append(element('p','format-note',`No ${state.format==='sheets'?'sheet':state.format+' frit'} option for this color.`));
   row.append(photo,body,purchaseControls(product,false,target?.id));return row;
 }
 
 function variantSelect(product,chosen,onChange,focusKey) {
-  const select=element('select','variant-select');select.setAttribute('aria-label',`Jar size for ${product.name}`);if(focusKey)select.dataset.focusKey=focusKey;
+  const select=element('select','variant-select');select.setAttribute('aria-label',`${product.form==='sheets'?'Sheet size':'Jar size'} for ${product.name}`);if(focusKey)select.dataset.focusKey=focusKey;
   for(const variant of product.variants||[]){const option=element('option','',`${variant.title}${variant.available?'':' · unavailable'}`);option.value=String(variant.id);option.disabled=!variant.available;option.selected=String(variant.id)===String(chosen?.id);select.append(option);}
-  if(!product.variants?.length)select.append(element('option','','See Bullseye for sizes'));select.disabled=!product.variants?.some(variant=>variant.available);
+  if(!product.variants?.length)select.append(element('option','','Unavailable in this form'));select.disabled=!product.variants?.some(variant=>variant.available);
   select.addEventListener('change',()=>onChange(select.value));return select;
 }
 function purchaseControls(product,inDetail=false,targetId='') {
@@ -380,7 +461,7 @@ function purchaseControls(product,inDetail=false,targetId='') {
   const select=variantSelect(product,variant,value=>{
     const old=selectedItem(product,currentVariant(product));
     state.selectedVariants[product.id]=value;
-    if(old)changeCartVariant(old.key,value);else{renderResults();if(detailProduct?.id===product.id)renderDetailPurchase();persist();}
+    if(old)changeCartVariant(old.key,value);else{reconcilePaletteSelection();renderResults();if(detailProduct?.id===product.id)renderDetailPurchase();persist();}
   },`${focusPrefix}-variant`);
   const quantity=element('input','quantity-field');quantity.type='number';quantity.min='1';quantity.max='999';quantity.step='1';quantity.value=selected?.quantity||state.quantities[variantKey(product,variant||{})]||1;quantity.title='Quantity';quantity.dataset.quantityKey=variantKey(product,variant||{});quantity.dataset.focusKey=`${focusPrefix}-quantity`;quantity.setAttribute('aria-label',`Quantity of ${product.name}`);quantity.disabled=!variant?.available;
   quantity.addEventListener('change',()=>{const amount=clamp(Math.round(Number(quantity.value)||1),1,999);state.quantities[variantKey(product,variant||{})]=amount;if(selected)changeQuantity(selected.key,amount);else{syncQuantityControls(variantKey(product,variant||{}),amount);persist();}});
@@ -388,13 +469,16 @@ function purchaseControls(product,inDetail=false,targetId='') {
   checkbox.addEventListener('change',()=>toggleGlass(product,variant));label.append(checkbox,element('span','',selected?'Selected':'Select'));
   row.append(element('span','product-price',variant?money(variant.price):'View item'),label);controls.append(select,quantity,row);return controls;
 }
-function makeCartItem(product,variant,quantity=1) {return {key:variantKey(product,variant),productId:product.id,variantId:variant.id,sku:variant.sku,name:product.name,image:product.image,title:variant.title,price:Number(variant.price)||0,available:Boolean(variant.available),quantity:clamp(Math.round(Number(quantity)||1),1,999)};}
+function makeCartItem(product,variant,quantity=1) {return {key:variantKey(product,variant),productId:product.id,variantId:variant.id,form:variant.form||product.form||'medium',sku:variant.sku,name:product.name,image:product.image,title:variant.title,price:Number(variant.price)||0,available:Boolean(variant.available),quantity:clamp(Math.round(Number(quantity)||1),1,999)};}
 function toggleGlass(product,variant) {
   if(!variant)return;const key=variantKey(product,variant),index=state.cart.findIndex(item=>item.key===key);
-  if(index!==-1)state.cart.splice(index,1);else state.cart.push(makeCartItem(product,variant,state.quantities[key]||1));
-  renderResults();renderCart();if(detailProduct)renderDetailPurchase();persist();
+  if(index!==-1){removeCartItem(key);return;}
+  if(!availableVariant({variants:[variant]}))return;
+  state.cart.push(makeCartItem(product,variant,state.quantities[key]||1));
+  state.selection=setItemSelected(state.selection,key,true);
+  reconcilePaletteSelection();renderResults();persist();
 }
-function removeCartItem(key) {state.cart=state.cart.filter(item=>item.key!==key);renderResults();renderCart();if(detailProduct)renderDetailPurchase();persist();}
+function removeCartItem(key) {state.selection=setItemSelected(state.selection,key,false);state.cart=state.cart.filter(item=>item.key!==key);reconcilePaletteSelection();renderResults();persist();}
 function syncQuantityControls(key, amount) {
   for (const input of document.querySelectorAll('[data-quantity-key]')) {
     if (input.dataset.quantityKey === key) input.value = amount;
@@ -412,14 +496,15 @@ function changeQuantity(key, quantity) {
   syncQuantityControls(key, item.quantity); renderCartSummary(); persist();
 }
 function changeCartVariant(key,variantId) {
-  const index=state.cart.findIndex(item=>item.key===key);if(index<0)return;const current=state.cart[index],product=getProduct(current.productId),variant=getVariant(product,variantId);if(!variant)return;
+  const index=state.cart.findIndex(item=>item.key===key);if(index<0)return;const current=state.cart[index],product=getProduct(current.productId),variant=getVariant(product,variantId);if(!availableVariant({variants:[variant]}))return;
   const updated=makeCartItem(product,variant,current.quantity),existing=state.cart.find(item=>item.key===updated.key&&item.key!==key);
   if(existing){existing.quantity=clamp(existing.quantity+updated.quantity,1,999);state.cart.splice(index,1);}else state.cart[index]=updated;
-  state.selectedVariants[product.id]=variantId;state.quantities[updated.key]=updated.quantity;renderResults();renderCart();if(detailProduct)renderDetailPurchase();persist();
+  state.selection=changeSelectedVariant(state.selection,key,updated.key);
+  state.selectedVariants[product.id]=variantId;state.quantities[updated.key]=existing?.quantity||updated.quantity;reconcilePaletteSelection();renderResults();persist();
 }
 function renderCartSummary() {
   const count=new Set(state.cart.map(item=>item.productId)).size,jars=state.cart.reduce((sum,item)=>sum+item.quantity,0),total=state.cart.reduce((sum,item)=>sum+item.quantity*item.price,0);
-  $('cart-count').textContent=count;$('open-cart').setAttribute('aria-label',`Review selected glass, ${count} colors and ${jars} jars`);$('selection-total').textContent=count?` · ${money(total)}`:'';$('cart-total').textContent=money(total);$('cart-empty').hidden=!!state.cart.length;$('cart-bottom').hidden=!state.cart.length;
+  $('cart-count').textContent=count;$('open-cart').setAttribute('aria-label',`Review selected glass, ${count} colors and ${jars} ${cartUnits(state.cart)}`);$('selection-total').textContent=count?` · ${money(total)}`:'';$('cart-total').textContent=money(total);$('cart-empty').hidden=!!state.cart.length;$('cart-bottom').hidden=!state.cart.length;
   renderSendButtons();
 }
 function renderCart() {
@@ -434,6 +519,7 @@ function renderSendButtons() {
   const uncertain=state.cartUnconfirmed===fingerprint;
   $('view-bullseye-cart').hidden=!sent&&!uncertain;
   for(const id of ['send-to-cart','send-cart-dialog']){$(id).disabled=!state.cart.length||state.sending||!!sent||uncertain;$(id).textContent=state.sending?'Adding to cart…':sent?'Added to cart ✓':uncertain?'Check your cart':'Send to my cart';}
+  cartLibrary?.refresh();
 }
 function renderAccount() {
   const account=state.account,status=$('account-status');status.classList.toggle('is-signed-in',account.signedIn===true);status.classList.toggle('is-error',account.signedIn===false);
@@ -445,27 +531,45 @@ async function checkAccount(force=false) {
   accountCheck=(async()=>{try{state.account=await bridge.getBullseyeAccount();}catch(error){state.account={signedIn:null,status:'unknown',message:error.message};}finally{renderAccount();accountCheck=null;}})();return accountCheck;
 }
 async function signIn() {try{await bridge.signInToBullseye();notify('Sign in on Bullseye, then return here to send your glass.');}catch(error){notify(error.message||'Bullseye sign-in could not open.',true);}}
+async function sendCartItems(selection) {
+  if(state.sending)throw new Error('A cart addition is already in progress.');
+  const jars=normalizeCartItems(selection);
+  if(!jars.length)throw new Error('Add at least one jar to this cart.');
+  const fingerprint=cartFingerprint(jars);
+  if(state.sentCartFingerprint===fingerprint)throw new Error('These jars have already been added. View your Bullseye cart.');
+  if(state.cartUnconfirmed===fingerprint)throw new Error('Check your Bullseye cart before sending these jars again.');
+  const invalid=jars.find(item=>!getVariant(getProduct(item.productId),item.variantId)?.available);
+  if(invalid)throw new Error(`Choose an available jar size for ${invalid.name || invalid.productId}.`);
+  const items=jars.map(item=>({variantId:Number(item.variantId),quantity:item.quantity}));
+  state.sending=true;sendingFingerprint=fingerprint;renderSendButtons();
+  try{
+    const result=await bridge.sendToCart(items);
+    if(!result?.added)throw new Error('Bullseye did not confirm the cart addition.');
+    state.sentCartFingerprint=fingerprint;state.account={signedIn:true,status:'signed_in'};persist();return result;
+  }catch(error){
+    if(error.authRequired)state.account=error.account||{signedIn:error.code==='SIGN_IN_REQUIRED'?false:null,status:error.code==='SIGN_IN_REQUIRED'?'signed_out':'unknown'};
+    if(error.uncertain){state.cartUnconfirmed=fingerprint;persist();}
+    throw error;
+  }finally{state.sending=false;sendingFingerprint='';renderAccount();}
+}
 async function sendSelection() {
   if(state.sending||!state.cart.length||state.cartUnconfirmed===cartFingerprint()||state.sentCartFingerprint===cartFingerprint())return;
-  const invalid=state.cart.find(item=>!getVariant(getProduct(item.productId),item.variantId)?.available);if(invalid){notify(`Choose an available jar size for ${invalid.name}.`,true);return;}
-  const fingerprint=cartFingerprint(),items=state.cart.map(item=>({variantId:Number(item.variantId),quantity:item.quantity}));
-  state.sending=true;renderSendButtons();
-  try{const result=await bridge.sendToCart(items);if(!result?.added)throw new Error('Bullseye did not confirm the cart addition.');state.sentCartFingerprint=fingerprint;state.account={signedIn:true,status:'signed_in'};$('cart-dialog').close();notify(`${result.itemCount||items.reduce((sum,item)=>sum+item.quantity,0)} jars added to your Bullseye cart.`,false,7000);persist();}
-  catch(error){if(error.authRequired){state.account=error.account||{signedIn:error.code==='SIGN_IN_REQUIRED'?false:null,status:error.code==='SIGN_IN_REQUIRED'?'signed_out':'unknown'};$('cart-dialog').close();}if(error.uncertain){state.cartUnconfirmed=fingerprint;$('cart-dialog').close();persist();}notify(error.message||'Your glass could not be added to Bullseye.',true,9000);}
-  finally{state.sending=false;renderAccount();}
+  const jars=state.cart.map(item=>({...item}));
+  try{const result=await sendCartItems(jars);$('cart-dialog').close();notify(`${result.itemCount||jars.reduce((sum,item)=>sum+item.quantity,0)} ${cartUnits(jars)} added to your Bullseye cart.`,false,7000);}
+  catch(error){if(error.authRequired||error.uncertain)$('cart-dialog').close();notify(error.message||'Your glass could not be added to Bullseye.',true,9000);}
 }
 function orderLines(){const quantities=new Map();for(const item of state.cart)if(item.sku)quantities.set(item.sku,(quantities.get(item.sku)||0)+item.quantity);return Array.from(quantities,([sku,quantity])=>`${sku} ${quantity}`).join('\n');}
 async function copyOrder(){try{await navigator.clipboard.writeText(orderLines());notify('SKU list copied.');}catch{notify('This browser could not copy the list.',true);}}
 
-function renderAll(){renderImageLayout();renderPalette();renderResults();renderCart();renderAccount();}
+function renderAll(){renderSettings();renderImageLayout();renderPalette();renderResults();renderCart();renderAccount();}
 function setView(view){state.view=view;if(view==='palette'){state.query='';$('glass-search').value='';}renderResults();persist();}
 function selectTarget(id){state.activeTargetId=id;if(state.view==='library')state.view='palette';renderPalette();renderResults();persist();}
 function showAlternatives(id){state.activeTargetId=id;state.view='alternatives';renderPalette();renderResults();persist();}
-function removeTarget(id){const index=state.targets.findIndex(target=>target.id===id);state.targets=state.targets.filter(target=>target.id!==id);delete state.chosenMatches[id];if(!activeTarget())state.activeTargetId=state.targets[Math.max(0,index-1)]?.id||null;renderPalette();renderResults();persist();}
-function addTarget(rgb,point=null){if(state.targets.length>=MAX_TARGETS){notify(`Remove a color before adding more than ${MAX_TARGETS}.`,true);return null;}const target=normalizeTarget({id:`manual-${Date.now()}-${++manualTargetId}`,rgb,manual:true,...point});state.targets.push(target);state.activeTargetId=target.id;state.view='palette';renderPalette();renderResults();persist();return target;}
+function removeTarget(id){const index=state.targets.findIndex(target=>target.id===id);state.targets=state.targets.filter(target=>target.id!==id);delete state.chosenMatches[id];if(!activeTarget())state.activeTargetId=state.targets[Math.max(0,index-1)]?.id||null;reconcilePaletteSelection();renderPalette();renderResults();persist();}
+function addTarget(rgb,point=null){if(state.targets.length>=MAX_TARGETS){notify(`Remove a color before adding more than ${MAX_TARGETS}.`,true);return null;}const target=normalizeTarget({id:`manual-${Date.now()}-${++manualTargetId}`,rgb,manual:true,...point});state.targets.push(target);state.activeTargetId=target.id;state.view='palette';reconcilePaletteSelection();renderPalette();renderResults();persist();return target;}
 function createCustomTarget(){const rgb=activeTarget()?.rgb||[83,121,103],target=addTarget(rgb,nearestSourcePoint(rgb));if(target){target.custom=true;renderPalette();$('target-color').click();}}
-function editTarget(hex){const normalized=hex.startsWith('#')?hex:`#${hex}`;if(!/^#[0-9a-f]{6}$/i.test(normalized)){$('target-hex').setAttribute('aria-invalid','true');return false;}const target=activeTarget();if(!target)return false;target.rgb=[1,3,5].map(index=>parseInt(normalized.slice(index,index+2),16));target.hex=normalized.toUpperCase();target.lab=rgbToLab(target.rgb);target.manual=true;target.custom=true;target.weight=0;delete state.chosenMatches[target.id];renderPalette();renderResults();persist();return true;}
-function extractStartingColors(preserveManual=true){if(!state.imageData)return;const manual=preserveManual?state.targets.filter(target=>target.manual):[],manualHexes=new Set(manual.map(target=>target.hex));const extracted=extractPalette(state.imageData,{count:state.paletteCount}).map((target,index)=>normalizeTarget({...target,id:`auto-${index}-${colorHex(target.rgb)}`,manual:false})).filter(target=>!manualHexes.has(target.hex));state.targets=[...extracted.slice(0,MAX_TARGETS-manual.length),...manual];if(!activeTarget())state.activeTargetId=state.targets[0]?.id||null;renderPalette();renderResults();persist();}
+function editTarget(hex){const normalized=hex.startsWith('#')?hex:`#${hex}`;if(!/^#[0-9a-f]{6}$/i.test(normalized)){$('target-hex').setAttribute('aria-invalid','true');return false;}const target=activeTarget();if(!target)return false;target.rgb=[1,3,5].map(index=>parseInt(normalized.slice(index,index+2),16));target.hex=normalized.toUpperCase();target.lab=rgbToLab(target.rgb);target.manual=true;target.custom=true;target.weight=0;delete state.chosenMatches[target.id];reconcilePaletteSelection();renderPalette();renderResults();persist();return true;}
+function extractStartingColors(preserveManual=true){if(!state.imageData)return;const manual=preserveManual?state.targets.filter(target=>target.manual):[],manualHexes=new Set(manual.map(target=>target.hex));const extracted=extractPalette(state.imageData,{count:state.paletteCount}).map((target,index)=>normalizeTarget({...target,id:`auto-${index}-${colorHex(target.rgb)}`,manual:false})).filter(target=>!manualHexes.has(target.hex));state.targets=[...extracted.slice(0,MAX_TARGETS-manual.length),...manual];if(!activeTarget())state.activeTargetId=state.targets[0]?.id||null;reconcilePaletteSelection();renderPalette();renderResults();persist();}
 function changePaletteCount(value){state.paletteCount=clamp(Math.round(Number(value)||6),2,12);extractStartingColors(true);}
 function pickSourceColor(event){const point=pointerPoint(event);if(!point)return;const rgb=sampleImagePoint(point);if(!rgb){notify('That area is transparent. Pick a visible color.');return;}addTarget(rgb,point);}
 
@@ -483,7 +587,7 @@ async function loadImage(dataUrl,options={}){
     $('source-name').textContent=state.sourceName;$('source-name').title=state.sourceName;
     $('drop-zone').hidden=true;$('image-loaded').hidden=false;$('clear-image').hidden=false;$('replace-image').textContent='Replace';$('image-access-note').hidden=true;pendingAccessUrl='';
     renderImageLayout();
-    if(!options.restore||!state.targets.length){state.targets=[];state.activeTargetId=null;state.view='palette';state.chosenMatches={};state.savedPaletteId=null;state.savedPaletteName='';extractStartingColors(false);}
+    if(!options.restore||!state.targets.length){state.selection=emptySelection(state.selection.manualKeys);state.targets=[];state.activeTargetId=null;state.view='palette';state.chosenMatches={};state.savedPaletteId=null;state.savedPaletteName='';extractStartingColors(false);}
     else{for(const target of state.targets)if(!Number.isFinite(target.x)||!Number.isFinite(target.y))Object.assign(target,nearestSourcePoint(target.rgb)||{});renderAll();}
     persist();
   }catch(error){if(requestId!==imageLoadId)return;notify(error.message||'This image could not open.',true);console.warn('Image import failed:',error);}
@@ -495,7 +599,7 @@ async function beginManualImage(){
   return requestId===imageLoadId?requestId:null;
 }
 async function readFile(file){if(!file||!file.type.startsWith('image/')){notify('Choose a PNG, JPEG, WebP, or other image file.',true);return;}const requestId=await beginManualImage();if(requestId===null)return;const reader=new FileReader();reader.onload=()=>loadImage(String(reader.result),{name:file.name||'Pasted image',requestId});reader.onerror=()=>{if(requestId===imageLoadId)notify('The image file could not be read.',true);};reader.readAsDataURL(file);}
-async function clearImage(){const requestId=await beginManualImage();if(requestId===null)return;state.imageData=null;state.sourceDataUrl='';state.sourceName='';state.sourceUrl='';state.sourceThumbnail='';state.targets=[];state.activeTargetId=null;state.view='library';state.chosenMatches={};state.savedPaletteId=null;state.savedPaletteName='';sourceContext.clearRect(0,0,sourceCanvas.width,sourceCanvas.height);$('drop-zone').hidden=false;$('image-loaded').hidden=true;$('clear-image').hidden=true;$('replace-image').textContent='Choose image';$('source-name').textContent='Your image';$('image-access-note').hidden=true;renderAll();persist();}
+async function clearImage(){const requestId=await beginManualImage();if(requestId===null)return;state.imageData=null;state.sourceDataUrl='';state.sourceName='';state.sourceUrl='';state.sourceThumbnail='';state.targets=[];state.activeTargetId=null;state.view='library';state.chosenMatches={};state.savedPaletteId=null;state.savedPaletteName='';state.selection=emptySelection(state.selection.manualKeys);reconcilePaletteSelection();sourceContext.clearRect(0,0,sourceCanvas.width,sourceCanvas.height);$('drop-zone').hidden=false;$('image-loaded').hidden=true;$('clear-image').hidden=true;$('replace-image').textContent='Choose image';$('source-name').textContent='Your image';$('image-access-note').hidden=true;renderAll();persist();}
 async function handlePendingImage(pending){if(!pending||cancellingImageId)return;const updatedAt=Number(pending.updatedAt)||0;if(updatedAt&&updatedAt<=state.lastPendingImageAt)return;if(pending.dataUrl){pendingReceivedThisSession=true;if(updatedAt)state.lastPendingImageAt=updatedAt;await loadImage(pending.dataUrl,{name:pending.name||'Image from the web',sourceUrl:pending.sourceUrl});return;}if(pending.needsPermission&&pending.sourceUrl){pendingAccessUrl=pending.sourceUrl;$('image-access-copy').textContent='Allow access to read this photo, or use Capture.';$('allow-image-access').hidden=false;$('image-access-note').hidden=false;}else if(pending.error){$('image-access-copy').textContent=`${pending.error} Use Capture or choose a saved image.`;$('allow-image-access').hidden=true;$('image-access-note').hidden=false;}}
 async function pasteImage(){if(!navigator.clipboard?.read){notify('Press Ctrl+V with an image copied, or choose an image file.');return;}try{const items=await navigator.clipboard.read();for(const item of items){const type=item.types.find(entry=>entry.startsWith('image/'));if(type){await readFile(new File([await item.getType(type)],'Pasted image',{type}));return;}}notify('Copy an image, then paste it here.');}catch{notify('Press Ctrl+V with an image copied, or choose an image file.');}}
 
@@ -532,7 +636,7 @@ async function restoreSavedPalette(id){
   }catch(error){if(requestId===imageLoadId)notify(error.message||'This palette could not be loaded.',true);}
 }
 
-function openDetail(product,sample){detailProduct=product;detailSample=sample||[...(product.samples||[])].sort((a,b)=>sampleThickness(b,product)-sampleThickness(a,product))[0]||null;$('detail-code').textContent=`${product.code} · ${product.type||'Glass'} medium frit`;$('detail-title').textContent=product.name;$('detail-product-link').href=product.productUrl;renderDetailSample();renderDetailPurchase();$('detail-dialog').showModal();refreshProduct(product);}
+function openDetail(product,sample){detailProduct=product;detailSample=sample||[...(product.samples||[])].sort((a,b)=>sampleThickness(b,product)-sampleThickness(a,product))[0]||null;$('detail-title').textContent=product.name;renderDetailSample();renderDetailPurchase();$('detail-dialog').showModal();refreshProduct(product);}
 function renderDetailSample(){
   if(!detailProduct)return;
   $('detail-photo').replaceChildren(photoElement(detailProduct,detailSample));
@@ -547,8 +651,35 @@ function renderDetailSample(){
     button.addEventListener('click',()=>{detailSample=sample;renderDetailSample();});$('detail-samples').append(button);
   }
 }
-function renderDetailPurchase(){if(detailProduct)$('detail-purchase').replaceChildren(purchaseControls(detailProduct,true));}
-async function refreshProduct(product){if(Date.now()-(freshProducts.get(product.id)||0)<300000)return;freshProducts.set(product.id,Date.now());try{const updated=await bridge.fetchProductVariants(product.handle);if(!Array.isArray(updated?.variants)||!updated.variants.length)return;product.variants=updated.variants.map(variant=>({...variant,price:Number(variant.price)||0}));for(const item of state.cart.filter(entry=>entry.productId===product.id)){const variant=getVariant(product,item.variantId);if(variant)Object.assign(item,makeCartItem(product,variant,item.quantity));}renderResults();renderCart();if(detailProduct?.id===product.id)renderDetailPurchase();persist();}catch(error){console.info('Using bundled glass product information:',error);}}
+function renderDetailPurchase(){
+  if(!detailProduct)return;
+  $('detail-purchase').replaceChildren(purchaseControls(detailProduct,true));
+  const variant=currentVariant(detailProduct),url=variant?.productUrl||detailProduct.productUrl;
+  $('detail-code').textContent=`${purchaseCode(detailProduct,variant)} · ${detailProduct.type||'Glass'} · ${detailProduct.grain}`;
+  $('detail-product-link').hidden=!url;if(url)$('detail-product-link').href=url;
+}
+async function refreshProduct(product){
+  const handle=currentVariant(product)?.handle||product.handle,key=`${product.id}:${handle}`;
+  if(!handle||Date.now()-(freshProducts.get(key)||0)<300000)return;freshProducts.set(key,Date.now());
+  try{
+    const updated=await bridge.fetchProductVariants(handle);
+    if(!Array.isArray(updated?.variants)||!updated.variants.length)return;
+    const stock=new Map(updated.variants.map(variant=>[String(variant.id),variant]));
+    // Sheet forms combine several real product handles. Update only the
+    // requested source, retaining each variant's thickness, size, and form.
+    const merge=variants=>(variants||[]).map(variant=>{
+      if(variant.handle!==handle)return variant;
+      const fresh=stock.get(String(variant.id));
+      return fresh?{...variant,available:Boolean(fresh.available),price:Number(fresh.price)||0}:{...variant,available:false};
+    });
+    const entry=state.formatIndex?.products?.[product.id]?.[product.form];
+    if(entry){entry.variants=merge(entry.variants);entry.available=entry.variants.some(variant=>variant.available);}
+    const current=getProduct(product.id);if(!current)return;
+    current.variants=merge(current.variants);current.allVariants=merge(current.allVariants);
+    for(const item of state.cart.filter(entry=>entry.productId===product.id)){const variant=getVariant(current,item.variantId);if(variant)Object.assign(item,makeCartItem(current,variant,item.quantity));}
+    reconcilePaletteSelection();renderResults();persist();
+  }catch(error){console.info('Using bundled glass product information:',error);}
+}
 
 async function beginCapture() {
   const button = $('capture-image'); button.disabled = true;
@@ -605,6 +736,12 @@ async function useCapture(region = false) {
 }
 
 function bindEvents() {
+  cartLibrary=initializeCartLibrary({getProducts:()=>state.products,getSelection:()=>state.cart,
+    getSelectionName:()=>state.savedPaletteName||state.sourceName||'My cart',sendItems:sendCartItems,
+    getSendState:cartSendState,getAccount:()=>state.account,getPreferredJarSize:()=>state.preferredJarSize,signIn,notify});
+  for(const option of FORM_OPTIONS)$(`form-${option.id}`).addEventListener('click',()=>{if(state.format!==option.id)changePurchaseOptions(option.id);});
+  $('preferred-jar-size').addEventListener('change',event=>changePurchaseOptions(state.format,event.target.value,true));
+  $('save-settings').addEventListener('click',saveCurrentSettings);
   window.addEventListener('pagehide', flushSave);
   $('show-alternatives').addEventListener('click', () => { if (state.activeTargetId) showAlternatives(state.activeTargetId); });
   $('back-to-palette').addEventListener('click', () => setView('palette'));
@@ -656,7 +793,7 @@ function bindEvents() {
     });
   }
   for (const type of ['transparent','opalescent']) $(`include-${type}`).addEventListener('click', () => {
-    state.glassTypes[type] = !state.glassTypes[type]; renderResults(); persist();
+    state.glassTypes[type] = !state.glassTypes[type]; reconcilePaletteSelection(); renderResults(); persist();
   });
   $('glass-search').addEventListener('input', (event) => { state.query = event.target.value; renderResults(); });
   $('empty-action').addEventListener('click', () => emptyAction?.());
@@ -738,21 +875,29 @@ function bindEvents() {
 async function initialize() {
   bindEvents();
   try {
-    const [catalogResult, savedResult] = await Promise.allSettled([
+    const [catalogResult, savedResult, formatsResult, settingsResult] = await Promise.allSettled([
       fetch('./data/catalog.json').then((response) => {
         if (!response.ok) throw new Error(`Catalog could not be loaded (${response.status}).`);
         return response.json();
       }),
       bridge.loadState(),
+      fetch('./data/product-formats.json').then(response=>{if(!response.ok)throw new Error('Product form options could not load.');return response.json();}),
+      loadSettings(),
     ]);
     if (catalogResult.status !== 'fulfilled') throw catalogResult.reason;
     const catalog = catalogResult.value;
-    state.products = Array.isArray(catalog.products) ? catalog.products : [];
+    state.baseProducts = Array.isArray(catalog.products) ? catalog.products : [];
+    state.formatIndex = formatsResult.status==='fulfilled'?formatsResult.value:null;
+    const preferences=settingsResult.status==='fulfilled'?settingsResult.value:null;
+    if(preferences){Object.assign(state,preferences);savedSettingsFingerprint=JSON.stringify(preferences);}
+    rebuildProducts();
     $('catalog-scope').textContent = `${state.products.length} colors · Medium frit`;
     $('library-count').textContent = String(state.products.length);
     const saved = savedResult.status === 'fulfilled' ? savedResult.value : null;
     restoreWorkspace(saved);
     renderAll();
+    if(formatsResult.status==='rejected')notify('Product form options could not load. Medium frit is available; reload to use the other forms.',true);
+    if(settingsResult.status==='rejected')notify('Saved defaults could not be read. Your current workspace is still available.',true);
     checkAccount(true);
     bridge.subscribePendingImage((image) => handlePendingImage(image));
     let pending = null;
@@ -763,6 +908,7 @@ async function initialize() {
       if (saved?.sourceDataUrl && !pendingReceivedThisSession) await loadImage(saved.sourceDataUrl, { name: saved.sourceName, sourceUrl: saved.sourceUrl, restore: true });
       if (pending) await handlePendingImage(pending);
     }
+    persist();
   } catch (error) {
     console.error('Palette Picker could not start:', error);
     $('product-grid').replaceChildren();
