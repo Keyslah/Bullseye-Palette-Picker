@@ -61,6 +61,7 @@ async function workerHarness(t) {
   const harness = {
     events,
     session: {},
+    local: {},
     menus: [],
     panelBehavior: null,
     openingGestures: [],
@@ -69,6 +70,10 @@ async function workerHarness(t) {
     quotaFailures: 0,
     inGesture: false,
     fetchImpl: async () => imageResponse('default-image'),
+    tabs: [{id: 7, windowId: 2, status: 'complete', url: 'https://page.example/photos'}],
+    scripts: [],
+    tabUpdates: [],
+    scriptImpl: async () => ({signedIn: true, status: 'signed_in'}),
   };
 
   globalThis.chrome = {
@@ -92,6 +97,10 @@ async function workerHarness(t) {
       },
     },
     storage: {
+      local: {
+        async get() { return structuredClone(harness.local); },
+        async set(values) { Object.assign(harness.local, structuredClone(values)); },
+      },
       session: {
         async get() { return { ...harness.session }; },
         async remove(keys) {
@@ -110,8 +119,25 @@ async function workerHarness(t) {
     },
     permissions: { contains: async () => true },
     tabs: {
-      query: async () => [{ id: 7, windowId: 2, url: 'https://page.example/photos' }],
+      query: async () => harness.tabs,
+      create: async options => {
+        const tab = {id: 80 + harness.tabs.length, windowId: 2, status: 'complete', ...options};
+        harness.tabs.push(tab);
+        return tab;
+      },
+      update: async (id, options) => {
+        harness.tabUpdates.push({id, ...options});
+        const tab = harness.tabs.find(value => value.id === id);
+        Object.assign(tab, options);
+        return tab;
+      },
       captureVisibleTab: async () => 'data:image/png;base64,capture-fixture',
+    },
+    scripting: {
+      executeScript: async options => {
+        harness.scripts.push(options);
+        return [{frameId: 0, result: await harness.scriptImpl(options)}];
+      },
     },
   };
 
@@ -279,4 +305,82 @@ test('large inline source URLs are decoded without duplicating their payload in 
   assert.equal(reply.sourceUrl, '', 'The message reply must not duplicate the original inline payload.');
   assert.ok(reply.dataUrl.startsWith('data:image/png;base64,'));
   assert.equal(harness.quotaFailures, 0);
+});
+
+test('account checks prefer a fresh native-store request over an extension cookie context', async (t) => {
+  const harness = await workerHarness(t);
+  harness.tabs.push({id: 91, windowId: 2, status: 'complete', url: 'https://shop.bullseyeglass.com/products/green'});
+  harness.scriptImpl = async options => {
+    assert.deepEqual(options.target, {tabId: 91});
+    assert.equal(options.world, 'ISOLATED');
+    assert.equal(options.args[0].kind, 'account');
+    return {signedIn: true, status: 'signed_in'};
+  };
+  const result = await harness.send({type: 'BULLSEYE_ACCOUNT'});
+  assert.equal(result.signedIn, true);
+  assert.equal(harness.fetchCalls.length, 0, 'A native store tab must take precedence over cross-origin account checks.');
+  assert.equal(harness.tabs.length, 2, 'Read-only account checks should not create extra tabs.');
+});
+
+test('direct cart journals before execution, coalesces double clicks, and opens the native cart once', async (t) => {
+  const harness = await workerHarness(t);
+  const pause = deferred();
+  let started = false;
+  harness.scriptImpl = async options => {
+    assert.equal(options.args[0].kind, 'add');
+    assert.equal(options.world, 'ISOLATED');
+    assert.equal(harness.local.bullseyeCartRequestsV1[0].status, 'pending', 'The replay guard must exist before a POST is possible.');
+    started = true;
+    await pause.promise;
+    return {added: true, itemCount: 2, cartUrl: 'https://shop.bullseyeglass.com/cart'};
+  };
+  const request = {type: 'BULLSEYE_SEND_CART', requestId: 'test-request-1234567890', items: [{variantId: 100, quantity: 2}]};
+  const first = harness.send(request);
+  await waitFor(() => started, 'The native cart operation did not begin.');
+  const doubleClick = harness.send({...request, requestId: 'test-request-9876543210'});
+  pause.resolve();
+  assert.equal((await first).added, true);
+  assert.equal((await doubleClick).added, true);
+  assert.equal(harness.scripts.length, 1);
+  assert.equal(harness.tabUpdates.length, 1);
+  assert.equal(harness.tabUpdates[0].url, 'https://shop.bullseyeglass.com/cart');
+  assert.equal(harness.local.bullseyeCartRequestsV1[0].status, 'complete');
+
+  const replay = await harness.send(request);
+  assert.equal(replay.added, true);
+  assert.equal(replay.duplicate, true);
+  assert.equal(harness.scripts.length, 1, 'The same transaction must not cause a second native cart write.');
+});
+
+test('an uncertain native cart attempt blocks a new-ID retry of the same selection', async (t) => {
+  const harness = await workerHarness(t);
+  harness.scriptImpl = async () => ({error: 'Check your cart', code: 'CART_UNCONFIRMED', uncertain: true});
+  const request = {type: 'BULLSEYE_SEND_CART', requestId: 'uncertain-request-123456', items: [{variantId: 100, quantity: 2}]};
+  const first = await harness.send(request);
+  assert.equal(first.uncertain, true);
+  const second = await harness.send({...request, requestId: 'uncertain-request-654321'});
+  assert.equal(second.uncertain, true);
+  assert.equal(harness.scripts.length, 1, 'A lost response must not silently double the same jars.');
+  assert.equal(harness.local.bullseyeCartRequestsV1[0].status, 'uncertain');
+});
+
+test('signed-out rejection is safe to retry after sign-in, without poisoning the cart journal', async (t) => {
+  const harness = await workerHarness(t);
+  harness.scriptImpl = async () => ({error: 'Sign in first', code: 'SIGN_IN_REQUIRED', authRequired: true, mutationStarted: false});
+  const request = {type: 'BULLSEYE_SEND_CART', requestId: 'signed-out-request-12345', items: [{variantId: 100, quantity: 1}]};
+  assert.equal((await harness.send(request)).authRequired, true);
+  assert.equal(harness.local.bullseyeCartRequestsV1.length, 0);
+  assert.equal(harness.tabUpdates.length, 0, 'Do not claim a cart addition or navigate to it after sign-in rejection.');
+  harness.scriptImpl = async () => ({added: true, itemCount: 1, cartUrl: 'https://shop.bullseyeglass.com/cart'});
+  assert.equal((await harness.send({...request, requestId: 'signed-in-request-12345'})).added, true);
+  assert.equal(harness.scripts.length, 2);
+});
+
+test('an interrupted worker record prevents blind resend after restart', async (t) => {
+  const harness = await workerHarness(t);
+  const items = [{variantId: 100, quantity: 1}];
+  harness.local.bullseyeCartRequestsV1 = [{requestId: 'previous-worker-12345678', signature: JSON.stringify(items), status: 'pending', updatedAt: Date.now()}];
+  const result = await harness.send({type: 'BULLSEYE_SEND_CART', requestId: 'restarted-worker-1234567', items});
+  assert.equal(result.uncertain, true);
+  assert.equal(harness.scripts.length, 0);
 });

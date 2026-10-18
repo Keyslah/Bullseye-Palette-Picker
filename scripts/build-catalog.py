@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the reviewed Bullseye transparent medium-frit color catalog.
+"""Build the reviewed Bullseye medium-frit color catalog.
 
 Purpose: download public product metadata and reviewed fired-frit photographs,
          preserve their provenance, and measure full RGB/Lab appearance samples.
@@ -7,8 +7,10 @@ Setup: Python 3.11+ and Pillow; run from any directory. Product choices and
        normalized sampling rectangles are in catalog-seed.json beside this file.
 Writes: replaces extension/data/catalog.json, the selected bundled photographs,
         and docs/catalog-sources.md. It never changes user browser data or carts.
-Constraints: only colored transparent medium frit; no clear, mixed, opalescent,
-             iridescent, or aventurine glass. Darkness labels describe relative
+Constraints: colored transparent frit plus reviewed neutral grays and ordinary
+             opalescent black/white; no clear, mixed, iridescent, or aventurine
+             glass. Empty photo background is never a glass sample.
+             Darkness labels describe relative
              lightness within one product; matching must use the full color.
 """
 
@@ -51,7 +53,7 @@ def fetch(url: str) -> bytes:
         raise ValueError(f"An HTTPS source is required: {url}")
     request = urllib.request.Request(
         url,
-        headers={"User-Agent": "BullseyePalettePicker/0.1 (public catalog builder)"},
+        headers={"User-Agent": "BullseyePalettePicker/0.2 (public catalog builder)"},
     )
     for attempt in range(3):
         try:
@@ -119,14 +121,65 @@ def prepare_image(raw: bytes) -> tuple[Image.Image, dict]:
     }
 
 
-def measure_samples(image: Image.Image, rect: list[float], count: int, band_width: float) -> list[dict]:
-    """Average narrow vertical bands in linear RGB, retaining internal clear gaps."""
+def stable_srgb_profile(destination: Path) -> bytes:
+    """Reuse an equivalent ICC profile so rebuilds do not alter only timestamps."""
+    current = SRGB_PROFILE.tobytes()
+    if not destination.exists():
+        return current
+    with Image.open(destination) as existing:
+        previous = existing.info.get("icc_profile")
+    if not previous or len(previous) != len(current):
+        return current
+
+    def color_definition(profile: bytes) -> bytes:
+        normalized = bytearray(profile)
+        # ICC header creation date and profile ID do not define color transforms.
+        normalized[24:36] = bytes(12)
+        normalized[84:100] = bytes(16)
+        return bytes(normalized)
+
+    return previous if color_definition(previous) == color_definition(current) else current
+
+
+def measure_samples(image: Image.Image, rect: list[float], count: int, band_width: float,
+                    color_family: str = "chromatic", material_rule: str = "visible-color",
+                    material_lightness_range: list[float] | None = None) -> list[dict]:
+    """Measure visible glass pixels in bands; reject background before averaging.
+
+    The thresholds are catalog selection rules, not claims about a universal
+    human perception boundary. Material must have C* >= 10 for a colored product.
+    Gray/black must have C* < 10 and L* <= 94; reviewed white-glass rectangles
+    instead have C* < 10 and L* >= 85. White is only sampled inside a manually
+    reviewed, densely filled region, so its white background is not substituted
+    for glass. The marker points to an eligible source pixel closest in Lab to
+    the measured material mean, not a geometrical center that may fall in a gap.
+    """
     left, top, right, bottom = normalized_rect(rect)
     width, height = image.size
     half_band = band_width / 2
     if not (0 < band_width < right - left):
         raise ValueError("sampleBandWidth must be positive and narrower than sampleRect")
+    if color_family not in ("chromatic", "neutral"):
+        raise ValueError(f"Invalid color family: {color_family}")
+    if material_rule not in ("visible-color", "neutral-material", "reviewed-white-region"):
+        raise ValueError(f"Invalid material rule: {material_rule}")
+    lightness_range = material_lightness_range or ([85, 100] if material_rule == "reviewed-white-region" else [0, 94])
+    if len(lightness_range) != 2 or not (0 <= lightness_range[0] < lightness_range[1] <= 100):
+        raise ValueError(f"Invalid material lightness range: {lightness_range}")
     samples = []
+    pixel_details = {}
+
+    def describe_pixel(rgb: tuple[int, int, int]) -> tuple[list[float], bool]:
+        if rgb not in pixel_details:
+            lab = rgb_to_lab(list(rgb))
+            chroma = math.hypot(lab[1], lab[2])
+            if color_family == "chromatic":
+                eligible = chroma >= 10
+            else:
+                eligible = chroma < 10 and lightness_range[0] <= lab[0] <= lightness_range[1]
+            pixel_details[rgb] = (lab, eligible)
+        return pixel_details[rgb]
+
     for index in range(count):
         x = left + half_band + (right - left - band_width) * index / (count - 1)
         box = (
@@ -136,29 +189,46 @@ def measure_samples(image: Image.Image, rect: list[float], count: int, band_widt
             round(bottom * height),
         )
         patch = image.crop(box)
-        histogram = patch.histogram()
         pixels = patch.width * patch.height
         if pixels == 0:
             raise ValueError("A sample band is smaller than one pixel")
+        # getcolors counts exact source pixels; this does not quantize the image.
+        colors = [(frequency, rgb) for frequency, rgb in patch.getcolors(pixels)
+                  if describe_pixel(rgb)[1]]
+        material_pixels = sum(frequency for frequency, _ in colors)
+        if material_pixels < max(32, pixels * 0.05):
+            continue
         rgb = [
-            linear_to_channel(sum(histogram[channel * 256 + value] * LINEAR_RGB[value]
-                                  for value in range(256)) / pixels)
+            linear_to_channel(sum(frequency * LINEAR_RGB[pixel_rgb[channel]]
+                                  for frequency, pixel_rgb in colors) / material_pixels)
             for channel in range(3)
         ]
         lab = rgb_to_lab(rgb)
-        # An empty outer margin must never become an advertised glass match.
-        if lab[0] > 99.7 and max(rgb) - min(rgb) < 3:
+        chroma = math.hypot(lab[1], lab[2])
+        if (color_family == "chromatic" and chroma < 10) or (color_family == "neutral" and chroma >= 10):
             continue
+        representative = min((value for _, value in colors),
+                             key=lambda value: sum((a - b) ** 2 for a, b in
+                                                   zip(describe_pixel(value)[0], lab)))
+        center_x, center_y = (patch.width - 1) / 2, (patch.height - 1) / 2
+        locations = ((offset % patch.width, offset // patch.width)
+                     for offset, value in enumerate(patch.get_flattened_data()) if value == representative)
+        marker_x, marker_y = min(locations,
+                                key=lambda point: (point[0] - center_x) ** 2 + (point[1] - center_y) ** 2)
         samples.append({
             "rgb": rgb,
             "hex": "#" + "".join(f"{value:02x}" for value in rgb),
             "lab": lab,
             "darkness": 0,
-            "x": round(x, 6),
-            "y": round((top + bottom) / 2, 6),
+            "x": round((box[0] + marker_x + 0.5) / width, 6),
+            "y": round((box[1] + marker_y + 0.5) / height, 6),
+            "bandCenterX": round(x, 6),
+            "bandCenterY": round((top + bottom) / 2, 6),
+            "materialCoverage": round(material_pixels / pixels, 5),
+            "markerRgb": list(representative),
         })
-    if len(samples) < 24:
-        raise ValueError("Too few nonblank measured samples; review the sampling rectangle")
+    if len(samples) < 20:
+        raise ValueError(f"Too few visible-material samples ({len(samples)}); review the sampling rectangle")
     minimum = min(sample["lab"][0] for sample in samples)
     maximum = max(sample["lab"][0] for sample in samples)
     for sample in samples:
@@ -177,9 +247,9 @@ def product_record(seed: dict, defaults: dict, retrieved_at: str) -> dict:
     metadata_raw = fetch(metadata_url)
     metadata = json.loads(metadata_raw)
     title = metadata["title"]
-    if "Transparent, Medium Frit, Fusible" not in title:
+    if not title.endswith(", Medium Frit, Fusible"):
         raise ValueError(f"Unexpected product scope: {title}")
-    excluded = ("clear", "opalescent", "iridescent", "dichroic", "aventurine", "mix", "streaky")
+    excluded = ("clear", "iridescent", "dichroic", "aventurine", "mix", "streaky")
     if any(word in title.lower() for word in excluded):
         raise ValueError(f"Excluded product: {title}")
     codes = {match.group(1) for variant in metadata["variants"]
@@ -188,6 +258,16 @@ def product_record(seed: dict, defaults: dict, retrieved_at: str) -> dict:
         raise ValueError(f"Missing or conflicting medium-frit product codes: {handle}")
     code = codes.pop()
     identifier = code[:6]
+    color_family = seed.get("colorFamily", "chromatic")
+    material_rule = seed.get("materialRule", "visible-color" if color_family == "chromatic" else "neutral-material")
+    if " Transparent," in title:
+        glass_type = "Transparent"
+        name = title.removesuffix(" Transparent, Medium Frit, Fusible")
+    elif " Opalescent," in title and color_family == "neutral" and identifier in ("000100", "000113"):
+        glass_type = "Opalescent"
+        name = title.removesuffix(" Opalescent, Medium Frit, Fusible")
+    else:
+        raise ValueError(f"Unreviewed product type: {title}")
     images = metadata.get("images", [])
     image_index = seed.get("imageIndex", 0)
     image_url = images[image_index]
@@ -200,19 +280,22 @@ def product_record(seed: dict, defaults: dict, retrieved_at: str) -> dict:
     image, image_source = prepare_image(image_raw)
     rect = seed.get("sampleRect", defaults["sampleRect"])
     band_width = seed.get("sampleBandWidth", defaults["sampleBandWidth"])
-    samples = measure_samples(image, rect, defaults["sampleCount"], band_width)
+    lightness_range = seed.get("materialLightnessRange", [85, 100] if material_rule == "reviewed-white-region" else [0, 94])
+    samples = measure_samples(image, rect, defaults["sampleCount"], band_width, color_family, material_rule,
+                              lightness_range)
     destination = PROJECT_ROOT / "extension" / "assets" / "glass" / f"{identifier}.jpg"
     destination.parent.mkdir(parents=True, exist_ok=True)
     bundle = image.copy()
     bundle.thumbnail((defaults["imageMaxPixels"], defaults["imageMaxPixels"]), Image.Resampling.LANCZOS)
     bundle.save(destination, format="JPEG", quality=95, subsampling=0, optimize=True,
-                icc_profile=SRGB_PROFILE.tobytes())
+                icc_profile=stable_srgb_profile(destination))
     return {
         "id": identifier,
-        "name": title.removesuffix(" Transparent, Medium Frit, Fusible"),
+        "name": name,
         "fullName": title,
         "code": code,
-        "type": "Transparent",
+        "type": glass_type,
+        "colorFamily": color_family,
         "grain": "Medium frit",
         "productUrl": product_url,
         "handle": handle,
@@ -237,8 +320,12 @@ def product_record(seed: dict, defaults: dict, retrieved_at: str) -> dict:
                                      and seed.get("reviewedSourceImageSha256") == source_image_hash),
             "sampleRect": rect,
             "sampleBandWidth": band_width,
-            "samplingMethod": "Full-resolution sRGB source; narrow vertical bands averaged in linear RGB; internal gaps retained; no invented interpolated samples.",
-            "coordinateSystem": "Normalized full bundled image coordinates, origin at upper left; x/y mark each averaged band's center.",
+            "samplingMethod": "Full-resolution sRGB source; visible-material pixels in narrow vertical bands averaged in linear RGB; background excluded before averaging; no invented interpolated samples.",
+            "materialRule": material_rule,
+            "materialThresholds": {"chromaticMinimumChroma": 10, "neutralMaximumChromaExclusive": 10,
+                                   "neutralLightnessRange": lightness_range if color_family == "neutral" else None,
+                                   "minimumBandCoverage": 0.05},
+            "coordinateSystem": "Normalized full bundled image coordinates, origin at upper left; x/y identify a visible material pixel closest in Lab to the measured band mean. bandCenterX/Y retain the geometric band center.",
             "lightnessMetric": "CIELAB L*, D65 white point; darkness=100*(maxL-L)/(maxL-minL) within this product.",
             "currency": "USD",
         },
@@ -251,7 +338,8 @@ def write_source_notes(catalog: dict) -> None:
         "# Bullseye catalog sources",
         "",
         f"Catalog version: `{catalog['version']}`. Retrieved: {catalog['generatedAt']}.",
-        f"Scope: {len(products)} colored transparent medium-frit products, with "
+        f"Scope: {len(products)} medium-frit products: colored transparents, transparent grays, "
+        "and ordinary opalescent Black and White, with "
         f"{sum(len(product['samples']) for product in products)} measured appearance samples.",
         "",
         "## Source and attribution",
@@ -268,18 +356,33 @@ def write_source_notes(catalog: dict) -> None:
         "",
         "## Selection and measurements",
         "",
-        "Only colored transparent medium-frit products are included. Colorless clear, opalescent, mixed, "
+        "The catalog includes colored transparent medium frit, three transparent grays, and ordinary "
+        "Black and White Opalescent medium frit. Opalescent Black and White are accurately labeled; "
+        "they are not represented as transparent glass. Colorless clear, other opalescent products, mixed, "
         "streaky, iridescent, dichroic, and aventurine products are excluded. The photographs show the fired "
         "frit samples, with a dense region at the left and a more scattered region to the right. "
         "Product jars and cold-frit photographs are not sampled.",
         "",
         "The complete sample photograph is bundled without a compositional crop, at up to 600 pixels on its "
         "longest side. Sampling uses the normalized rectangle recorded for each product and 40 narrow "
-        "vertical bands, with the outer border excluded. Each band's RGB channels are averaged in linear "
-        "light from the full-resolution source. Internal clear spaces between grains remain part of the "
-        "measured appearance. Nearly blank margin bands are rejected. The resulting colors are measured "
-        "band averages, not isolated grain colors or generated blends. Marker coordinates identify the "
-        "band centers in the complete bundled image.",
+        "vertical bands, with the outer border excluded. Each band's visible material RGB channels are "
+        "averaged in linear light from the full-resolution source. Version 0.2 excludes empty spaces "
+        "between grains before averaging: they cannot turn blue glass into a white match or black glass "
+        "into a light gray match. The resulting colors are measured material averages, not generated blends. "
+        "Marker coordinates identify the eligible source pixel closest in Lab to the measured band color, "
+        "so a marker does not simply land at a geometrical band center inside a white gap. "
+        "The original band centers and retained material coverage are recorded separately.",
+        "",
+        "For chromatic products, source pixels and resulting samples must have CIELAB chroma "
+        "`C* = sqrt(a*² + b*²) >= 10`. This is a deliberate selection threshold for visibly colored "
+        "samples, not a universal perceptual claim. Gray material must have `C* < 10` and `L* <= 94`. "
+        "The Black photograph additionally uses `L* <= 20` to exclude bright grain-edge halos. "
+        "White is sampled only within the reviewed densely filled left rectangle of its black-background "
+        "photograph, with `C* < 10` and `L* >= 85`; black background cannot become a white sample. "
+        "At least 5% of a band and at least 32 original pixels must be eligible material. A band whose "
+        "mean crosses the selected chroma boundary is discarded. No white, blue, or gray color is invented "
+        "to fill a missing range. Oregon Gray is naturally warm; only its measured neutral portions "
+        "qualify as neutral matches. These material thresholds and reviewed rectangles are retained per product.",
         "",
         "Samples are ordered by descending CIELAB L* (light to dark). Their darkness values are relative "
         "to the measured lightest and darkest appearance of the same product: "
@@ -308,11 +411,11 @@ def write_source_notes(catalog: dict) -> None:
         "",
         "## Included products",
         "",
-        "| Glass code | Product | Image source | Samples | Source profile |",
-        "| --- | --- | --- | ---: | --- |",
+        "| Glass code | Product | Type | Image source | Samples | Source profile |",
+        "| --- | --- | --- | --- | ---: | --- |",
     ]
     for product in products:
-        lines.append(f"| {product['code']} | [{product['name']}]({product['productUrl']}) | "
+        lines.append(f"| {product['code']} | [{product['name']}]({product['productUrl']}) | {product['type']} | "
                      f"[Photograph]({product['sourceImageUrl']}) | {len(product['samples'])} | "
                      f"{product['source']['originalIccProfile']} |")
     lines += ["", "All source URLs and image hashes are also preserved in `extension/data/catalog.json`.", ""]
@@ -338,8 +441,8 @@ def main() -> None:
         records.append(record)
         print(f"[{index}/{len(entries)}] {record['code']} {record['name']}: "
               f"{len(record['samples'])} measured samples, {len(record['variants'])} real variants", flush=True)
-    catalog = {"version": "0.1.0", "generatedAt": generated_at,
-               "scope": "Transparent medium frit", "attribution": ATTRIBUTION, "products": records}
+    catalog = {"version": "0.2.0", "generatedAt": generated_at,
+               "scope": "Colored transparent and neutral medium frit", "attribution": ATTRIBUTION, "products": records}
     destination = PROJECT_ROOT / "extension" / "data" / "catalog.json"
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(catalog, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

@@ -1,5 +1,5 @@
 {
-  "description": "Reviewed colored transparent medium-frit products. Source photos show fired frit; product IDs and variants are read from Bullseye, never inferred.",
+  "description": "Reviewed colored transparent medium frit plus transparent gray and ordinary opalescent black/white frit. Visible material pixels are measured; background is excluded. Product IDs and variants come from Bullseye, never inferred.",
   "defaults": {
     "sampleCount": 40,
     "sampleRect": [
@@ -10,7 +10,7 @@
     ],
     "sampleBandWidth": 0.025,
     "imageMaxPixels": 600,
-    "imageSelection": "Complete fired medium-frit gradient photograph; dense glass at left and increasingly scattered grains at right. All samples come from the fired image."
+    "imageSelection": "Complete fired medium-frit photograph; dense glass at left and increasingly scattered grains at right. Matching samples use visible material pixels, excluding background."
   },
   "products": [
     {
@@ -147,6 +147,53 @@
       "handle": "fern-green-transparent-medium-frit-fusible",
       "visuallyReviewed": true,
       "reviewedSourceImageSha256": "f03b3e9868cfb9fa9760c2fdfc1be7b72fce3dc7c7ff86c2f7480728c979d3a8"
+    },
+    {
+      "handle": "charcoal-gray-transparent-medium-frit-fusible",
+      "colorFamily": "neutral",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "4b8926cb66735be429941e0f4a4db341f4c40d5de814629d991c8846a8e22e95"
+    },
+    {
+      "handle": "light-silver-gray-transparent-medium-frit-fusible",
+      "colorFamily": "neutral",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "a94ad26de919deb216624adfe7e1d296d06bd25bde468d0333acce7490e38000"
+    },
+    {
+      "handle": "oregon-gray-transparent-medium-frit-fusible",
+      "colorFamily": "neutral",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "db3c040f38dcb4c557afeeb5021b8c39d049b8f8622f0fbe15bf0fa34a514048"
+    },
+    {
+      "handle": "black-opalescent-medium-frit-fusible",
+      "colorFamily": "neutral",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "74b61f59c48fa796182aad6a5e271b72ad585f98b1186f5c72ac89bd0773f443",
+      "materialLightnessRange": [
+        0,
+        20
+      ],
+      "imageSelection": "Complete fired Black Opalescent medium-frit photograph on a white background. Only black grain material (L*<=20) is sampled; bright gaps and grain-edge halos are excluded."
+    },
+    {
+      "handle": "white-opalescent-medium-frit-fusible",
+      "colorFamily": "neutral",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "6a17595bea55cdbae0468f9a982a42d4c0d02dd576c93f2a6047d5efe0af3788",
+      "sampleRect": [
+        0.025,
+        0.1,
+        0.3,
+        0.9
+      ],
+      "materialRule": "reviewed-white-region",
+      "materialLightnessRange": [
+        85,
+        100
+      ],
+      "imageSelection": "Complete fired White Opalescent medium-frit photograph on a black background. Sampling is restricted to the reviewed densely filled left region and light neutral material; black gaps and blue edge shadows are excluded."
     }
   ]
 }

@@ -9,6 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deltaE2000, labToRgb, rgbToHex, rgbToLab } from '../extension/lib/color.js';
 import { extractPalette, matchCatalog } from '../extension/lib/palette.js';
+import fs from 'node:fs';
 
 function pixels(groups) {
   const data = [];
@@ -131,4 +132,71 @@ test('matching leaves catalog inputs untouched and skips incomplete samples', ()
   assert.equal(matchCatalog({ hex: rgbToHex(rgb) }, catalog, { tolerance: 0 }).length, 1);
   assert.equal(JSON.stringify(catalog), before);
   assert.deepEqual(matchCatalog(rgb, catalog, { tolerance: Infinity, limit: 0 }), []);
+});
+
+test('every automatic dot identifies its actual image color, including disjoint regions', () => {
+  const image = pixels([
+    {rgb: [20, 90, 160], count: 15},
+    {rgb: [190, 30, 50], count: 40},
+    {rgb: [20, 90, 160], count: 15},
+    {rgb: [0, 0, 0], count: 10},
+    {rgb: [150, 150, 150], count: 10},
+    {rgb: [255, 255, 255], count: 10},
+  ]);
+  image.width = 10; image.height = 10;
+  const palette = extractPalette(image, {count: 5});
+  assert.equal(palette.length, 5);
+  for (const dot of palette) {
+    assert.ok(dot.x > 0 && dot.x < 1 && dot.y > 0 && dot.y < 1);
+    const offset = (Math.floor(dot.y * image.height) * image.width + Math.floor(dot.x * image.width)) * 4;
+    assert.deepEqual([...image.data.slice(offset, offset + 3)], dot.rgb);
+    assert.equal(image.data[offset + 3], 255);
+  }
+  assert.ok(palette.some(dot => dot.hex === '#000000'));
+  assert.ok(palette.some(dot => dot.hex === '#969696'));
+});
+
+test('white and gray cannot match the white gaps of colored glass, even with unlimited tolerance', () => {
+  const blue = {...product('blue', [sample([227, 227, 227], 0), sample([80, 130, 210], 100)]), colorFamily: 'chromatic'};
+  const gray = {...product('gray', [sample([227, 227, 227], 20), sample([110, 110, 110], 100)]), colorFamily: 'neutral'};
+  const clear = {...product('clear', [sample([227, 227, 227])]), name: 'Clear Transparent'};
+  assert.deepEqual(matchCatalog('#E3E3E3', [blue, gray, clear], {tolerance: Infinity}).map(m => m.product.id), ['gray']);
+  assert.deepEqual(matchCatalog('#FFFFFF', [blue], {tolerance: Infinity}), []);
+  // Old catalogs without family metadata still cannot reclassify a blue product.
+  delete blue.colorFamily;
+  assert.deepEqual(matchCatalog('#E3E3E3', [blue], {tolerance: Infinity}), []);
+});
+
+test('colored targets cannot use near-white samples, and black matches neutral glass', () => {
+  const blue = {...product('blue', [sample([243, 244, 250], 0), sample([80, 130, 210], 100)]), colorFamily: 'chromatic'};
+  const black = {...product('black', [sample([12, 12, 12], 100)]), colorFamily: 'neutral'};
+  const match = matchCatalog([150, 170, 215], [blue, black], {tolerance: Infinity});
+  assert.equal(match.length, 1);
+  assert.deepEqual(match[0].sample.rgb, [80, 130, 210]);
+  assert.equal(matchCatalog([12, 12, 12], [blue, black], {tolerance: 0})[0].product.id, 'black');
+});
+
+test('real catalog regression: screenshot gray #E3E3E3 never returns Light Sky Blue or another colored product', () => {
+  const {products} = JSON.parse(fs.readFileSync(new URL('../extension/data/catalog.json', import.meta.url), 'utf8'));
+  for (const target of ['#E3E3E3', '#FFFFFF', '#777777', '#050505']) {
+    for (const match of matchCatalog(target, products, {tolerance: Infinity, limit: Infinity})) {
+      assert.equal(match.product.colorFamily, 'neutral');
+    }
+  }
+  const sky = products.find(p => p.id === '001414');
+  assert.ok(sky);
+  assert.deepEqual(matchCatalog('#E3E3E3', [sky], {tolerance: Infinity}), []);
+});
+
+test('the real neutral catalog matches actual black, white, and gray without substituting colored frit', () => {
+  const {products} = JSON.parse(fs.readFileSync(new URL('../extension/data/catalog.json', import.meta.url), 'utf8'));
+  const black = matchCatalog('#000000', products)[0];
+  const white = matchCatalog('#FFFFFF', products)[0];
+  const midGray = matchCatalog('#777777', products)[0];
+  const lightGray = matchCatalog('#E3E3E3', products)[0];
+  assert.equal(black?.product.id, '000100');
+  assert.equal(white?.product.id, '000113');
+  assert.equal(midGray?.product.id, '001129');
+  assert.match(lightGray?.product.name || '', /Gray/);
+  assert.equal(lightGray?.product.type, 'Transparent');
 });

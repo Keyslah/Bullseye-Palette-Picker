@@ -1,45 +1,53 @@
 # Privacy
 
-Bullseye Palette Picker processes image pixels and compares colors inside the user's browser. It has no analytics, advertising, remote image-analysis service, or developer-operated server.
+Bullseye Palette Picker processes image pixels and compares colors inside your browser. It has no analytics, advertising, remote image-analysis service, or developer-operated server.
 
 ## Stored data
 
-The picker automatically saves one current project in `chrome.storage.local`. This includes:
+The current workspace is automatically saved in `chrome.storage.local`. It includes the reduced source image (at most 1,100 pixels on its longest side), its display name and available source URL, palette colors and point positions, match preferences, chosen jar sizes, and selected glass quantities. A handoff timestamp prevents a previously handled image from overwriting a reopened edited palette.
 
-- A PNG copy of the selected image, reduced to at most 1,100 pixels on its longest side. This image copy remains saved when the picker or browser is closed.
-- The image's filename or display name and, when available, its source image or page URL.
-- Palette colors, the selected palette color, match-range and view preferences, chosen jar sizes, and the selected glass list with quantities.
-- A timestamp used to avoid reopening a previously handled image handoff.
+Named saved palettes use the extension's IndexedDB database. Each includes its name, save time, source image, color points, edited palette, and selected jars and quantities. Listing names reads lightweight metadata separately from image data. Named palettes stay in this browser profile; they are not uploaded or synchronized to a Bullseye account.
 
-Right-click image handoffs use `chrome.storage.session` separately. This temporary data can include a reduced image, its source URL, and the source tab and window IDs. It is distinct from the image copy saved with the current project.
+Right-click image handoffs use `chrome.storage.session`. Temporary data can include a reduced image, its source URL, and source tab/window IDs.
 
-**Remove image** clears the image, its saved source information, and its palette from the current project. The selected glass list remains. Removing or manually replacing an image also cancels the previous pending browser-image handoff. Replacing an image overwrites the saved image. The extension does not sync project data to an external account. Uninstalling the extension removes its Chrome storage.
+The direct cart action keeps a local journal of up to 20 recent cart requests, including a random request ID, variant IDs/quantities, status, timestamp, and confirmation when available. This helps prevent duplicate additions after a lost response or extension restart. It contains no password, customer email, account name, or payment data.
 
-When opened as a development preview, the picker uses that preview origin's local storage for the same saved project state.
+**Remove image** clears the current image and its palette and cancels any pending image handoff. Named palettes are independent copies; delete an individual saved palette from **Saved palettes** to remove its copy. The local glass selection is separate from the store's cart. Uninstalling the extension removes its local Chrome storage and IndexedDB. The extension does not modify Bullseye's cart when removing local images or palettes.
+
+A development web preview uses its own origin's local storage and IndexedDB.
 
 ## Clipboard and page capture
 
-**Paste image** reads an image from the clipboard after the user invokes it; pasting with the keyboard also imports clipboard image data. **Copy SKU list** and **Send to Bullseye cart** write the selected SKUs and quantities to the system clipboard.
+**Paste** reads a clipboard image after you invoke it; keyboard paste can also import an image. **Copy SKU list** writes the selected SKUs and quantities to the clipboard. The direct cart button does not need clipboard access.
 
-Page capture reads the visible browser view after the user invokes the extension. **Capture a region** lets the user select part of that view or accept the whole view. The accepted image is processed and saved locally in the same way as an imported image.
+**Capture** reads the visible browser view after you invoke the extension. You can select a region or accept the whole view. The accepted image is processed and saved locally like an imported image.
 
-## Network requests
+## Account checks and shopping
 
-- When a user selects a web image, the extension requests that image from its existing source host with cookies and other request credentials omitted. It does not send the image to a color-analysis server.
-- Opening a glass product's details in the installed extension can request current jar variants, prices, and availability from `shop.bullseyeglass.com`. The bundled catalog supplies fallback information when that request is unavailable.
-- **Send to Bullseye cart** opens Bullseye's Quick Add page and attempts to fill the user-selected product SKUs and quantities. The user reviews and submits the store's form.
-- Product-page links navigate to Bullseye normally, using that website's own privacy practices and browser session.
+The picker checks Bullseye sign-in when opened or refreshed and before sending jars. It requests fresh store HTML and recognizes customer-only account indicators from Bullseye's current theme. It uses an existing Bullseye tab when possible. The account check returns a signed-in, signed-out, or unknown status; it does not collect or store the customer's email or avatar text.
+
+**Sign in** opens Bullseye's normal account login page. Credentials and any verification steps are handled by Bullseye and its account provider.
+
+**Send to my cart** runs the requested store action inside a native Bullseye tab, using that website's existing browser session. After confirming sign-in, it reads the existing cart, sends the chosen variant IDs and quantities to the store's cart API, and checks the resulting quantities. It opens the normal cart after confirmed additions. It does not clear existing items or complete checkout.
+
+An uncertain or partial addition is reported to the user instead of automatically retrying the write. Bullseye's own privacy practices apply to its account, cart, and product pages.
+
+## Other network requests
+
+- Selecting a web image requests that image from its existing source host with credentials omitted. The image is not sent to a color-analysis server.
+- Opening product details may request current variants, prices, and availability from `shop.bullseyeglass.com`. The bundled catalog supplies a snapshot when the request is unavailable.
+- Product and store links navigate to Bullseye normally.
 
 ## Chrome permissions
 
 | Permission | Use |
 | --- | --- |
-| `contextMenus` | Add the image and visible-page palette commands |
-| `sidePanel` | Display the palette picker alongside a webpage |
-| `storage` | Save the reduced image, palette, glass selection, and preferences locally; retain temporary right-click handoff data |
-| `activeTab` | Capture the page the user explicitly invokes the extension on |
-| `scripting` | Prefill the user-selected SKU list on Bullseye's Quick Add page |
-| Bullseye shop host | Read products and fill the Quick Add form on the specified store |
-| Optional image-host access | Fetch an image from the specific host requested by the user |
+| `contextMenus` | Image and visible-page palette commands |
+| `sidePanel` | Picker alongside the current webpage |
+| `storage` | Current workspace, request journal, and temporary image handoff |
+| `activeTab` | Capture the page on which you explicitly invoke the extension |
+| `scripting` | Check the store session and add explicitly chosen variants in a Bullseye tab |
+| Bullseye shop host | Read public products and customer-status indicators; use the native cart after your click |
+| Optional image-host access | Fetch an image from the particular host you select |
 
-Optional host patterns allow Chrome to request a particular image origin as needed. They do not grant access to every site at installation. The extension does not request password, cookie, browsing-history, camera, or microphone APIs.
+Optional host patterns let Chrome request a particular image origin when needed; they do not grant every website at installation. The extension does not request password, cookie, browsing-history, camera, or microphone APIs.

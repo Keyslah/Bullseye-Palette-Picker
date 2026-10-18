@@ -1,16 +1,17 @@
 /**
  * Purpose: receive image context-menu clicks and hand photos to the palette picker.
  * Setup: Manifest V3 service worker; uses the user's current Chrome window/session.
- * Destructive behavior: none; Quick Add opens and prefills a list without submitting it.
- * Constraints: full-color image bytes stay local; only Bullseye product reads are automatic.
+ * Destructive behavior: an explicit cart request adds chosen jars to the native cart.
+ * Constraints: photos stay local; never clears carts, checks out, or reads credentials.
  */
-import {validateOrderLines} from './lib/extension.js';
+import {BULLSEYE_ORIGIN, BULLSEYE_CART_URL, BULLSEYE_LOGIN_URL, validateCartItems, runBullseyeStoreAction} from './lib/commerce.js';
 
 const IMAGE_MENU = 'bullseye-palette-from-image';
 const CAPTURE_MENU = 'bullseye-palette-from-page';
 const MAX_DOWNLOAD = 20 * 1024 * 1024;
-const QUICK_ADD_URL = 'https://shop.bullseyeglass.com/pages/quick-add-to-cart';
 let currentImageRequest = 0;
+const CART_JOURNAL_KEY = 'bullseyeCartRequestsV1';
+let cartFlight = null;
 
 async function configure() {
   await chrome.contextMenus.removeAll();
@@ -137,47 +138,130 @@ async function tabReady(tabId) {
   await new Promise((resolve, reject) => {
     const done = () => { clearTimeout(timer); chrome.tabs.onUpdated.removeListener(listener); };
     const listener = (id, change) => { if (id === tabId && change.status === 'complete') { done(); resolve(); } };
-    const timer = setTimeout(() => { done(); reject(new Error('The store is still loading. Use Copy list and paste it into Quick Add.')); }, 15000);
+    const timer = setTimeout(() => { done(); reject(new Error('Bullseye is still loading. Check your connection and try again.')); }, 15000);
     chrome.tabs.onUpdated.addListener(listener);
     chrome.tabs.get(tabId).then(tab => { if (tab.status === 'complete') { done(); resolve(); } }).catch(error => { done(); reject(error); });
   });
 }
 
-async function openQuickAdd(lines) {
-  const validated = validateOrderLines(lines);
-  const tab = await chrome.tabs.create({url: QUICK_ADD_URL});
+async function storeTab(create = false) {
+  const tabs = (await chrome.tabs.query({url: `${BULLSEYE_ORIGIN}/*`})).filter(tab => {
+    try { return new URL(tab.url).origin === BULLSEYE_ORIGIN; } catch { return false; }
+  });
+  tabs.sort((a, b) => Number(b.url?.includes('/cart')) - Number(a.url?.includes('/cart'))
+    || Number(b.active) - Number(a.active) || (b.lastAccessed || 0) - (a.lastAccessed || 0));
+  const tab = tabs[0] || (create ? await chrome.tabs.create({url: BULLSEYE_CART_URL, active: false}) : null);
+  if (tab && tab.status !== 'complete') await tabReady(tab.id);
+  return tab;
+}
+
+async function inStore(tab, action) {
+  const results = await chrome.scripting.executeScript({
+    target: {tabId: tab.id}, world: 'ISOLATED',
+    func: runBullseyeStoreAction, args: [action],
+  });
+  const result = results.find(entry => entry.frameId === 0)?.result || results[0]?.result;
+  if (!result) throw new Error('Bullseye did not return a result.');
+  return result;
+}
+
+async function bullseyeAccount() {
   try {
-    await tabReady(tab.id);
-    const results = await chrome.scripting.executeScript({
-      target: {tabId: tab.id},
-      args: [validated],
-      func: async (orderLines) => {
-        // The native app loads asynchronously. Only fill a visible multiline order input.
-        // Never click Submit/Add to Cart: the user reviews the resolved products on the store.
-        for (let attempt = 0; attempt < 24; attempt++) {
-          const fields = [...document.querySelectorAll('textarea')].filter(el => el.getClientRects().length && !el.disabled && !el.readOnly);
-          const field = fields.find(el => /sku|multi|order|product/i.test(`${el.id} ${el.name} ${el.placeholder} ${el.getAttribute('aria-label') || ''}`)) || (fields.length === 1 ? fields[0] : null);
-          if (field) {
-            const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
-            setter.call(field, orderLines);
-            field.dispatchEvent(new Event('input', {bubbles: true}));
-            field.dispatchEvent(new Event('change', {bubbles: true}));
-            field.focus();
-            return {prefilled: true};
-          }
-          await new Promise(resolve => setTimeout(resolve, 250));
-        }
-        return {prefilled: false};
-      },
-    });
-    return {opened: true, prefilled: !!results[0]?.result?.prefilled, manualPaste: !results[0]?.result?.prefilled};
-  } catch { return {opened: true, prefilled: false, manualPaste: true}; }
+    const tab = await storeTab();
+    // Prefer the actual store session to an extension-origin request. Fetch fresh
+    // customer HTML even when an existing tab still shows an older login state.
+    return tab ? await inStore(tab, {kind: 'account'}) : await runBullseyeStoreAction({kind: 'account'});
+  } catch {
+    return {signedIn: null, status: 'unknown', checkedAt: Date.now(), message: 'Could not check your Bullseye sign-in. Open your account or send your selection to check again.'};
+  }
+}
+
+async function signInToBullseye() {
+  await chrome.tabs.create({url: BULLSEYE_LOGIN_URL, active: true});
+  return {opened: true};
+}
+
+async function showNativeCart(tab, url = BULLSEYE_CART_URL) {
+  // The only destination accepted here is this store's cart, including its locale.
+  let destination = BULLSEYE_CART_URL;
+  try {
+    const parsed = new URL(url);
+    if (parsed.origin === BULLSEYE_ORIGIN && /^\/(?:[a-zA-Z0-9_-]+\/)*cart$/.test(parsed.pathname)) destination = parsed.href;
+  } catch { /* Keep the verified default cart URL. */ }
+  try {
+    if (tab) await chrome.tabs.update(tab.id, {url: destination, active: true});
+    else await chrome.tabs.create({url: destination, active: true});
+    return true;
+  } catch { return false; }
+}
+
+async function sendCart(items, requestId) {
+  const cleaned = validateCartItems(items);
+  if (typeof requestId !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(requestId)) throw new Error('The cart request is not valid.');
+  const signature = JSON.stringify(cleaned);
+  if (cartFlight) {
+    if (cartFlight.signature === signature) return cartFlight.promise;
+    return {error: 'Your previous selection is still being sent to Bullseye.', code: 'CART_BUSY'};
+  }
+  const promise = sendCartOnce(cleaned, requestId, signature);
+  cartFlight = {signature, promise};
+  try { return await promise; }
+  finally { if (cartFlight?.promise === promise) cartFlight = null; }
+}
+
+async function sendCartOnce(items, requestId, signature) {
+  const saved = await chrome.storage.local.get(CART_JOURNAL_KEY);
+  const journal = Array.isArray(saved[CART_JOURNAL_KEY]) ? saved[CART_JOURNAL_KEY].slice(-19) : [];
+  const prior = journal.find(entry => entry.requestId === requestId);
+  if (prior?.status === 'complete') {
+    await showNativeCart(await storeTab().catch(() => null), prior.result.cartUrl);
+    return {...prior.result, duplicate: true};
+  }
+  const unresolved = journal.find(entry => entry.signature === signature && ['pending', 'uncertain'].includes(entry.status));
+  if (unresolved) {
+    await showNativeCart(await storeTab().catch(() => null));
+    return {
+      error: 'A previous attempt to send this selection was not confirmed. Check your Bullseye cart before changing your selection and sending again.',
+      code: 'CART_UNCONFIRMED', uncertain: true, cartUrl: BULLSEYE_CART_URL,
+    };
+  }
+  const recent = journal.find(entry => entry.signature === signature && entry.status === 'complete' && Date.now() - entry.updatedAt < 5000);
+  if (recent) return {...recent.result, duplicate: true};
+
+  const tab = await storeTab(true);
+  const record = {requestId, signature, status: 'pending', updatedAt: Date.now()};
+  journal.push(record);
+  // Write the journal before a POST is possible. A restarted worker must not
+  // blindly resend a request whose page response was lost.
+  await chrome.storage.local.set({[CART_JOURNAL_KEY]: journal});
+  let result;
+  try {
+    result = await inStore(tab, {kind: 'add', items});
+    if (result.added !== true && typeof result.error !== 'string') throw new Error('Missing cart confirmation.');
+  } catch {
+    result = {
+      error: 'The store tab closed or stopped responding. Check your Bullseye cart before sending this selection again.',
+      code: 'CART_UNCONFIRMED', uncertain: true, cartUrl: BULLSEYE_CART_URL,
+    };
+  }
+  record.updatedAt = Date.now();
+  if (result.added === true) {
+    record.status = 'complete';
+    record.result = result;
+    await chrome.storage.local.set({[CART_JOURNAL_KEY]: journal});
+    return {...result, opened: await showNativeCart(tab, result.cartUrl)};
+  }
+  if (result.uncertain) record.status = 'uncertain';
+  else journal.splice(journal.indexOf(record), 1);
+  await chrome.storage.local.set({[CART_JOURNAL_KEY]: journal});
+  if (result.uncertain) await showNativeCart(tab, result.cartUrl);
+  return result;
 }
 
 async function productVariants(handle) {
   if (!/^[a-z0-9-]+$/.test(handle || '')) throw new Error('Invalid Bullseye product.');
   const response = await fetch(`https://shop.bullseyeglass.com/products/${handle}.js`, {signal: AbortSignal.timeout(12000)});
-  if (!response.ok) throw new Error('Could not refresh this product. The store will confirm stock in Quick Add.');
+  if (!response.ok) throw new Error('Could not refresh this product. The store will confirm stock when adding jars.');
   const product = await response.json();
   return {variants: product.variants.map(v => ({id: v.id, sku: v.sku, title: v.title, available: v.available, price: v.price}))};
 }
@@ -188,7 +272,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     FETCH_SELECTED_IMAGE: () => fetchSelectedImage(request.sourceUrl),
     CAPTURE_VISIBLE: captureSource,
     CANCEL_PENDING_IMAGE: cancelPendingImage,
-    OPEN_QUICK_ADD: () => openQuickAdd(request.lines),
+    BULLSEYE_ACCOUNT: bullseyeAccount,
+    BULLSEYE_SIGN_IN: signInToBullseye,
+    BULLSEYE_SEND_CART: () => sendCart(request.items, request.requestId),
     PRODUCT_VARIANTS: () => productVariants(request.handle),
   };
   const action = actions[request.type];

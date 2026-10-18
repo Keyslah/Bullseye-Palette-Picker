@@ -10,83 +10,47 @@
   </head>
   <body>
     <header class="app-header">
-      <a class="brand" href="./picker.html" aria-label="Bullseye Palette Picker home">
-        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-        <span class="brand-text">Bullseye<span>Palette Picker</span></span>
-      </a>
-      <div class="header-actions">
-        <button class="icon-button expand-button" id="open-workspace" type="button" title="Open a larger workspace" aria-label="Open a larger workspace">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14 4h6v6M20 4l-8 8M10 4H4v16h16v-6"/></svg>
-        </button>
-        <button class="basket-button" id="open-cart" type="button" aria-label="Open selected glass">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 8 1.5 12h11L19 8H5ZM9 9V6a3 3 0 0 1 6 0v3"/></svg>
-          <span class="basket-label">My glass</span><span class="count-badge" id="cart-count">0</span>
-        </button>
-      </div>
+      <h1><span class="brand-dot" aria-hidden="true"></span>Bullseye Palette Picker</h1>
+      <div class="header-actions"><button class="text-button" id="open-saved" type="button">Saved palettes</button><button class="icon-button" id="open-workspace" type="button" title="Open full page" aria-label="Open full page">↗</button></div>
     </header>
-
     <main class="app-main">
-      <section class="intro" aria-labelledby="page-title">
-        <div><p class="eyebrow">A little inspiration. A palette of possibilities.</p><h1 id="page-title">Turn a picture into glass.</h1><p class="intro-copy">Find Bullseye colors in the things that catch your eye.</p></div>
-        <div class="scope-badge"><span class="live-dot" aria-hidden="true"></span><span id="catalog-scope">Colored transparents · Medium frit</span></div>
+      <section class="image-panel" aria-label="Source image">
+        <input id="image-file" type="file" accept="image/*" hidden>
+        <div class="source-toolbar"><span id="source-name">Your image</span><div><button class="text-button" id="replace-image" type="button">Choose image</button><button class="text-button" id="paste-image" type="button">Paste</button><button class="text-button" id="capture-image" type="button">Capture</button><button class="icon-button" id="clear-image" type="button" title="Remove image" aria-label="Remove image" hidden>×</button></div></div>
+        <div class="drop-zone" id="drop-zone" tabindex="0" role="button" aria-label="Choose or drop an image"><strong>Right-click a photo → Create Bullseye palette</strong><span>Or drop, paste, or choose an image here.</span></div>
+        <div id="image-loaded" hidden><div class="image-stage" id="image-stage"><div class="canvas-wrap"><canvas id="source-canvas" role="img" aria-label="Source image. Click to add a color point; drag a numbered point to change its color."></canvas><div id="image-points" class="image-points" aria-label="Moveable palette color points"></div></div></div><p class="image-tip">Drag a dot to change its color. Click the image to add a dot.</p></div>
+        <div class="access-note" id="image-access-note" hidden><p id="image-access-copy"></p><button class="button secondary-button" id="allow-image-access" type="button">Allow image access</button></div>
       </section>
 
-      <div class="workspace">
-        <aside class="source-column" aria-label="Your image and palette">
-          <section class="panel image-panel">
-            <div class="section-heading"><div><p class="eyebrow">01 / Your inspiration</p><h2>Your image</h2></div><button class="text-button" id="replace-image" type="button" hidden>Replace</button></div>
-            <input id="image-file" type="file" accept="image/*" hidden>
-            <div class="drop-zone" id="drop-zone" tabindex="0" role="button" aria-label="Choose or drop an image">
-              <div class="inspiration-art" aria-hidden="true"><span></span><span></span><span></span><svg viewBox="0 0 24 24" fill="none"><path d="M12 16V4m-4 4 4-4 4 4M5 15v5h14v-5"/></svg></div>
-              <strong>Bring a little inspiration</strong><span>Drop an image here, or choose a file</span><span class="button primary-button">Choose an image <span aria-hidden="true">↗</span></span>
-              <small>Or right-click a photo on the web</small>
-            </div>
-            <div id="image-loaded" hidden>
-              <div class="image-stage" id="image-stage"><div class="canvas-wrap"><canvas id="source-canvas" role="img" aria-label="Your source image. Click to add a color to your palette."></canvas><span class="image-pick-marker" id="image-pick-marker" hidden aria-hidden="true"></span></div></div>
-              <div class="image-caption"><span id="source-name">Your image</span><button class="icon-button small-icon" id="clear-image" type="button" title="Remove image" aria-label="Remove image"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button></div>
-              <p class="image-tip"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m14 4 6 6m-9-2 5 5M6 16l-2 4 4-2L19 7a2.12 2.12 0 0 0-3-3L6 14v2Z"/></svg>Click anywhere in the image to add a color.</p>
-            </div>
-            <div class="image-tools"><button class="text-button" id="paste-image" type="button">Paste image</button><span aria-hidden="true">·</span><button class="text-button" id="capture-image" type="button">Capture a region</button></div>
-            <div class="access-note" id="image-access-note" hidden><p id="image-access-copy"></p><button class="button secondary-button" id="allow-image-access" type="button">Allow image access</button></div>
-          </section>
+      <section class="palette-panel" id="palette-panel" aria-label="Editable palette" hidden>
+        <div class="palette-topline"><h2>Palette <span class="inline-count" id="target-count"></span></h2><div class="palette-tools"><label for="palette-count">Auto</label><div class="stepper"><button id="palette-fewer" type="button" aria-label="Extract one fewer color">−</button><input id="palette-count" type="number" min="2" max="12" value="6" aria-label="Number of automatic colors"><button id="palette-more" type="button" aria-label="Extract one more color">+</button></div><button class="text-button" id="add-custom-color" type="button">+ Color</button></div></div>
+        <div class="palette-chips" id="palette-chips" aria-label="Palette colors"></div>
+        <div class="palette-bottomline"><div class="target-editor" id="target-editor"><span id="editing-target">Color 1</span><input id="target-color" type="color" value="#537967" aria-label="Edit selected palette color"><input id="target-hex" type="text" value="#537967" maxlength="7" spellcheck="false" autocomplete="off" aria-label="Selected color hex code"><button class="text-button" id="remove-target" type="button">Remove</button></div><button class="text-button" id="show-alternatives" type="button">Alternatives for color 1</button></div>
+      </section>
 
-          <section class="panel palette-panel" id="palette-panel" hidden>
-            <div class="section-heading"><div><p class="eyebrow">02 / Make it yours</p><h2>Your palette <span class="inline-count" id="target-count"></span></h2></div></div>
-            <div class="palette-count-control"><label for="palette-count">Starting colors</label><div class="stepper"><button id="palette-fewer" type="button" aria-label="Extract one fewer starting color">−</button><input id="palette-count" type="number" min="2" max="12" value="6" aria-label="Number of automatically extracted colors"><button id="palette-more" type="button" aria-label="Extract one more starting color">+</button></div></div>
-            <div class="palette-chips" id="palette-chips" aria-label="Palette colors"></div>
-            <div class="target-editor" id="target-editor"><label class="color-input-wrap" for="target-color" title="Edit this color"><input id="target-color" type="color" value="#537967" aria-label="Edit selected palette color"></label><div class="hex-editor"><label for="target-hex">Edit selected color</label><input id="target-hex" type="text" value="#537967" maxlength="7" spellcheck="false" autocomplete="off" aria-label="Selected color hex code"></div><button class="icon-button" id="remove-target" type="button" title="Remove selected color" aria-label="Remove selected palette color"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5m4-5v5"/></svg></button></div>
-            <button class="text-button add-custom-color" id="add-custom-color" type="button">+ Add a custom color</button>
-            <p class="section-note">Select a swatch to find its glass matches. Edit or remove any color.</p>
-          </section>
+      <section class="cart-actions" aria-label="Palette actions">
+        <div class="action-buttons"><button class="button primary-button" id="send-to-cart" type="button" disabled>Send to my cart</button><button class="button secondary-button" id="save-palette" type="button" disabled>Save palette</button><button class="text-button selected-summary" id="open-cart" type="button"><span id="cart-count">0</span> selected<span id="selection-total"></span></button></div>
+        <div class="account-row"><span class="account-status" id="account-status">Checking Bullseye sign-in…</span><button class="text-button" id="sign-in" type="button" hidden>Sign in</button><button class="text-button" id="check-account" type="button" hidden>Check again</button><a class="text-button" id="view-bullseye-cart" href="https://shop.bullseyeglass.com/cart" target="_blank" rel="noopener noreferrer" hidden>View cart ↗</a></div>
+      </section>
 
-          <div class="quiet-note"><span class="tiny-spark" aria-hidden="true">✧</span><p>Your image and palette stay in your browser.</p></div>
-        </aside>
-
-        <section class="results-column" aria-label="Glass colors">
-          <div class="results-topline"><div class="view-tabs" role="tablist" aria-label="Glass views"><button class="view-tab is-active" id="library-tab" type="button" role="tab" aria-selected="true" aria-controls="glass-results" data-view="library">Glass library <span id="library-count"></span></button><button class="view-tab" id="matches-tab" type="button" role="tab" aria-selected="false" aria-controls="glass-results" data-view="matches">Color matches</button></div></div>
-          <div class="match-controls" id="match-controls" hidden>
-            <div class="matching-target"><span class="matching-swatch" id="matching-swatch"></span><div><span class="eyebrow">Matching your color</span><strong id="matching-hex">Choose a color</strong></div><span id="match-count" class="match-count"></span></div>
-            <div class="range-heading"><label for="match-range">Match range</label><output id="range-label" for="match-range">Balanced</output></div>
-            <input id="match-range" type="range" min="2" max="35" step="1" value="12" aria-label="Color match range: lower is tighter, higher includes more colors">
-            <div class="range-endpoints"><span>Tighter matches</span><span>More possibilities</span></div>
-          </div>
-          <div class="results-heading"><div><p class="eyebrow" id="results-eyebrow">Explore the collection</p><h2 id="results-title">A color for every idea.</h2></div><label class="search-field"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input id="glass-search" type="search" placeholder="Find a glass color" aria-label="Search glass by name or code"></label></div>
-          <p class="results-description" id="results-description">Explore colored transparent medium frit. Choose the colors you want to work with.</p>
-          <div id="glass-results" role="tabpanel" aria-labelledby="library-tab"><div class="product-grid" id="product-grid"><div class="loading-state"><span class="loading-orbit" aria-hidden="true"></span><p>Opening the glass library…</p></div></div></div>
-          <div class="empty-state" id="empty-state" hidden><span class="empty-symbol" aria-hidden="true">◌</span><h3 id="empty-title">Make room for possibilities.</h3><p id="empty-copy"></p><button class="button secondary-button" id="empty-action" type="button" hidden></button></div>
-          <p class="photo-note" id="photo-note">Photos show the glass across its sampled color range. Darkness is relative to the lightest and darkest sampled colors of this glass.</p>
-        </section>
-      </div>
-      <footer class="app-footer"><p>An independent tool for glass artists. Not affiliated with Bullseye Glass Co.</p><p>Product photography © Bullseye Glass Co. <a href="https://shop.bullseyeglass.com/collections/frit-powder" target="_blank" rel="noopener noreferrer">Visit Bullseye <span aria-hidden="true">↗</span></a></p></footer>
+      <section class="results-column" aria-label="Bullseye glass colors">
+        <div class="results-toolbar"><div class="view-tabs" role="tablist" aria-label="Glass views"><button class="view-tab is-active" id="palette-tab" type="button" role="tab" aria-selected="true" aria-controls="glass-results">Palette matches</button><button class="view-tab" id="library-tab" type="button" role="tab" aria-selected="false" aria-controls="glass-results">All glass <span id="library-count"></span></button></div><div class="results-tools"><label class="match-range-label" for="match-range">Match <select id="match-range" aria-label="Color match range"><option value="6">Tight</option><option value="12" selected>Standard</option><option value="20">Loose</option><option value="30">Broad</option></select></label><input id="glass-search" type="search" placeholder="Name or code" aria-label="Search glass by name or code"></div></div>
+        <div class="results-subheading"><h2 id="results-title">Bullseye colors</h2><span id="catalog-scope">Medium frit</span></div>
+        <div class="alternatives-heading" id="alternatives-heading" hidden><span id="alternatives-label"></span><button class="text-button" id="back-to-palette" type="button">All palette colors</button></div>
+        <div id="glass-results" role="tabpanel" aria-labelledby="palette-tab"><div class="product-list" id="product-grid"><p class="loading-state">Loading glass colors…</p></div></div>
+        <div class="empty-state" id="empty-state" hidden><h3 id="empty-title"></h3><p id="empty-copy"></p><button class="button secondary-button" id="empty-action" type="button" hidden></button></div>
+        <p class="photo-note">Darkness is relative to the sampled range for that glass. White gaps in colored frit photos are excluded from matching.</p>
+      </section>
+      <footer class="app-footer">Independent tool · Product photos © Bullseye Glass Co. · <a href="https://shop.bullseyeglass.com/" target="_blank" rel="noopener noreferrer">Bullseye store ↗</a></footer>
     </main>
-
-    <div class="selection-bar" id="selection-bar" hidden><div><strong id="selection-summary">Your glass collection</strong><span id="selection-total"></span></div><button class="button primary-button" id="review-selection" type="button">Review glass <span aria-hidden="true">→</span></button></div>
     <div class="toast" id="status-message" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
-    <dialog id="cart-dialog" class="cart-dialog" aria-labelledby="cart-title"><div class="dialog-shell"><div class="dialog-heading"><div><p class="eyebrow">Made for your next project</p><h2 id="cart-title">Your selected glass</h2></div><button class="icon-button" id="close-cart" type="button" aria-label="Close selected glass"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div><p class="dialog-intro">Pick your jar sizes and quantities, then add your list to Bullseye’s cart.</p><div class="cart-items" id="cart-items"></div><div class="cart-empty" id="cart-empty"><span aria-hidden="true">✧</span><h3>A few colors can start something.</h3><p>Select glass from the library or your color matches.</p><button class="button secondary-button" id="back-to-glass" type="button">Explore glass</button></div><div class="cart-bottom" id="cart-bottom" hidden><div class="cart-total"><span>Estimated glass total</span><strong id="cart-total"></strong></div><p class="section-note">Bullseye confirms current prices, availability, and any discounts.</p><button class="button primary-button wide-button" id="send-to-cart" type="button">Send to Bullseye cart <span aria-hidden="true">↗</span></button><button class="button secondary-button wide-button" id="copy-order" type="button">Copy SKU list</button><p class="handoff-note">Opens Bullseye’s Quick Add page in this browser. Review the list, then choose <strong>Add to Cart</strong>.</p></div></div></dialog>
+    <dialog id="cart-dialog" class="cart-dialog" aria-labelledby="cart-title"><div class="dialog-shell"><div class="dialog-heading"><h2 id="cart-title">Selected glass</h2><button class="icon-button" id="close-cart" type="button" aria-label="Close selected glass">×</button></div><div class="cart-items" id="cart-items"></div><div class="cart-empty" id="cart-empty"><p>No glass selected.</p><button class="button secondary-button" id="back-to-glass" type="button">Choose glass</button></div><div class="cart-bottom" id="cart-bottom" hidden><div class="cart-total"><span>Estimated total</span><strong id="cart-total"></strong></div><button class="button primary-button wide-button" id="send-cart-dialog" type="button">Send to my cart</button><button class="text-button" id="copy-order" type="button">Copy SKU list</button></div></div></dialog>
 
-    <dialog id="detail-dialog" class="detail-dialog" aria-labelledby="detail-title"><div class="detail-shell"><div class="dialog-heading"><div><p class="eyebrow" id="detail-code"></p><h2 id="detail-title"></h2></div><button class="icon-button" id="close-detail" type="button" aria-label="Close glass details"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div><div class="detail-photo" id="detail-photo"></div><p class="detail-sample-label" id="detail-sample-label"></p><div class="detail-samples" id="detail-samples" aria-label="Photographed glass samples"></div><p class="section-note">Each swatch comes from this photograph. Darkness is relative to the lightest and darkest sampled colors of this glass.</p><div class="detail-purchase" id="detail-purchase"></div><a class="text-link" id="detail-product-link" href="https://shop.bullseyeglass.com/" target="_blank" rel="noopener noreferrer">View glass on Bullseye <span aria-hidden="true">↗</span></a></div></dialog>
+    <dialog id="saved-dialog" class="saved-dialog" aria-labelledby="saved-title"><div class="dialog-shell"><div class="dialog-heading"><h2 id="saved-title">Saved palettes</h2><button class="icon-button" id="close-saved" type="button" aria-label="Close saved palettes">×</button></div><form id="save-palette-form" class="save-palette-form"><label for="palette-name">Save current palette</label><div><input id="palette-name" type="text" maxlength="80" required placeholder="Palette name"><button class="button primary-button" id="confirm-save-palette" type="submit">Save</button></div></form><p class="section-note">Includes the image, color dots, glass selection, and jar quantities.</p><div id="saved-list" class="saved-list"></div></div></dialog>
 
-    <dialog id="capture-dialog" class="capture-dialog" aria-labelledby="capture-title"><div class="capture-heading"><div><h2 id="capture-title">Choose your inspiration</h2><p>Drag across the image to select a region, or use the whole view.</p></div><button class="icon-button" id="close-capture" type="button" aria-label="Cancel region capture"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div><div class="capture-canvas-wrap"><canvas id="capture-canvas" aria-label="Captured browser view. Drag to select the image region."></canvas></div><div class="capture-actions"><button class="button secondary-button" id="use-full-capture" type="button">Use whole view</button><button class="button primary-button" id="use-capture-region" type="button" disabled>Use selected region</button></div></dialog>
+    <dialog id="detail-dialog" class="detail-dialog" aria-labelledby="detail-title"><div class="detail-shell"><div class="dialog-heading"><div><p class="product-code" id="detail-code"></p><h2 id="detail-title"></h2></div><button class="icon-button" id="close-detail" type="button" aria-label="Close glass details">×</button></div><div class="detail-photo" id="detail-photo"></div><p class="detail-sample-label" id="detail-sample-label"></p><div class="detail-samples" id="detail-samples" aria-label="Photographed glass samples"></div><p class="section-note">Click a swatch or the photograph to inspect a sampled color.</p><div class="detail-purchase" id="detail-purchase"></div><a class="text-link" id="detail-product-link" href="https://shop.bullseyeglass.com/" target="_blank" rel="noopener noreferrer">View on Bullseye ↗</a></div></dialog>
+
+    <dialog id="capture-dialog" class="capture-dialog" aria-labelledby="capture-title"><div class="capture-heading"><div><h2 id="capture-title">Capture an image</h2><p>Drag to select a region, or use the whole view.</p></div><button class="icon-button" id="close-capture" type="button" aria-label="Cancel region capture">×</button></div><div class="capture-canvas-wrap"><canvas id="capture-canvas" aria-label="Captured browser view. Drag to select an image region."></canvas></div><div class="capture-actions"><button class="button secondary-button" id="use-full-capture" type="button">Use whole view</button><button class="button primary-button" id="use-capture-region" type="button" disabled>Use selected region</button></div></dialog>
   </body>
 </html>

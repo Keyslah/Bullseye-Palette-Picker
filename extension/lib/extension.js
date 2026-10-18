@@ -1,14 +1,76 @@
 /**
- * Purpose: browser bridge for photo handoff, saved palettes, and Bullseye Quick Add.
+ * Purpose: browser bridge for photos, saved palettes, and the signed-in Bullseye cart.
  * Setup: imported by picker.js in a Manifest V3 extension or a local preview tab.
- * Destructive behavior: none; cart handoff fills a reviewable order list only.
+ * Destructive behavior: sendToCart adds selected jars after an explicit user click.
  * Constraints: photos stay in this browser; host access is requested per image origin.
  */
+import {BULLSEYE_LOGIN_URL, validateCartItems} from './commerce.js';
+
+export {validateCartItems} from './commerce.js';
 
 const PROJECT_KEY = 'bullseyeProjectV1';
 const PENDING_KEY = 'pendingImage';
 const hasExtension = () => typeof chrome !== 'undefined' && !!chrome.runtime?.id;
 const message = (type, payload = {}) => chrome.runtime.sendMessage({type, ...payload});
+let cartFlight = null;
+const cartRequests = new Map();
+
+function bridgeError(result) {
+  const error = new Error(result?.error || 'The Bullseye store action did not finish.');
+  for (const key of ['code', 'authRequired', 'uncertain', 'addedItems', 'cartUrl', 'account']) {
+    if (result?.[key] !== undefined) error[key] = result[key];
+  }
+  return error;
+}
+
+export async function getBullseyeAccount() {
+  if (!hasExtension()) return {signedIn: null, status: 'preview', message: 'Install the extension to connect your Bullseye account.', checkedAt: Date.now()};
+  const result = await message('BULLSEYE_ACCOUNT');
+  if (result?.error) throw bridgeError(result);
+  return result && [true, false, null].includes(result.signedIn) ? result : {
+    signedIn: null, status: 'unknown', checkedAt: Date.now(), message: 'Bullseye did not confirm your sign-in. Open your account or try again.',
+  };
+}
+
+export async function signInToBullseye() {
+  if (!hasExtension()) {
+    window.open(BULLSEYE_LOGIN_URL, '_blank', 'noopener');
+    return {opened: true};
+  }
+  const result = await message('BULLSEYE_SIGN_IN');
+  if (result?.error) throw bridgeError(result);
+  return result;
+}
+
+export async function sendToCart(items) {
+  const cleaned = validateCartItems(items);
+  if (!hasExtension()) throw new Error('Install the Chrome extension to send colors to your Bullseye cart.');
+  const signature = JSON.stringify(cleaned);
+  if (cartFlight) {
+    if (cartFlight.signature === signature) return cartFlight.promise;
+    throw new Error('Your previous selection is still being sent to Bullseye.');
+  }
+  const requestId = cartRequests.get(signature) || crypto.randomUUID();
+  cartRequests.set(signature, requestId);
+  const promise = (async () => {
+    const result = await message('BULLSEYE_SEND_CART', {items: cleaned, requestId});
+    if (result?.error) {
+      // Safe, definitive rejection can be corrected/retried by a new user click.
+      // Uncertain writes retain their ID and are never automatically sent again.
+      if (!result.uncertain) cartRequests.delete(signature);
+      throw bridgeError(result);
+    }
+    if (result?.added !== true) throw bridgeError({
+      error: 'Bullseye did not confirm the cart addition. Check your cart before sending this selection again.',
+      code: 'CART_UNCONFIRMED', uncertain: true, cartUrl: 'https://shop.bullseyeglass.com/cart',
+    });
+    cartRequests.delete(signature);
+    return result;
+  })();
+  cartFlight = {signature, promise};
+  try { return await promise; }
+  finally { if (cartFlight?.promise === promise) cartFlight = null; }
+}
 
 export async function loadState() {
   try {
@@ -72,19 +134,6 @@ export async function requestImageAccess(sourceUrl) {
   return result;
 }
 
-export async function openQuickAdd(lines) {
-  const cleaned = validateOrderLines(lines);
-  if (hasExtension()) {
-    const result = await message('OPEN_QUICK_ADD', {lines: cleaned});
-    if (result?.error) throw new Error(result.error);
-    return result;
-  }
-  // Open synchronously to remain inside the user's gesture in preview mode.
-  const opened = window.open('https://shop.bullseyeglass.com/pages/quick-add-to-cart', '_blank', 'noopener');
-  try { await navigator.clipboard.writeText(cleaned); } catch { /* The picker also provides a copy action. */ }
-  return {opened: !!opened, manualPaste: true};
-}
-
 export function validateOrderLines(lines) {
   if (typeof lines !== 'string' || lines.length > 20000) throw new Error('The shopping list is not valid.');
   const rows = lines.trim().split(/\r?\n/).filter(Boolean);
@@ -102,6 +151,6 @@ export async function fetchProductVariants(handle) {
     if (result?.error) throw new Error(result.error);
     return result;
   }
-  // The bundled catalog remains useful offline; the store confirms stock during Quick Add.
+  // The bundled catalog remains useful offline; the store confirms stock when adding jars.
   return null;
 }

@@ -1,9 +1,9 @@
 {
   "name": "bullseye-palette-picker",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Match photo colors to photographed ranges of colored transparent Bullseye medium frit.",
+  "description": "Editable photo palettes matched to real Bullseye colored and neutral medium frit, with saved palettes and direct cart additions.",
   "scripts": {
     "test": "node --test tests/*.test.js",
     "check": "node scripts/check.mjs",

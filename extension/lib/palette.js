@@ -45,7 +45,7 @@ function deterministicRandom() {
   };
 }
 
-function sampledColors(data, maxSamples) {
+function sampledColors(data, maxSamples, width, height) {
   const random = deterministicRandom();
   const reservoir = [];
   let visible = 0;
@@ -60,6 +60,7 @@ function sampledColors(data, maxSamples) {
       reservoir[destination] = {
         rgb: [data[offset], data[offset + 1], data[offset + 2]],
         weight: Math.min(alpha, 255) / 255,
+        pixelIndex: offset / 4,
       };
     }
   }
@@ -68,10 +69,29 @@ function sampledColors(data, maxSamples) {
   for (const sample of reservoir) {
     const key = rgbToHex(sample.rgb);
     const existing = byRgb.get(key);
-    if (existing) existing.weight += sample.weight;
-    else byRgb.set(key, { ...sample, hex: key, lab: rgbToLab(sample.rgb) });
+    if (existing) {
+      existing.weight += sample.weight;
+      existing.pixels.push(sample);
+    } else byRgb.set(key, { ...sample, hex: key, lab: rgbToLab(sample.rgb), pixels: [sample] });
   }
-  return [...byRgb.values()];
+  return [...byRgb.values()].map(point => {
+    if (width && height) {
+      // Place a dot inside its actual color region, close to that color's centroid.
+      // The centroid alone can fall in a different color between disjoint regions.
+      const centerX = point.pixels.reduce((sum, pixel) => sum + (pixel.pixelIndex % width) * pixel.weight, 0) / point.weight;
+      const centerY = point.pixels.reduce((sum, pixel) => sum + Math.floor(pixel.pixelIndex / width) * pixel.weight, 0) / point.weight;
+      let closest = point.pixels[0], distance = Infinity;
+      for (const pixel of point.pixels) {
+        const next = (pixel.pixelIndex % width - centerX) ** 2 + (Math.floor(pixel.pixelIndex / width) - centerY) ** 2;
+        if (next < distance) { closest = pixel; distance = next; }
+      }
+      point.x = ((closest.pixelIndex % width) + 0.5) / width;
+      point.y = (Math.floor(closest.pixelIndex / width) + 0.5) / height;
+    }
+    delete point.pixels;
+    delete point.pixelIndex;
+    return point;
+  });
 }
 
 function initialCenters(points, count) {
@@ -102,9 +122,10 @@ function initialCenters(points, count) {
 }
 
 /**
- * Return [{id,rgb,hex,lab,weight}], ordered by descending area weight.
+ * Return [{id,rgb,hex,lab,weight,x,y}], ordered by descending area weight.
  * Weighted k-means uses all three Lab axes; output swatches are actual image colors,
  * chosen closest to each cluster's center. Empty or fully transparent images return [].
+ * With valid width/height, normalized x/y identify an actual representative pixel.
  */
 export function extractPalette(imageData, { count = 8, maxSamples = 12000 } = {}) {
   const data = imageData?.data;
@@ -113,7 +134,10 @@ export function extractPalette(imageData, { count = 8, maxSamples = 12000 } = {}
   }
   const desiredCount = boundedInteger(count, 8, 2, 12);
   const sampleLimit = boundedInteger(maxSamples, 12000, 1, 100000);
-  const points = sampledColors(data, sampleLimit);
+  const width = Number.isInteger(imageData.width) && imageData.width > 0 ? imageData.width : null;
+  const height = Number.isInteger(imageData.height) && imageData.height > 0 ? imageData.height : null;
+  const dimensionsValid = width && height && width * height * 4 === data.length;
+  const points = sampledColors(data, sampleLimit, dimensionsValid && width, dimensionsValid && height);
   if (points.length === 0) return [];
   const centers = initialCenters(points, Math.min(desiredCount, points.length));
 
@@ -159,6 +183,7 @@ export function extractPalette(imageData, { count = 8, maxSamples = 12000 } = {}
         hex: point.hex,
         lab: point.lab.slice(),
         weight: cluster.weight / totalWeight,
+        ...(point.x === undefined ? {} : { x: point.x, y: point.y }),
       };
     })
     .sort((first, second) => second.weight - first.weight || compareText(first.hex, second.hex));
@@ -181,15 +206,36 @@ function colorLab(color) {
   throw new TypeError('A color needs RGB, an RGB hex string, or a D65 Lab triplet.');
 }
 
+// Product policy, not a claim that C*=10 is a universal visual threshold. The
+// starter library intentionally excludes nearly colorless bands of colored frit.
+export const MIN_VISIBLE_CHROMA = 10;
+
+export function getColorFamily(color) {
+  const lab = colorLab(color);
+  return Math.hypot(lab[1], lab[2]) < MIN_VISIBLE_CHROMA ? 'neutral' : 'chromatic';
+}
+
+function productColorFamily(product) {
+  if (product.colorFamily === 'neutral' || product.colorFamily === 'chromatic') return product.colorFamily;
+  // Backward compatibility for imported catalogs: a chromatic product cannot
+  // turn into a neutral merely because one photograph sample is nearly white.
+  return product.samples.some(sample => {
+    try { return getColorFamily(sample) === 'chromatic'; } catch { return false; }
+  }) ? 'chromatic' : 'neutral';
+}
+
 /**
  * Return one closest actual sample per product, ranked by full-color CIEDE2000.
  * Target accepts {rgb,lab,hex}, an RGB triplet, a hex string, or {lab}.
  * Strict tolerance: no result is returned outside the range. Pass tolerance: Infinity
  * explicitly for nearest alternatives, and limit: Infinity to return every eligible item.
+ * Neutral/chromatic eligibility always applies, even for explicit broad alternatives.
+ * White gaps in a colored frit photo are never evidence for matching gray or white.
  * Returned sample/product are original objects; inputs and darkness labels are untouched.
  */
 export function matchCatalog(target, products, { tolerance = 12, limit = 12 } = {}) {
   const lab = colorLab(target);
+  const family = getColorFamily({ lab });
   if (!Array.isArray(products)) throw new TypeError('Catalog products must be an array.');
   const numericTolerance = Number(tolerance);
   const threshold = numericTolerance === Infinity
@@ -203,6 +249,8 @@ export function matchCatalog(target, products, { tolerance = 12, limit = 12 } = 
   const matches = [];
   for (const product of products) {
     if (!Array.isArray(product?.samples)) continue;
+    if (product.colorFamily === 'clear' || product.isClear || /\bclear\b/i.test(product.name ?? '')) continue;
+    if (productColorFamily(product) !== family) continue;
     let closest = null;
     for (const sample of product.samples) {
       let sampleLab;
@@ -211,6 +259,8 @@ export function matchCatalog(target, products, { tolerance = 12, limit = 12 } = 
       } catch {
         continue; // One incomplete catalog sample must not hide other valid products.
       }
+      if (sample.eligible === false || sample.background === true) continue;
+      if (getColorFamily({ lab: sampleLab }) !== family) continue;
       const deltaE = deltaE2000(lab, sampleLab);
       if (!closest || deltaE < closest.deltaE) closest = { product, sample, deltaE, withinTolerance: deltaE <= threshold };
     }
