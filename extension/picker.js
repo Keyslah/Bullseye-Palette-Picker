@@ -5,19 +5,20 @@
  * color engine, browser bridge, and IndexedDB palette storage modules.
  * Destructive behavior: only an explicit Delete palette removes a saved palette.
  * The Send button adds chosen jars; it never clears a shop cart or checks out.
- * Constraints: images remain local. Darkness describes the sampled appearance
- * of one glass color. The matching engine compares hue, saturation, and lightness.
+ * Constraints: images remain local. Thickness is an estimated photo reference.
+ * The matching engine compares hue, saturation, and lightness independently.
  */
 import {rgbToLab, rgbToHex} from './lib/color.js';
-import {extractPalette, matchCatalog} from './lib/palette.js';
+import {extractPalette, matchCatalog, sampleThickness as measureSampleThickness} from './lib/palette.js';
 import * as bridge from './lib/extension.js';
 import {listPalettes, savePalette, loadPalette, deletePalette} from './lib/saved-palettes.js';
 
 const $ = id => document.getElementById(id);
 const MAX_TARGETS = 20;
 const state = {
-  products: [], sourceDataUrl: '', sourceName: '', sourceUrl: '', imageData: null,
-  paletteCount: 6, targets: [], activeTargetId: null, tolerance: 12,
+  products: [], sourceDataUrl: '', sourceName: '', sourceUrl: '', sourceThumbnail: '', imageData: null,
+  paletteCount: 6, targets: [], activeTargetId: null,
+  glassTypes: {transparent: true, opalescent: true}, imageSize: 'fit',
   view: 'palette', query: '', selectedVariants: {}, quantities: {}, chosenMatches: {}, cart: [],
   lastPendingImageAt: 0, savedPaletteId: null, savedPaletteName: '',
   account: {signedIn: null, status: 'checking'}, sending: false,
@@ -26,6 +27,7 @@ const state = {
 const sourceCanvas = $('source-canvas');
 const sourceContext = sourceCanvas.getContext('2d', {willReadFrequently: true});
 const freshProducts = new Map();
+const matchCache = new Map();
 let detailProduct = null, detailSample = null, pendingAccessUrl = '';
 let saveTimer, toastTimer, saveWarningShown = false;
 let imageLoadId = 0, cancellingImageId = 0, manualTargetId = 0;
@@ -49,8 +51,8 @@ function money(cents) { return new Intl.NumberFormat('en-US', {style:'currency',
 function colorHex(rgb) { return rgbToHex(rgb).toUpperCase(); }
 function activeTarget() { return state.targets.find(target => target.id === state.activeTargetId) || null; }
 function targetNumber(target) { return state.targets.findIndex(entry => entry.id === target?.id) + 1; }
-function sampleDarkness(sample) { const value = Number(sample?.darkness); return Number.isFinite(value) ? Math.round(value) : null; }
-function sampleLabel(product, sample) { const darkness = sampleDarkness(sample); return darkness === null ? product.name : `${product.name} at ${darkness}% darkness`; }
+function sampleThickness(sample, product) { const value = measureSampleThickness(sample, product); return Number.isFinite(value) ? Math.round(value) : null; }
+function sampleLabel(product, sample) { const thickness = sampleThickness(sample, product); return thickness === null ? `${product.name} · Thickness unavailable` : `${product.name} at ${thickness}% thickness`; }
 function variantKey(product, variant) { return `${product.id}:${String(variant.id || variant.sku)}`; }
 function getProduct(id) { return state.products.find(product => product.id === id); }
 function getVariant(product, id) { return product?.variants?.find(variant => String(variant.id) === String(id)); }
@@ -63,9 +65,10 @@ function selectedItem(product, variant) { return variant && state.cart.find(item
 function cartFingerprint() { return JSON.stringify(state.cart.map(item => [String(item.variantId), item.quantity]).sort((a,b) => a[0].localeCompare(b[0]))); }
 function workspaceSnapshot() {
   return {
-    version:2, sourceDataUrl:state.sourceDataUrl, sourceName:state.sourceName, sourceUrl:state.sourceUrl,
+    version:3, sourceDataUrl:state.sourceDataUrl, sourceName:state.sourceName, sourceUrl:state.sourceUrl,
+    thumbnailDataUrl:state.sourceThumbnail, glassTypes:state.glassTypes, imageSize:state.imageSize, imageLayout:'auto',
     paletteCount:state.paletteCount, targets:state.targets, activeTargetId:state.activeTargetId,
-    tolerance:state.tolerance, view:state.view, selectedVariants:state.selectedVariants,
+    view:state.view, selectedVariants:state.selectedVariants,
     quantities:state.quantities, chosenMatches:state.chosenMatches, cart:state.cart,
     lastPendingImageAt:state.lastPendingImageAt, savedPaletteId:state.savedPaletteId,
     savedPaletteName:state.savedPaletteName, sentCartFingerprint:state.sentCartFingerprint,
@@ -90,14 +93,19 @@ function normalizeTarget(target, index = 0) {
 function restoreWorkspace(saved) {
   if (!saved || typeof saved !== 'object') return;
   state.paletteCount = clamp(Math.round(Number(saved.paletteCount) || 6), 2, 12);
-  state.tolerance = [6,12,20,30].reduce((best, value) => Math.abs(value-(Number(saved.tolerance)||12)) < Math.abs(best-(Number(saved.tolerance)||12)) ? value : best, 12);
+  state.glassTypes = {
+    transparent: saved.glassTypes?.transparent !== false,
+    opalescent: saved.glassTypes?.opalescent !== false,
+  };
+  state.imageSize = ['fit','larger','full'].includes(saved.imageSize) ? saved.imageSize : 'fit';
+  state.sourceThumbnail = typeof saved.thumbnailDataUrl === 'string' ? saved.thumbnailDataUrl : '';
   state.selectedVariants = saved.selectedVariants && typeof saved.selectedVariants === 'object' ? saved.selectedVariants : {};
   state.quantities = saved.quantities && typeof saved.quantities === 'object' ? saved.quantities : {};
   state.chosenMatches = saved.chosenMatches && typeof saved.chosenMatches === 'object' ? saved.chosenMatches : {};
   state.targets = Array.isArray(saved.targets) ? saved.targets.map(normalizeTarget).filter(Boolean).slice(0,MAX_TARGETS) : [];
   state.activeTargetId = saved.activeTargetId;
   if (!activeTarget()) state.activeTargetId = state.targets[0]?.id || null;
-  state.view = saved.view === 'library' ? 'library' : 'palette';
+  state.view = ['library','alternatives'].includes(saved.view) ? saved.view : 'palette';
   state.lastPendingImageAt = Math.max(state.lastPendingImageAt, Number(saved.lastPendingImageAt) || 0);
   state.savedPaletteId = saved.savedPaletteId || null; state.savedPaletteName = saved.savedPaletteName || '';
   state.sentCartFingerprint = saved.sentCartFingerprint || ''; state.cartUnconfirmed = typeof saved.cartUnconfirmed === 'string' ? saved.cartUnconfirmed : '';
@@ -111,7 +119,7 @@ function restoreWorkspace(saved) {
 }
 
 function renderPalette() {
-  $('palette-panel').hidden = !state.imageData && !state.targets.length;
+  $('palette-panel').hidden = false;
   $('target-count').textContent = state.targets.length;
   $('palette-count').value = state.paletteCount; $('palette-count').disabled = !state.imageData;
   $('palette-fewer').disabled = !state.imageData || state.paletteCount <= 2;
@@ -137,6 +145,39 @@ function renderPalette() {
   $('add-custom-color').disabled = state.targets.length >= MAX_TARGETS;
   $('save-palette').disabled = !state.targets.length;
   renderPoints();
+}
+
+function renderImageLayout() {
+  const main = document.querySelector('.app-main');
+  const portrait = Boolean(state.imageData && sourceCanvas.height > sourceCanvas.width);
+  main.classList.toggle('has-portrait', portrait);
+  main.dataset.imageSize = state.imageSize;
+  for (const size of ['fit','larger','full']) $(`image-${size}`).setAttribute('aria-pressed', String(state.imageSize === size));
+  if (!state.imageData || $('image-loaded').hidden) return;
+  const stage = $('image-stage');
+  const availableWidth = Math.max(1, stage.clientWidth - 2);
+  const beside = portrait && window.innerWidth >= 900;
+  const fitHeight = beside ? Math.max(360, window.innerHeight - 112) : Math.max(220, Math.min(360, window.innerHeight * .34));
+  const maxHeight = state.imageSize === 'full' ? Infinity : state.imageSize === 'larger' ? fitHeight * 1.65 : fitHeight;
+  const scale = Math.min(availableWidth / sourceCanvas.width, maxHeight / sourceCanvas.height);
+  const width = sourceCanvas.width * scale, height = sourceCanvas.height * scale;
+  const wrap = sourceCanvas.parentElement;
+  wrap.style.width = `${width}px`; wrap.style.height = `${height}px`;
+  stage.style.height = `${height + 2}px`;
+}
+
+function setImageSize(size) {
+  state.imageSize = size; renderImageLayout(); persist();
+}
+
+function imageThumbnail() {
+  if (!state.imageData) return '';
+  const canvas = document.createElement('canvas');
+  const scale = Math.min(1, 160 / Math.max(sourceCanvas.width, sourceCanvas.height));
+  canvas.width = Math.max(1, Math.round(sourceCanvas.width * scale));
+  canvas.height = Math.max(1, Math.round(sourceCanvas.height * scale));
+  canvas.getContext('2d').drawImage(sourceCanvas, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/png');
 }
 
 function renderPoints() {
@@ -233,7 +274,22 @@ function nearestSourcePoint(rgb) {
   return best<0 ? null : {x:((best%width)+.5)/width,y:(Math.floor(best/width)+.5)/height};
 }
 
-function matchesFor(target) { return target ? matchCatalog(target,state.products,{tolerance:state.tolerance,limit:state.products.length}) : []; }
+function includedProducts() {
+  return state.products.filter(product => {
+    const type = String(product.type || '').toLowerCase();
+    return type === 'transparent' ? state.glassTypes.transparent : ['opalescent','opaque'].includes(type) && state.glassTypes.opalescent;
+  });
+}
+function matchesFor(target) {
+  if (!target) return [];
+  const key = `${target.hex}:${state.glassTypes.transparent}:${state.glassTypes.opalescent}`;
+  if (!matchCache.has(key)) {
+    if (matchCache.size >= 128) matchCache.delete(matchCache.keys().next().value);
+    const products = includedProducts();
+    matchCache.set(key, matchCatalog(target, products, {tolerance:Infinity, limit:products.length}));
+  }
+  return matchCache.get(key);
+}
 function primaryMatch(target) {
   const matches=matchesFor(target), chosen=state.chosenMatches[target.id];
   return matches.find(entry=>entry.product.id===chosen) || matches[0] || null;
@@ -246,23 +302,34 @@ function renderResults() {
     $(`${view}-tab`).tabIndex=active?0:-1;
   }
   $('glass-results').setAttribute('aria-labelledby',state.view==='library'?'library-tab':'palette-tab');
-  $('match-range').value=state.tolerance;
+  $('show-full-palette').checked=state.view==='palette';
+  $('show-full-palette').disabled=!state.targets.length;
+  $('show-full-palette').closest('label').hidden=!state.targets.length;
+  for (const type of ['transparent','opalescent']) {
+    $(`include-${type}`).classList.toggle('is-active',state.glassTypes[type]);
+    $(`include-${type}`).setAttribute('aria-pressed',String(state.glassTypes[type]));
+  }
+  const products=includedProducts();
+  $('library-count').textContent=String(products.length);
+  $('catalog-scope').textContent=`${products.length} colors · Medium frit`;
   $('results-title').textContent=state.view==='library'?'All Bullseye colors':'Bullseye colors for your palette';
   $('alternatives-heading').hidden=state.view!=='alternatives';
   const target=activeTarget();
   if (state.view==='alternatives') $('alternatives-label').textContent=`Color ${targetNumber(target)} · ${target?.hex || ''}`;
   let entries;
-  if (state.view==='library') entries=state.products.map(product=>({product,sample:null}));
+  if (state.view==='library') entries=products.map(product=>({product,sample:null}));
   else if (state.view==='alternatives') entries=matchesFor(target).map(entry=>({...entry,target}));
   else entries=state.targets.map(target=>({...primaryMatch(target),target}));
+  if (!state.glassTypes.transparent && !state.glassTypes.opalescent) entries=[];
   const query=state.query.trim().toLowerCase();
   if (query) entries=entries.filter(entry=>entry.product && `${entry.product.name} ${entry.product.code} ${entry.product.id}`.toLowerCase().includes(query));
   const list=$('product-grid');list.replaceChildren(); $('glass-results').hidden=!entries.length;$('empty-state').hidden=!!entries.length;
   $('empty-action').hidden=true;emptyAction=null;
   if (!entries.length) {
-    if (query) setEmpty('No glass by that name.','Search by a color name or Bullseye code.','Clear search',()=>{state.query='';$('glass-search').value='';renderResults();});
+    if (!state.glassTypes.transparent && !state.glassTypes.opalescent) setEmpty('Choose a glass type.','Turn on Transparent, Opalescent, or both above. Your selected jars are kept.','',null);
+    else if (query) setEmpty('No glass by that name.','Search by a color name or Bullseye code.','Clear search',()=>{state.query='';$('glass-search').value='';renderResults();});
     else if (!state.targets.length && state.view!=='library') setEmpty('Add an image or a color.','Your Bullseye matches will appear here.','Choose image',()=>$('image-file').click());
-    else if (state.view==='alternatives') setEmpty('No close glass match.','Edit this color or widen the match range.','All palette colors',()=>setView('palette'));
+    else if (state.view==='alternatives') setEmpty('No glass in the included types for this color.','Try including the other glass type.','Show full palette',()=>setView('palette'));
     else setEmpty('The glass catalog could not load.','Reload the picker.','Reload',()=>location.reload());
   }
   for (const entry of entries) list.append(entry.product?renderProduct(entry):renderNoMatch(entry.target));
@@ -277,7 +344,7 @@ function photoElement(product,sample,eager=true) {
 function renderNoMatch(target) {
   const row=element('article','product-card no-match-card');row.dataset.targetId=target.id;
   const swatch=element('span','no-match-swatch',targetNumber(target));swatch.style.backgroundColor=target.hex;
-  const body=element('div');body.append(element('h3','product-name',`Color ${targetNumber(target)} · ${target.hex}`),element('p','','No close glass match.'));
+  const body=element('div');body.append(element('h3','product-name',`Color ${targetNumber(target)} · ${target.hex}`),element('p','','No matching glass in the included types.'));
   const edit=element('button','row-alternatives','Edit color');edit.type='button';edit.addEventListener('click',()=>{selectTarget(target.id);$('target-hex').focus();});body.append(edit);row.append(swatch,body);return row;
 }
 function renderProduct(entry) {
@@ -286,10 +353,10 @@ function renderProduct(entry) {
   const photo=element('button','photo-button');photo.type='button';photo.setAttribute('aria-label',`Inspect ${product.name} color photograph`);photo.append(photoElement(product,sample));photo.addEventListener('click',()=>openDetail(product,sample));
   const body=element('div','product-card-content');body.append(element('h3','product-name',product.name),element('p','product-code',product.code));
   if (sample) {
-    const label=element('p','match-label'),swatch=element('span','small-swatch');swatch.style.backgroundColor=sample.hex||colorHex(sample.rgb);
+    const label=element('p','match-label'),swatch=element('span','small-swatch'),thickness=sampleThickness(sample,product);swatch.style.backgroundColor=sample.hex||colorHex(sample.rgb);label.title='Photo-based thickness estimate; see the reference guide at the top.';
     if(target)label.append(element('span','target-tag',`Color ${targetNumber(target)}`));
-    label.append(swatch,element('span','',`${sampleDarkness(sample)}% darkness`));body.append(label);
-    const quality=element('p','match-quality',entry.deltaE<=5?'Very close match':'Within match range');quality.title=`Full-color difference: ${Number(entry.deltaE).toFixed(1)} ΔE00`;
+    label.append(swatch,element('span','',thickness===null?'Thickness unavailable':`${thickness}% thickness`));body.append(label);
+    const quality=element('p','match-quality',entry.deltaE<=5?'Very close match':state.view==='alternatives'?'Alternative color':state.chosenMatches[target?.id]===product.id?'Chosen color':'Closest available color');quality.title=`Full-color difference: ${Number(entry.deltaE).toFixed(1)} ΔE00`;
     if (target && state.view==='palette') {const alternatives=element('button','row-alternatives','Alternatives');alternatives.type='button';alternatives.addEventListener('click',()=>showAlternatives(target.id));quality.append(alternatives);}
     else if(target && state.view==='alternatives') {const choose=element('button','row-alternatives','Use for this color');choose.type='button';choose.addEventListener('click',()=>{state.chosenMatches[target.id]=product.id;setView('palette');});quality.append(choose);}
     body.append(quality);
@@ -390,8 +457,8 @@ async function sendSelection() {
 function orderLines(){const quantities=new Map();for(const item of state.cart)if(item.sku)quantities.set(item.sku,(quantities.get(item.sku)||0)+item.quantity);return Array.from(quantities,([sku,quantity])=>`${sku} ${quantity}`).join('\n');}
 async function copyOrder(){try{await navigator.clipboard.writeText(orderLines());notify('SKU list copied.');}catch{notify('This browser could not copy the list.',true);}}
 
-function renderAll(){renderPalette();renderResults();renderCart();renderAccount();}
-function setView(view){state.view=view;renderResults();persist();}
+function renderAll(){renderImageLayout();renderPalette();renderResults();renderCart();renderAccount();}
+function setView(view){state.view=view;if(view==='palette'){state.query='';$('glass-search').value='';}renderResults();persist();}
 function selectTarget(id){state.activeTargetId=id;if(state.view==='library')state.view='palette';renderPalette();renderResults();persist();}
 function showAlternatives(id){state.activeTargetId=id;state.view='alternatives';renderPalette();renderResults();persist();}
 function removeTarget(id){const index=state.targets.findIndex(target=>target.id===id);state.targets=state.targets.filter(target=>target.id!==id);delete state.chosenMatches[id];if(!activeTarget())state.activeTargetId=state.targets[Math.max(0,index-1)]?.id||null;renderPalette();renderResults();persist();}
@@ -406,14 +473,16 @@ function decodeImage(url){return new Promise((resolve,reject)=>{const image=new 
 async function loadImage(dataUrl,options={}){
   const requestId=options.requestId??++imageLoadId;if(requestId!==imageLoadId)return;
   try{
-    const image=await decodeImage(dataUrl);if(requestId!==imageLoadId)return;
+    const image=options.decodedImage||await decodeImage(dataUrl);if(requestId!==imageLoadId)return;
     const scale=Math.min(1,1100/Math.max(image.naturalWidth,image.naturalHeight));
     sourceCanvas.width=Math.max(1,Math.round(image.naturalWidth*scale));sourceCanvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
     sourceContext.clearRect(0,0,sourceCanvas.width,sourceCanvas.height);sourceContext.drawImage(image,0,0,sourceCanvas.width,sourceCanvas.height);
     state.imageData=sourceContext.getImageData(0,0,sourceCanvas.width,sourceCanvas.height);state.sourceDataUrl=sourceCanvas.toDataURL('image/png');
+    state.sourceThumbnail=imageThumbnail();
     state.sourceName=options.name||'Your image';state.sourceUrl=options.sourceUrl||'';
     $('source-name').textContent=state.sourceName;$('source-name').title=state.sourceName;
     $('drop-zone').hidden=true;$('image-loaded').hidden=false;$('clear-image').hidden=false;$('replace-image').textContent='Replace';$('image-access-note').hidden=true;pendingAccessUrl='';
+    renderImageLayout();
     if(!options.restore||!state.targets.length){state.targets=[];state.activeTargetId=null;state.view='palette';state.chosenMatches={};state.savedPaletteId=null;state.savedPaletteName='';extractStartingColors(false);}
     else{for(const target of state.targets)if(!Number.isFinite(target.x)||!Number.isFinite(target.y))Object.assign(target,nearestSourcePoint(target.rgb)||{});renderAll();}
     persist();
@@ -426,7 +495,7 @@ async function beginManualImage(){
   return requestId===imageLoadId?requestId:null;
 }
 async function readFile(file){if(!file||!file.type.startsWith('image/')){notify('Choose a PNG, JPEG, WebP, or other image file.',true);return;}const requestId=await beginManualImage();if(requestId===null)return;const reader=new FileReader();reader.onload=()=>loadImage(String(reader.result),{name:file.name||'Pasted image',requestId});reader.onerror=()=>{if(requestId===imageLoadId)notify('The image file could not be read.',true);};reader.readAsDataURL(file);}
-async function clearImage(){const requestId=await beginManualImage();if(requestId===null)return;state.imageData=null;state.sourceDataUrl='';state.sourceName='';state.sourceUrl='';state.targets=[];state.activeTargetId=null;state.view='library';state.chosenMatches={};state.savedPaletteId=null;state.savedPaletteName='';sourceContext.clearRect(0,0,sourceCanvas.width,sourceCanvas.height);$('drop-zone').hidden=false;$('image-loaded').hidden=true;$('clear-image').hidden=true;$('replace-image').textContent='Choose image';$('source-name').textContent='Your image';$('image-access-note').hidden=true;renderAll();persist();}
+async function clearImage(){const requestId=await beginManualImage();if(requestId===null)return;state.imageData=null;state.sourceDataUrl='';state.sourceName='';state.sourceUrl='';state.sourceThumbnail='';state.targets=[];state.activeTargetId=null;state.view='library';state.chosenMatches={};state.savedPaletteId=null;state.savedPaletteName='';sourceContext.clearRect(0,0,sourceCanvas.width,sourceCanvas.height);$('drop-zone').hidden=false;$('image-loaded').hidden=true;$('clear-image').hidden=true;$('replace-image').textContent='Choose image';$('source-name').textContent='Your image';$('image-access-note').hidden=true;renderAll();persist();}
 async function handlePendingImage(pending){if(!pending||cancellingImageId)return;const updatedAt=Number(pending.updatedAt)||0;if(updatedAt&&updatedAt<=state.lastPendingImageAt)return;if(pending.dataUrl){pendingReceivedThisSession=true;if(updatedAt)state.lastPendingImageAt=updatedAt;await loadImage(pending.dataUrl,{name:pending.name||'Image from the web',sourceUrl:pending.sourceUrl});return;}if(pending.needsPermission&&pending.sourceUrl){pendingAccessUrl=pending.sourceUrl;$('image-access-copy').textContent='Allow access to read this photo, or use Capture.';$('allow-image-access').hidden=false;$('image-access-note').hidden=false;}else if(pending.error){$('image-access-copy').textContent=`${pending.error} Use Capture or choose a saved image.`;$('allow-image-access').hidden=true;$('image-access-note').hidden=false;}}
 async function pasteImage(){if(!navigator.clipboard?.read){notify('Press Ctrl+V with an image copied, or choose an image file.');return;}try{const items=await navigator.clipboard.read();for(const item of items){const type=item.types.find(entry=>entry.startsWith('image/'));if(type){await readFile(new File([await item.getType(type)],'Pasted image',{type}));return;}}notify('Copy an image, then paste it here.');}catch{notify('Press Ctrl+V with an image copied, or choose an image file.');}}
 
@@ -437,11 +506,13 @@ async function renderSavedList(){
   try{
     const palettes=await listPalettes();list.replaceChildren();if(!palettes.length)list.append(element('p','saved-empty','No saved palettes yet.'));
     for(const palette of palettes){
-      const row=element('div','saved-row'),body=element('div');body.append(element('strong','',palette.name),element('p','',`${palette.colorCount} colors · ${palette.glassCount} glass selected · ${new Date(palette.updatedAt).toLocaleDateString()}`));
+      const row=element('div','saved-row'),body=element('div'),preview=element('button','saved-preview');preview.type='button';preview.setAttribute('aria-label',`Open saved photo and palette ${palette.name}`);preview.addEventListener('click',()=>restoreSavedPalette(palette.id));
+      if(palette.thumbnailDataUrl){const image=element('img');image.src=palette.thumbnailDataUrl;image.alt=`Saved photo for ${palette.name}`;preview.append(image);}else{const colors=element('div','saved-color-preview');for(const color of palette.colors||[]){const swatch=element('span');swatch.style.backgroundColor=color;colors.append(swatch);}if(!colors.children.length)colors.textContent='Palette';preview.append(colors);}
+      body.append(element('strong','',palette.name),element('p','',`${palette.colorCount} colors · ${palette.glassCount} glass selected`),element('p','',`${palette.hasImage?'Photo saved · ':''}${new Date(palette.updatedAt).toLocaleDateString()}`));
       const load=element('button','button secondary-button','Load');load.type='button';load.setAttribute('aria-label',`Load palette ${palette.name}`);load.addEventListener('click',()=>restoreSavedPalette(palette.id));
       const remove=element('button','text-button delete-palette','Delete');remove.type='button';remove.setAttribute('aria-label',`Delete palette ${palette.name}`);
       remove.addEventListener('click',async()=>{remove.disabled=true;try{await deletePalette(palette.id);if(state.savedPaletteId===palette.id){state.savedPaletteId=null;state.savedPaletteName='';persist();}await renderSavedList();}catch(error){notify(error.message,true);remove.disabled=false;}});
-      row.append(body,load,remove);list.append(row);
+      row.append(preview,body,load,remove);list.append(row);
     }
   }catch(error){list.replaceChildren(element('p','saved-empty',error.message||'Saved palettes could not open.'));}
 }
@@ -450,15 +521,32 @@ async function restoreSavedPalette(id){
   const requestId=await beginManualImage();if(requestId===null)return;
   try{
     const palette=await loadPalette(id);if(requestId!==imageLoadId)return;if(!palette)throw new Error('This saved palette no longer exists.');
+    // Decode before changing selections so an unreadable saved photo cannot
+    // leave another photo under this palette's dots or report a false load.
+    const decodedImage=palette.workspace.sourceDataUrl?await decodeImage(palette.workspace.sourceDataUrl):null;
+    if(requestId!==imageLoadId)return;
     restoreWorkspace({...palette.workspace,savedPaletteId:palette.id,savedPaletteName:palette.name,sentCartFingerprint:'',cartUnconfirmed:false});state.query='';$('glass-search').value='';
-    if(palette.workspace.sourceDataUrl)await loadImage(palette.workspace.sourceDataUrl,{name:palette.workspace.sourceName,sourceUrl:palette.workspace.sourceUrl,restore:true,requestId});
-    else{state.imageData=null;state.sourceDataUrl='';state.sourceName='';state.sourceUrl='';$('drop-zone').hidden=false;$('image-loaded').hidden=true;$('clear-image').hidden=true;$('replace-image').textContent='Choose image';$('source-name').textContent='Your image';renderAll();}
+    if(palette.workspace.sourceDataUrl)await loadImage(palette.workspace.sourceDataUrl,{name:palette.workspace.sourceName,sourceUrl:palette.workspace.sourceUrl,restore:true,requestId,decodedImage});
+    else{state.imageData=null;state.sourceDataUrl='';state.sourceName='';state.sourceUrl='';state.sourceThumbnail='';$('drop-zone').hidden=false;$('image-loaded').hidden=true;$('clear-image').hidden=true;$('replace-image').textContent='Choose image';$('source-name').textContent='Your image';renderAll();}
     if(requestId!==imageLoadId)return;$('saved-dialog').close();renderAll();persist();notify(`Loaded “${palette.name}”.`);
   }catch(error){if(requestId===imageLoadId)notify(error.message||'This palette could not be loaded.',true);}
 }
 
-function openDetail(product,sample){detailProduct=product;detailSample=sample||[...(product.samples||[])].sort((a,b)=>sampleDarkness(b)-sampleDarkness(a))[0]||null;$('detail-code').textContent=`${product.code} · ${product.type||'Glass'} medium frit`;$('detail-title').textContent=product.name;$('detail-product-link').href=product.productUrl;renderDetailSample();renderDetailPurchase();$('detail-dialog').showModal();refreshProduct(product);}
-function renderDetailSample(){if(!detailProduct)return;$('detail-photo').replaceChildren(photoElement(detailProduct,detailSample));$('detail-sample-label').textContent=sampleLabel(detailProduct,detailSample);$('detail-samples').replaceChildren();for(const sample of detailProduct.samples||[]){const button=element('button',`detail-sample${sample===detailSample?' is-active':''}`);button.type='button';button.setAttribute('aria-label',`Show ${sampleLabel(detailProduct,sample)}`);button.setAttribute('aria-pressed',String(sample===detailSample));button.title=sampleLabel(detailProduct,sample);const swatch=element('span');swatch.style.backgroundColor=sample.hex||colorHex(sample.rgb);button.append(swatch,element('small','',`${sampleDarkness(sample)}%`));button.addEventListener('click',()=>{detailSample=sample;renderDetailSample();});$('detail-samples').append(button);}}
+function openDetail(product,sample){detailProduct=product;detailSample=sample||[...(product.samples||[])].sort((a,b)=>sampleThickness(b,product)-sampleThickness(a,product))[0]||null;$('detail-code').textContent=`${product.code} · ${product.type||'Glass'} medium frit`;$('detail-title').textContent=product.name;$('detail-product-link').href=product.productUrl;renderDetailSample();renderDetailPurchase();$('detail-dialog').showModal();refreshProduct(product);}
+function renderDetailSample(){
+  if(!detailProduct)return;
+  $('detail-photo').replaceChildren(photoElement(detailProduct,detailSample));
+  $('detail-sample-label').textContent=sampleLabel(detailProduct,detailSample);
+  $('detail-samples').replaceChildren();
+  for(const sample of detailProduct.samples||[]){
+    const button=element('button',`detail-sample${sample===detailSample?' is-active':''}`),thickness=sampleThickness(sample,detailProduct);
+    button.type='button';button.setAttribute('aria-label',`Show ${sampleLabel(detailProduct,sample)}`);
+    button.setAttribute('aria-pressed',String(sample===detailSample));button.title=sampleLabel(detailProduct,sample);
+    const swatch=element('span');swatch.style.backgroundColor=sample.hex||colorHex(sample.rgb);
+    button.append(swatch,element('small','',thickness===null?'—':`${thickness}%`));
+    button.addEventListener('click',()=>{detailSample=sample;renderDetailSample();});$('detail-samples').append(button);
+  }
+}
 function renderDetailPurchase(){if(detailProduct)$('detail-purchase').replaceChildren(purchaseControls(detailProduct,true));}
 async function refreshProduct(product){if(Date.now()-(freshProducts.get(product.id)||0)<300000)return;freshProducts.set(product.id,Date.now());try{const updated=await bridge.fetchProductVariants(product.handle);if(!Array.isArray(updated?.variants)||!updated.variants.length)return;product.variants=updated.variants.map(variant=>({...variant,price:Number(variant.price)||0}));for(const item of state.cart.filter(entry=>entry.productId===product.id)){const variant=getVariant(product,item.variantId);if(variant)Object.assign(item,makeCartItem(product,variant,item.quantity));}renderResults();renderCart();if(detailProduct?.id===product.id)renderDetailPurchase();persist();}catch(error){console.info('Using bundled glass product information:',error);}}
 
@@ -520,6 +608,7 @@ function bindEvents() {
   window.addEventListener('pagehide', flushSave);
   $('show-alternatives').addEventListener('click', () => { if (state.activeTargetId) showAlternatives(state.activeTargetId); });
   $('back-to-palette').addEventListener('click', () => setView('palette'));
+  $('show-full-palette').addEventListener('change', (event) => { if(event.target.checked)setView('palette');else if(state.activeTargetId)showAlternatives(state.activeTargetId); });
   $('save-palette').addEventListener('click', () => openSaved(true));
   $('open-saved').addEventListener('click', () => openSaved(false));
   $('close-saved').addEventListener('click', () => $('saved-dialog').close());
@@ -537,6 +626,13 @@ function bindEvents() {
   $('image-file').addEventListener('change', (event) => { const file = event.target.files[0]; event.target.value = ''; if (file) readFile(file); });
   $('clear-image').addEventListener('click', clearImage);
   $('paste-image').addEventListener('click', pasteImage);
+  for (const size of ['fit','larger','full']) $(`image-${size}`).addEventListener('click', () => setImageSize(size));
+  window.addEventListener('resize', renderImageLayout);
+  let lastStageWidth = 0;
+  new ResizeObserver(([entry]) => {
+    if (Math.abs(entry.contentRect.width - lastStageWidth) < .5) return;
+    lastStageWidth = entry.contentRect.width; renderImageLayout();
+  }).observe($('image-stage'));
   sourceCanvas.addEventListener('click', pickSourceColor);
   $('palette-fewer').addEventListener('click', () => changePaletteCount(state.paletteCount - 1));
   $('palette-more').addEventListener('click', () => changePaletteCount(state.paletteCount + 1));
@@ -559,8 +655,8 @@ function bindEvents() {
       }
     });
   }
-  $('match-range').addEventListener('input', (event) => {
-    state.tolerance = Number(event.target.value); renderResults(); persist();
+  for (const type of ['transparent','opalescent']) $(`include-${type}`).addEventListener('click', () => {
+    state.glassTypes[type] = !state.glassTypes[type]; renderResults(); persist();
   });
   $('glass-search').addEventListener('input', (event) => { state.query = event.target.value; renderResults(); });
   $('empty-action').addEventListener('click', () => emptyAction?.());

@@ -1,5 +1,5 @@
 {
-  "description": "Reviewed colored transparent medium frit plus transparent gray and ordinary opalescent black/white frit. Visible material pixels are measured; background is excluded. Product IDs and variants come from Bullseye, never inferred.",
+  "description": "All reviewed single-color transparent (including tints) and opalescent medium frit. Clear/colorless products and color mixtures are excluded. Visible material pixels are sampled from fired glass or cast medium-frit reference photographs, never from unfired grains or background. Product and variant IDs come from Bullseye.",
   "defaults": {
     "sampleCount": 40,
     "sampleRect": [
@@ -194,6 +194,919 @@
         100
       ],
       "imageSelection": "Complete fired White Opalescent medium-frit photograph on a black background. Sampling is restricted to the reviewed densely filled left region and light neutral material; black gaps and blue edge shadows are excluded."
+    },
+    {
+      "handle": "reactive-cloud-opalescent-medium-frit-fusible",
+      "colorFamily": "neutral",
+      "sampleRect": [
+        0.025,
+        0.1,
+        0.3,
+        0.9
+      ],
+      "materialRule": "reviewed-white-region",
+      "materialLightnessRange": [
+        85,
+        100
+      ],
+      "imageSelection": "Complete fired medium-frit sample on a black base. Sampled only inside the densely filled left glass region; neutral material and lightness masking exclude dark gaps and blue edge reflections.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "c6cb5df493c8c8694480653db8410718317759480095d4cd2af2fe554d7199a0"
+    },
+    {
+      "handle": "opaque-white-opalescent-medium-frit-fusible",
+      "colorFamily": "neutral",
+      "sampleRect": [
+        0.025,
+        0.1,
+        0.3,
+        0.9
+      ],
+      "materialRule": "reviewed-white-region",
+      "materialLightnessRange": [
+        85,
+        100
+      ],
+      "imageSelection": "Complete fired medium-frit sample on a black base. Sampled only inside the densely filled left glass region; neutral material and lightness masking exclude dark gaps and blue edge reflections.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "bbb4a35e5f0c52caaf319b8384db6978078e66154dfe464f8775feb7de1c4217"
+    },
+    {
+      "handle": "tomato-red-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "e9fa124c5dfdd771757b71b22ce82f36a2e9fa9818cdef23621668a2a1f4427c"
+    },
+    {
+      "handle": "tangerine-orange-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "bdbb55a46150e67344eeed9dd49c824ba919e7764d6fe2c80ff1c833e5376ee4"
+    },
+    {
+      "handle": "light-peach-cream-opalescent-medium-frit-fusible",
+      "colorFamily": "neutral",
+      "sampleRect": [
+        0.025,
+        0.1,
+        0.3,
+        0.9
+      ],
+      "materialRule": "reviewed-white-region",
+      "materialLightnessRange": [
+        75,
+        100
+      ],
+      "imageSelection": "Complete fired medium-frit sample on a black base. Sampled only inside the densely filled left glass region; neutral material and lightness masking exclude dark gaps and blue edge reflections.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "82142bb6feab459bf4d2fdffcb2de2a573fc786343a185043f28a9505b721286"
+    },
+    {
+      "handle": "stiff-black-opalescent-medium-frit-fusible",
+      "colorFamily": "neutral",
+      "materialLightnessRange": [
+        0,
+        20
+      ],
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "09917485cf03ae804a3da0f8d2f36403fa0d7977097ecf1a16867b7eb7116f40"
+    },
+    {
+      "handle": "blue-black-opalescent-medium-frit-fusible",
+      "colorFamily": "neutral",
+      "materialLightnessRange": [
+        0,
+        20
+      ],
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "d649de9be0ada7ddd7c74d9b3d87719820c6093c2a2ae9fb6714afe15eb4effb"
+    },
+    {
+      "handle": "glacier-blue-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "69618aaa1a2e1c1b65beb4d6487ad86a0c9da4128a6e7a994fb3f7c4bf40e16d"
+    },
+    {
+      "handle": "powder-blue-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "97b404efc491f7bd659177a3e947c2f7fbebe848185a6dd9894a5400f4cdc425"
+    },
+    {
+      "handle": "mint-green-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "aae0be5224e6febe8d9ec783e767323450df0f5bef12fd9f3e412650de9caf43"
+    },
+    {
+      "handle": "cobalt-blue-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "d93a8967f96106d7dd923d311a9c2819aac210fc962976cad6cc9d60332c06dd"
+    },
+    {
+      "handle": "turquoise-blue-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "3754d27495dd274926e95802011bc0a95b810080a923abbc9a0f5c094dd77997"
+    },
+    {
+      "handle": "mineral-green-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "150a67d5352a8f1861f6f925aefd2bdc3be2741ef74ad3c5683b7a1d9e946207"
+    },
+    {
+      "handle": "periwinkle-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "6cf1fd2678e4220c569d90938491adbf5df3eaeb098e3ba6b4bd85b41d3bd286"
+    },
+    {
+      "handle": "mink-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "91d9684e9110aae3118e708235e015b6d7757c8034ff1ae24727efeb3e612a42"
+    },
+    {
+      "handle": "canary-yellow-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "5434bacea58bfda6785a25dd7786af1c625e96f2da2a992659ea83145e774f53"
+    },
+    {
+      "handle": "red-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "d3f8a56b7db8e46a573fbb58a625b781cb38dec15ae1c4cb9c2f1e8676e2aefb"
+    },
+    {
+      "handle": "orange-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "ec904d70d88350c692b626eedd97b9c642b57c96293647d858035ef0956d65d5"
+    },
+    {
+      "handle": "spring-green-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "87291d5a003b67d96005817f57531d939169147baddfa7a6db866072c0544362"
+    },
+    {
+      "handle": "artichoke-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "e1616177051744fd7df2b7d7c790c6c4f199a7dd84e24b238103c02e91dd00c7"
+    },
+    {
+      "handle": "driftwood-gray-opalescent-medium-frit-fusible",
+      "colorFamily": "neutral",
+      "sampleRect": [
+        0.025,
+        0.1,
+        0.3,
+        0.9
+      ],
+      "materialRule": "reviewed-white-region",
+      "materialLightnessRange": [
+        65,
+        94
+      ],
+      "imageSelection": "Complete fired medium-frit sample on a black base. Sampled only inside the densely filled left glass region; neutral material and lightness masking exclude dark gaps and blue edge reflections.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "8c634d810b6b7053967fb178fe297ff9fb847d501693a819875a67225c4f410c"
+    },
+    {
+      "handle": "deco-gray-opalescent-medium-frit-fusible",
+      "colorFamily": "neutral",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "51be3faed31a9d95927b3df91effb4ee8619d92e3e1a99546669b99086915276"
+    },
+    {
+      "handle": "french-vanilla-opalescent-medium-frit-fusible",
+      "sampleRect": [
+        0.025,
+        0.1,
+        0.3,
+        0.9
+      ],
+      "imageSelection": "Complete fired French Vanilla medium-frit sample on black. Only visibly yellow material in the densely filled left region is sampled; dark gaps and blue edge reflections are excluded.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "e0b0c55d211df35624391567524663ebc9a6d0b1f61916363d6bf4a19664b504"
+    },
+    {
+      "handle": "marzipan-striker-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "c4bdddb1607d82c812fabac97dd07697730aec51e94d30a5accb3d2a1f75f17e"
+    },
+    {
+      "handle": "dark-forest-green-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "b032afb59708093be613b8665282ea577257d2fe680f711e9a008149149394a3"
+    },
+    {
+      "handle": "neo-lavender-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "531d0280f5ce32b566b526b5f4683bfbe69ef651d465e89fe07ea0419f0d98e0"
+    },
+    {
+      "handle": "teal-green-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "2d2444579f3fe1f86cf2465279aabef761c4563b7c01282a772426eaa04be8c9"
+    },
+    {
+      "handle": "jade-green-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "60053c7ed5efc81e210f0a95c11707bb11239fca04c1ed6fb5fe857934e098e8"
+    },
+    {
+      "handle": "steel-blue-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "0cd35a27377627797ee20781e976b8ba38b968a215219033a853c7de94e6305d"
+    },
+    {
+      "handle": "deep-cobalt-blue-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "0918541c370140b85ae39fed1488c9cbe31ab922552b27a99b4a6bd837434422"
+    },
+    {
+      "handle": "indigo-blue-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "1d297430ea4bf4c3c8cac23815dfd18f8d3e4f54dc5b7325c9c7e9b932db26c1"
+    },
+    {
+      "handle": "egyptian-blue-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "a8b02b3fb26a35188d76c366f8005716fe9da4ca6e31aac452710e24c4568475"
+    },
+    {
+      "handle": "woodland-brown-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "c65b375b7f78d0ab1fa0a034eb987b89a02b2b1574a92b4a524038c257c31cb0"
+    },
+    {
+      "handle": "elephant-gray-opalescent-medium-frit-fusible",
+      "colorFamily": "chromatic",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "71ab1cafdfd535a4492762f9acdec861022217584f5f07da527dcb766d681c49",
+      "imageSelection": "Complete fired Elephant Gray medium-frit sample. Its photographed warm beige material is visibly chromatic (C*>=10), despite the product name; white gaps are excluded before measuring its actual color."
+    },
+    {
+      "handle": "celadon-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "4d79476a846b19da2aea1413a88461855442654a392ba346e0946f4415b68dad"
+    },
+    {
+      "handle": "dusty-blue-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "001c6b1db26a2e734ef35be8003f5b548ea35bc74e4e82ea23390d3826189f63"
+    },
+    {
+      "handle": "olive-green-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "6702bdc4860b3a840319a953a8bf7aa8c8b889a75b801b52eee6434fed564324"
+    },
+    {
+      "handle": "light-cyan-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "dc089d9d396907f664f70a4363f77689c1bde21f4632aff21b7bcc5358298149"
+    },
+    {
+      "handle": "sunflower-yellow-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "6c0c3e5052918642d829511c3e902ec83360090e03c03c9e0c77b3efe3aed133"
+    },
+    {
+      "handle": "citronelle-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "d0f1f6a9bbb74c925a7465128c9ca705ea714de064db9dbc130f4dbb22d900f7"
+    },
+    {
+      "handle": "avocado-green-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "aa02b1dcceba954a553eea8dbb9d2d25f79189db6e4dfd0d619954e6cc358db9"
+    },
+    {
+      "handle": "deep-red-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "d7a26d63e62f5b084e3e0f9ddc46de71c5d2402ca85f038b084192f5b9a90695"
+    },
+    {
+      "handle": "pimento-red-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "e87c46fa2eb41594af8eac508c5c0682b557f52c693d47390591b87f9d2af4cb"
+    },
+    {
+      "handle": "golden-green-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "1d211d5af856c48e037528e674c68c97d2bf23769654e62dbfc2d98a2d725c38"
+    },
+    {
+      "handle": "slate-gray-opalescent-medium-frit-fusible",
+      "colorFamily": "neutral",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "860be94f575ccea33821a89dc408a181c61d6f558892e47bd6a767d1a172a0b9"
+    },
+    {
+      "handle": "pink-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "e22450207cd8702b0c7ce2b50454f5cb5e29a694c8ec48bd2076248d50aa054b"
+    },
+    {
+      "handle": "dusty-lilac-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "0a0878e6708930745859a78bdb1c65be29a3231c0c081f7e26015d6d40456612"
+    },
+    {
+      "handle": "salmon-pink-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "d6559ccc6711b3e234edac0049305b1e54d273f0a3e32a66ebff23f334e1b742"
+    },
+    {
+      "handle": "cinnabar-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "bab1cf725633916577f946a483f464145b0a4a73dd62b636ff4f991585370be6"
+    },
+    {
+      "handle": "umber-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "1aa398094b5176468dd3bb6a8fde9fcdf47156d1e29f3a2dc4e044d502cd81e3"
+    },
+    {
+      "handle": "pea-pod-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "9d297049c04e7e0ae7392c221e18fde05f8a1afa713b0b85de5c76974582cf5d"
+    },
+    {
+      "handle": "dense-white-opalescent-medium-frit-fusible",
+      "colorFamily": "neutral",
+      "sampleRect": [
+        0.025,
+        0.1,
+        0.3,
+        0.9
+      ],
+      "materialRule": "reviewed-white-region",
+      "materialLightnessRange": [
+        85,
+        100
+      ],
+      "imageSelection": "Complete fired medium-frit sample on a black base. Sampled only inside the densely filled left glass region; neutral material and lightness masking exclude dark gaps and blue edge reflections.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "fcba33ec3bf66172b6c165893942bd76b5a5229ae79eef50b8b52fb9e6ae570d"
+    },
+    {
+      "handle": "marigold-yellow-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "eaeea430e8f6afb1cbc8ed9e7fe6a5c2d57530ea3c6ab1ea4e853d2cdcf7e5cb"
+    },
+    {
+      "handle": "pumpkin-orange-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "f88148807c531619d349253a829a1f3a9e671d8daa5be872188fc6d9c0ee42b5"
+    },
+    {
+      "handle": "burnt-orange-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "3f52fe02d63de759cb3bd703d3830b6bf802fbd09a556b464cc7766f546c356f"
+    },
+    {
+      "handle": "plum-striker-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "e5677ccb6f4527e68dd81c3c6e7bd9efdec8e104a84879792d8395a111522a0d"
+    },
+    {
+      "handle": "gold-purple-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "395d9e4dcde5c483b6fca3443cf5f212be8baf3e50d801bc6c77f7065dbca053"
+    },
+    {
+      "handle": "deep-gray-opalescent-medium-frit-fusible",
+      "colorFamily": "neutral",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "2229b876a2a56292af571deec5c8b658a8cd5f0d54a301c5e7d9ade05ddfb39b"
+    },
+    {
+      "handle": "butterscotch-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "07701c98ebabdeb7d6aa2ac8868a84880a9262da77241043e157a64eb9cab905"
+    },
+    {
+      "handle": "opaline-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "da4d199368f92f027383f6819404bf842d45d942601e7941b37579eb8c233657"
+    },
+    {
+      "handle": "cream-opalescent-medium-frit-fusible",
+      "colorFamily": "neutral",
+      "sampleRect": [
+        0.025,
+        0.1,
+        0.3,
+        0.9
+      ],
+      "materialRule": "reviewed-white-region",
+      "materialLightnessRange": [
+        80,
+        100
+      ],
+      "imageSelection": "Complete fired medium-frit sample on a black base. Sampled only inside the densely filled left glass region; neutral material and lightness masking exclude dark gaps and blue edge reflections.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "9b309ee44613597abe2edbfabd5991c581e38e60ad7f43fb4a11dc2dd9e10e4e"
+    },
+    {
+      "handle": "petal-pink-opalescent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "1d63a12aa3fce9f540cbb1f7c4a5f9fa7dce7a9efe30ac3d502f4ddd0baf0e60"
+    },
+    {
+      "handle": "warm-white-opalescent-medium-frit-fusible",
+      "colorFamily": "neutral",
+      "sampleRect": [
+        0.025,
+        0.1,
+        0.3,
+        0.9
+      ],
+      "materialRule": "reviewed-white-region",
+      "materialLightnessRange": [
+        85,
+        100
+      ],
+      "imageSelection": "Complete fired medium-frit sample on a black base. Sampled only inside the densely filled left glass region; neutral material and lightness masking exclude dark gaps and blue edge reflections.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "40bdd7d2f949447076c77217f551601f71e3d460721bd5f88cf09e3e98daf2ad"
+    },
+    {
+      "handle": "light-orange-striker-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "66be2180b2fb56e9cd81b6fb701f0f0eda5c22d91e6c3f904ab2c8036107fdd7"
+    },
+    {
+      "handle": "deep-plum-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "88bbbd75bd3b93e16da86cc150b92d61121a36e68227cdab1425311dd6487359"
+    },
+    {
+      "handle": "aquamarine-blue-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "398b45ff58510310099e10826c3deb8b11d7dbcf672ed3407d2bebeab96912b4"
+    },
+    {
+      "handle": "dark-rose-brown-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "d837432bb6d243d8e883e57c5b2b23e28285d1e30eccacf48c1a2ac6661c3aee"
+    },
+    {
+      "handle": "aventurine-green-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "a2c6abf508e88c736ae68601aad61a4035ef37c65696cad55f92bed44e6cfd2b"
+    },
+    {
+      "handle": "chartreuse-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "1e4ff172ead88a9801a1089f44048bda8aaa0bf5fc32153d16781b565a430883"
+    },
+    {
+      "handle": "aventurine-blue-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "31cd1c93f3cb8acca51ff0c119174debef4f59a63cda5849d607d190c3e25388",
+      "colorFamily": "neutral",
+      "materialLightnessRange": [
+        0,
+        20
+      ],
+      "imageSelection": "Complete fired Aventurine Blue medium-frit sample. Its photographed dense material is near-black and low-chroma; neutral L*<=20 masking keeps that actual material, excluding white gaps and bright edge halos instead of inventing a blue hue."
+    },
+    {
+      "handle": "olive-green-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "baf8cb5bd00f2fd112809906cee0a0267b18ab87bccb0ef96b9b3a0a8cc6f2fa"
+    },
+    {
+      "handle": "leaf-green-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "90d3b242136711e4b26389177c5b2420734572b53e207531ea1293430f3e18e1"
+    },
+    {
+      "handle": "lily-pad-green-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "e80ff1d442b7c95a6126d31dd5d0e0d9c81da018d1a2398e3e4244de26c2dfc9"
+    },
+    {
+      "handle": "pine-green-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "966632b41780cfe361f46df0dd7f575c7f6bcc4149f42aa4359773cc704240ca"
+    },
+    {
+      "handle": "medieval-green-transparent-medium-frit-fusible",
+      "imageIndex": 1,
+      "sampleRect": [
+        0.58,
+        0.13,
+        0.83,
+        0.3
+      ],
+      "sampleBandWidth": 0.0075,
+      "imageKind": "Fired medium-frit tile within a labeled four-grain photograph",
+      "imageSelection": "Official fired-grain comparison photograph. Sampling is confined to the top-right tile labeled -0002 (medium frit); the coarse, fine, and powder tiles, labels, margins, and cold-frit dish are excluded.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "48f7fd2aed9e782fa61b2af9e540bdda72b29a6d8227596d7221b6a438d91366"
+    },
+    {
+      "handle": "light-mineral-green-transparent-medium-frit-fusible",
+      "imageIndex": 1,
+      "sampleRect": [
+        0.58,
+        0.13,
+        0.83,
+        0.3
+      ],
+      "sampleBandWidth": 0.0075,
+      "imageKind": "Fired medium-frit tile within a labeled four-grain photograph",
+      "imageSelection": "Official fired-grain comparison photograph. Sampling is confined to the top-right tile labeled -0002 (medium frit); the coarse, fine, and powder tiles, labels, margins, and cold-frit dish are excluded.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "a801e2a86f182fd178e687d7138b74ce280de3d3107d29adaf2b996ac294d902"
+    },
+    {
+      "handle": "sunset-coral-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "7b64f697312cb14d9fe14887904ce9b57dd055f21c74539b07ce359a9c2c5f41"
+    },
+    {
+      "handle": "carnelian-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "0dfdce2686ba3ae87049694998fe734cd8f380175e3dc7978ba286a79b7fdff9"
+    },
+    {
+      "handle": "fuchsia-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "302d44dab13c60a5d4665db34ce91cd9c9bcce267dcc9630c134ee065c3e3893"
+    },
+    {
+      "handle": "gold-purple-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "9f7e7574df4cce78a9ab1c62cd51403a02352f2a50f206dcbfb57317a38c3a21"
+    },
+    {
+      "handle": "light-plum-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "e7d9077e7263d768002d26cc508e6884429ca218cc9abdee92c207a3edca8029"
+    },
+    {
+      "handle": "light-bronze-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "f44f375821fb818be342e869f11a3245d78c9b6419842491de146822acefa7d6"
+    },
+    {
+      "handle": "light-aventurine-green-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "64f456225279b7217c10ded86132bbfd245146954a2d745678a986528145204b"
+    },
+    {
+      "handle": "light-turquoise-blue-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "7a0dbeefa1cc4c675bd1163786a95cd9d8648a287117a9cac5d36f7f3769e3c8"
+    },
+    {
+      "handle": "tan-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "c496e5046f96611b6d6d7041a7fe8de3dc71448fc2a2871355bc84ac678c9483"
+    },
+    {
+      "handle": "light-violet-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "9fd28c1ba036c017dc057266af74099112fe66166e94d2cfc70a989abdf5a664"
+    },
+    {
+      "handle": "khaki-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "f72a379f00336c9ebfe26ca232e31aa66874560734b5d1025b186e3179a6e686"
+    },
+    {
+      "handle": "neo-lavender-shift-transparent-medium-frit-fusible",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "8b57120d07f724bf3c2efa7a8c87c2bcdd573dc00c43a7eee84927e838a0146d"
+    },
+    {
+      "handle": "juniper-blue-tint-medium-frit-fusible",
+      "imageIndex": 0,
+      "sampleRect": [
+        0.19,
+        0.27,
+        0.75,
+        0.55
+      ],
+      "imageKind": "Cast medium-frit wedge photograph",
+      "imageSelection": "Official product photograph of a cast medium-frit wedge. Sampled only within its front glass face above the black backdrop boundary, away from white background, bright edges, top face, and unfired jar photographs.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "e3d624581a5e16a8efda2b518b07f5e17542cdd89be964264d9f27f344ca5bd0"
+    },
+    {
+      "handle": "grass-green-tint-medium-frit-fusible",
+      "imageIndex": 0,
+      "sampleRect": [
+        0.19,
+        0.27,
+        0.75,
+        0.55
+      ],
+      "imageKind": "Cast medium-frit wedge photograph",
+      "imageSelection": "Official product photograph of a cast medium-frit wedge. Sampled only within its front glass face above the black backdrop boundary, away from white background, bright edges, top face, and unfired jar photographs.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "2571ac9542ee7e287b383e2d2b67e7d7b85dc509fade3ee94308b896e5ef1571"
+    },
+    {
+      "handle": "aqua-blue-tint-medium-frit-fusible",
+      "imageIndex": 0,
+      "sampleRect": [
+        0.19,
+        0.27,
+        0.75,
+        0.55
+      ],
+      "imageKind": "Cast medium-frit wedge photograph",
+      "imageSelection": "Official product photograph of a cast medium-frit wedge. Sampled only within its front glass face above the black backdrop boundary, away from white background, bright edges, top face, and unfired jar photographs.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "b99b8118232bbe2fe84cba9c81526bbd362cc5aff798c100ae03decb4a35184f"
+    },
+    {
+      "handle": "indigo-tint-medium-frit-fusible",
+      "imageIndex": 0,
+      "sampleRect": [
+        0.19,
+        0.27,
+        0.75,
+        0.55
+      ],
+      "imageKind": "Cast medium-frit wedge photograph",
+      "imageSelection": "Official product photograph of a cast medium-frit wedge. Sampled only within its front glass face above the black backdrop boundary, away from white background, bright edges, top face, and unfired jar photographs.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "da503435f24c8cedc9f37c65a45c2cca161d7fb4b52b1fe5c0a77d970dbf1414"
+    },
+    {
+      "handle": "pale-yellow-tint-medium-frit-fusible",
+      "imageIndex": 0,
+      "sampleRect": [
+        0.19,
+        0.27,
+        0.75,
+        0.55
+      ],
+      "imageKind": "Cast medium-frit wedge photograph",
+      "imageSelection": "Official product photograph of a cast medium-frit wedge. Sampled only within its front glass face above the black backdrop boundary, away from white background, bright edges, top face, and unfired jar photographs.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "fef36a86ccef96f9c41a3ad37f47810db8b19687ef7c997a9fe9cf22b5db4cff"
+    },
+    {
+      "handle": "erbium-pink-tint-medium-frit-fusible",
+      "imageIndex": 0,
+      "sampleRect": [
+        0.19,
+        0.27,
+        0.75,
+        0.55
+      ],
+      "imageKind": "Cast medium-frit wedge photograph",
+      "imageSelection": "Official product photograph of a cast medium-frit wedge. Sampled only within its front glass face above the black backdrop boundary, away from white background, bright edges, top face, and unfired jar photographs.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "a7f5cb3cf8a28bd80726cc68ae6196750677b6dafcd8ff5d49cbc67771c1eea1"
+    },
+    {
+      "handle": "burnt-scarlet-striker-tint-medium-frit-fusible",
+      "imageIndex": 2,
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "40cc0803b256305e2e0576cbf26890d963f540e002a1d77ddc321f6931d97bd8"
+    },
+    {
+      "handle": "ruby-red-striker-tint-medium-frit-fusible",
+      "imageIndex": 2,
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "601dd9243044c37f26f183c409438a3f2e9f02764c3bb80be9ce514a90bb4258"
+    },
+    {
+      "handle": "green-tea-tint-medium-frit-fusible",
+      "imageIndex": 0,
+      "sampleRect": [
+        0.19,
+        0.27,
+        0.75,
+        0.55
+      ],
+      "imageKind": "Cast medium-frit wedge photograph",
+      "imageSelection": "Official product photograph of a cast medium-frit wedge. Sampled only within its front glass face above the black backdrop boundary, away from white background, bright edges, top face, and unfired jar photographs.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "ccad0db08fa1c7b253253372d51cab4bc031cd9d867b04669e5e6ddad05f005b"
+    },
+    {
+      "handle": "light-amber-tint-medium-frit-fusible",
+      "imageIndex": 0,
+      "sampleRect": [
+        0.19,
+        0.27,
+        0.75,
+        0.55
+      ],
+      "imageKind": "Cast medium-frit wedge photograph",
+      "imageSelection": "Official product photograph of a cast medium-frit wedge. Sampled only within its front glass face above the black backdrop boundary, away from white background, bright edges, top face, and unfired jar photographs.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "d53a27b5cb4ab6f5a9d22aeff4d5d14517a4fc5df327754f28f33a3ef05079cd"
+    },
+    {
+      "handle": "gray-tint-medium-frit-fusible",
+      "imageIndex": 0,
+      "sampleRect": [
+        0.19,
+        0.27,
+        0.75,
+        0.55
+      ],
+      "imageKind": "Cast medium-frit wedge photograph",
+      "imageSelection": "Official product photograph of a cast medium-frit wedge. Sampled only within its front glass face above the black backdrop boundary, away from white background, bright edges, top face, and unfired jar photographs.",
+      "colorFamily": "neutral",
+      "materialLightnessRange": [
+        0,
+        94
+      ],
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "fe0d62c0aca726d545b221f5593cd21c890f167b91191412aacef8b145fc311b"
+    },
+    {
+      "handle": "ruby-pink-striker-tint-medium-frit-fusible",
+      "imageIndex": 2,
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "0c2be9df658397410b2695a3ef887a6adb400349f095c7a1709e289cfd53f0cd"
+    },
+    {
+      "handle": "coral-orange-tint-medium-frit-fusible",
+      "imageIndex": 0,
+      "sampleRect": [
+        0.19,
+        0.27,
+        0.75,
+        0.55
+      ],
+      "imageKind": "Cast medium-frit wedge photograph",
+      "imageSelection": "Official product photograph of a cast medium-frit wedge. Sampled only within its front glass face above the black backdrop boundary, away from white background, bright edges, top face, and unfired jar photographs.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "5efd0d18aa4c41feaba8417505e9558691f9e6500a9a73e4782490e2659c8277"
+    },
+    {
+      "handle": "medium-amber-tint-medium-frit-fusible",
+      "imageIndex": 0,
+      "sampleRect": [
+        0.19,
+        0.27,
+        0.75,
+        0.55
+      ],
+      "imageKind": "Cast medium-frit wedge photograph",
+      "imageSelection": "Official product photograph of a cast medium-frit wedge. Sampled only within its front glass face above the black backdrop boundary, away from white background, bright edges, top face, and unfired jar photographs.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "1cadfea29ccf899992cd3fd9a854e8e7b98788aa1fac4b10dc241e1b7337c2b0"
+    },
+    {
+      "handle": "dark-amber-tint-medium-frit-fusible",
+      "imageIndex": 0,
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "0a8babcdba2a13d17ad9d1a71ab6e641e79b5fb2a97830ee315eef33421fc9e7"
+    },
+    {
+      "handle": "spruce-green-tint-medium-frit-fusible",
+      "imageIndex": 0,
+      "sampleRect": [
+        0.19,
+        0.27,
+        0.75,
+        0.55
+      ],
+      "imageKind": "Cast medium-frit wedge photograph",
+      "imageSelection": "Official product photograph of a cast medium-frit wedge. Sampled only within its front glass face above the black backdrop boundary, away from white background, bright edges, top face, and unfired jar photographs.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "82f8041a4792ab7e52f0a32f49533ccf1acf97ae4706a91f24a9cab6cb3eca91"
+    },
+    {
+      "handle": "light-neo-lavender-shift-tint-medium-frit-fusible",
+      "imageIndex": 0,
+      "sampleRect": [
+        0.19,
+        0.27,
+        0.75,
+        0.55
+      ],
+      "imageKind": "Cast medium-frit wedge photograph",
+      "imageSelection": "Official product photograph of a cast medium-frit wedge. Sampled only within its front glass face above the black backdrop boundary, away from white background, bright edges, top face, and unfired jar photographs.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "bf261fe19791ab02ae816064e0e4778ebe9d0b33f19f2899b21fb31e8155a63f"
+    },
+    {
+      "handle": "rhubarb-shift-tint-medium-frit-fusible",
+      "imageIndex": 0,
+      "sampleRect": [
+        0.19,
+        0.27,
+        0.75,
+        0.55
+      ],
+      "imageKind": "Cast medium-frit wedge photograph",
+      "imageSelection": "Official product photograph of a cast medium-frit wedge. Sampled only within its front glass face above the black backdrop boundary, away from white background, bright edges, top face, and unfired jar photographs.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "cd7a015623fb411d8c0ed95f1c62ea6c7549bb60f42db90d32add3bfafb77bdc"
+    },
+    {
+      "handle": "gray-blue-tint-medium-frit-fusible",
+      "imageIndex": 0,
+      "sampleRect": [
+        0.19,
+        0.27,
+        0.75,
+        0.55
+      ],
+      "imageKind": "Cast medium-frit wedge photograph",
+      "imageSelection": "Official product photograph of a cast medium-frit wedge. Sampled only within its front glass face above the black backdrop boundary, away from white background, bright edges, top face, and unfired jar photographs.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "dbd779ce19d1a761229f053ac46ba352c79681098c5ab571923eac195470c014"
+    },
+    {
+      "handle": "olive-smoke-tint-medium-frit-fusible",
+      "imageIndex": 0,
+      "sampleRect": [
+        0.19,
+        0.27,
+        0.75,
+        0.55
+      ],
+      "imageKind": "Cast medium-frit wedge photograph",
+      "imageSelection": "Official product photograph of a cast medium-frit wedge. Sampled only within its front glass face above the black backdrop boundary, away from white background, bright edges, top face, and unfired jar photographs.",
+      "visuallyReviewed": true,
+      "reviewedSourceImageSha256": "c5c2e62c6682df7d933640e4a6b1e88eeb147674b8e4c0443399773f94f26efb"
+    },
+    {
+      "handle": "translucent-white-translucent-medium-frit-fusible",
+      "type": "Opalescent",
+      "sourceType": "Translucent",
+      "typeGroupingSource": "https://www.bullseyeglass.com/wp-content/uploads/Bullseye_Glass_Catalog_14.pdf",
+      "colorFamily": "neutral",
+      "sampleRect": [
+        0.025,
+        0.1,
+        0.3,
+        0.9
+      ],
+      "materialRule": "reviewed-white-region",
+      "materialLightnessRange": [
+        85,
+        100
+      ],
+      "imageSelection": "Complete fired Translucent White medium-frit sample on black. Only neutral glass in the densely filled left region is sampled; black gaps and blue edge reflections are excluded. Bullseye catalog groups this style under Opalescent Frit.",
+      "reviewedSourceImageSha256": "c3c40aa4dce0fc5ca11a438a4dcdc66d5b6520ff53eb6346b3d19326cd421686",
+      "visuallyReviewed": true
     }
-  ]
+  ],
+  "discovery": {
+    "retrievedAt": "2026-10-18T20:46:44Z",
+    "sitemapUrl": "https://shop.bullseyeglass.com/sitemap.xml",
+    "productSitemapCount": 3,
+    "storefrontProductCount": 2931,
+    "mediumFritProductCount": 149,
+    "transparentProductCount": 75,
+    "opalescentProductCount": 66,
+    "inventoryMethod": "Read all three product sitemaps, selected medium-frit handles, verified exact -0002-F SKU family and each current public product JSON; no inferred variants. Transparent tints included in transparent family.",
+    "excludedProducts": [
+      {
+        "handle": "reactive-ice-transparent-medium-frit-fusible",
+        "name": "Reactive Ice Transparent, Medium Frit, Fusible",
+        "productUrl": "https://shop.bullseyeglass.com/products/reactive-ice-transparent-medium-frit-fusible",
+        "reason": "Clear or colorless product"
+      },
+      {
+        "handle": "crystal-clear-transparent-medium-frit-fusible",
+        "name": "Crystal Clear Transparent, Medium Frit, Fusible",
+        "productUrl": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-medium-frit-fusible",
+        "reason": "Clear or colorless product"
+      },
+      {
+        "handle": "white-dark-brown-2-color-mix-medium-frit-fusible",
+        "name": "White, Dark Brown 2-Color Mix, Medium Frit, Fusible",
+        "productUrl": "https://shop.bullseyeglass.com/products/white-dark-brown-2-color-mix-medium-frit-fusible",
+        "reason": "Two-color mixture"
+      },
+      {
+        "handle": "mint-green-opalescent-aventurine-green-2-color-mix-medium-frit-fusible",
+        "name": "Mint Green Opalescent, Aventurine Green 2-Color Mix, Medium Frit, Fusible",
+        "productUrl": "https://shop.bullseyeglass.com/products/mint-green-opalescent-aventurine-green-2-color-mix-medium-frit-fusible",
+        "reason": "Two-color mixture"
+      },
+      {
+        "handle": "caribbean-blue-white-2-color-mix-medium-frit-fusible",
+        "name": "Caribbean Blue, White 2-Color Mix, Medium Frit, Fusible",
+        "productUrl": "https://shop.bullseyeglass.com/products/caribbean-blue-white-2-color-mix-medium-frit-fusible",
+        "reason": "Two-color mixture"
+      },
+      {
+        "handle": "clear-transparent-medium-frit-fusible",
+        "name": "Clear Transparent, Medium Frit, Fusible",
+        "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-medium-frit-fusible",
+        "reason": "Clear or colorless product"
+      },
+      {
+        "handle": "dichroic-on-clear-transparent-rainbow-medium-frit-flake-fusible-1-oz-tube",
+        "name": "Dichroic on Clear Transparent, Rainbow, Medium Frit, Fusible, 1 oz. tube",
+        "productUrl": "https://shop.bullseyeglass.com/products/dichroic-on-clear-transparent-rainbow-medium-frit-flake-fusible-1-oz-tube",
+        "reason": "Clear or colorless product"
+      },
+      {
+        "handle": "clear-transparent-iridescent-rainbow-medium-frit-fusible",
+        "name": "Clear Transparent, Iridescent, Rainbow, Medium Frit, Fusible",
+        "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-iridescent-rainbow-medium-frit-fusible",
+        "reason": "Clear or colorless product"
+      }
+    ]
+  }
 }

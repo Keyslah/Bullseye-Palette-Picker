@@ -48,6 +48,9 @@ class MaterialSamplingTests(unittest.TestCase):
                     self.assertEqual(image.getpixel(point), material,
                                      "The marker must point to visible material, not its background.")
                     self.assertEqual(tuple(sample["markerRgb"]), material)
+                    self.assertAlmostEqual(sample["darkness"],
+                                           round(100 - BUILDER.rgb_to_lab(list(material))[0], 2),
+                                           msg="Darkness must use an absolute scale, including a uniform black sample.")
 
     def test_blue_does_not_turn_white_when_white_background_is_added(self) -> None:
         self.check_material((40, 140, 240), (255, 255, 255), "chromatic", "visible-color")
@@ -60,6 +63,20 @@ class MaterialSamplingTests(unittest.TestCase):
 
     def test_white_does_not_turn_gray_when_black_background_is_added(self) -> None:
         self.check_material((245, 245, 245), (0, 0, 0), "neutral", "reviewed-white-region", [85, 100])
+
+    def test_marker_stays_on_colored_material_in_the_small_preview(self) -> None:
+        blue = (160, 170, 195)
+        source = Image.new("RGB", (30, 30), "white")
+        source.paste(blue, (0, 0, 16, 30))
+        source.putpixel((20, 20), blue)
+        preview = source.resize((15, 15), Image.Resampling.LANCZOS)
+        sample = {"rgb": list(blue), "lab": BUILDER.rgb_to_lab(list(blue)),
+                  "x": 20.5 / 30, "y": 20.5 / 30, "markerRgb": list(blue)}
+        BUILDER.keep_markers_visible(source, preview, [sample], "chromatic", [0, 94], [0, 0, 1, 1])
+        self.assertTrue(sample.get("markerAdjustedForPreview"))
+        point = (int(sample["x"] * 30), int(sample["y"] * 30))
+        self.assertEqual(source.getpixel(point), blue)
+        self.assertEqual(sample["rgb"], list(blue), "Moving a marker must not change the measured glass color.")
 
 
 if __name__ == "__main__":

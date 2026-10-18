@@ -7,11 +7,11 @@ Setup: Python 3.11+ and Pillow; run from any directory. Product choices and
        normalized sampling rectangles are in catalog-seed.json beside this file.
 Writes: replaces extension/data/catalog.json, the selected bundled photographs,
         and docs/catalog-sources.md. It never changes user browser data or carts.
-Constraints: colored transparent frit plus reviewed neutral grays and ordinary
-             opalescent black/white; no clear, mixed, iridescent, or aventurine
-             glass. Empty photo background is never a glass sample.
-             Darkness labels describe relative
-             lightness within one product; matching must use the full color.
+Constraints: all reviewed single-color transparent (including tints) and
+             opalescent medium frit; no clear/colorless glass or color mixtures.
+             Empty photo background is never a glass sample. Darkness uses the
+             same absolute CIELAB lightness scale across products; matching uses
+             the full color.
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ def fetch(url: str) -> bytes:
         raise ValueError(f"An HTTPS source is required: {url}")
     request = urllib.request.Request(
         url,
-        headers={"User-Agent": "BullseyePalettePicker/0.2 (public catalog builder)"},
+        headers={"User-Agent": "BullseyePalettePicker/0.3 (public catalog builder)"},
     )
     for attempt in range(3):
         try:
@@ -229,27 +229,67 @@ def measure_samples(image: Image.Image, rect: list[float], count: int, band_widt
         })
     if len(samples) < 20:
         raise ValueError(f"Too few visible-material samples ({len(samples)}); review the sampling rectangle")
-    minimum = min(sample["lab"][0] for sample in samples)
-    maximum = max(sample["lab"][0] for sample in samples)
     for sample in samples:
-        sample["darkness"] = round(100 * (maximum - sample["lab"][0]) / (maximum - minimum), 2) \
-            if maximum > minimum else 0
+        sample["darkness"] = round(max(0, min(100, 100 - sample["lab"][0])), 2)
     # Keep the image coordinates attached while ordering from light to dark.
     return sorted(samples, key=lambda sample: sample["lab"][0], reverse=True)
 
 
-def product_record(seed: dict, defaults: dict, retrieved_at: str) -> dict:
+def keep_markers_visible(source: Image.Image, preview: Image.Image, samples: list[dict],
+                         color_family: str, lightness_range: list[float], rect: list[float]) -> None:
+    """Keep material markers on actual glass after the 600px preview is encoded.
+
+    A single full-resolution grain can merge with a bright neighbor when scaled.
+    Move only affected markers a few source pixels to eligible material whose
+    encoded preview still shows the same color family; measured means do not change.
+    """
+    def preview_eligible(x: int, y: int) -> bool:
+        pixel = preview.getpixel((min(preview.width - 1, x * preview.width // source.width),
+                                  min(preview.height - 1, y * preview.height // source.height)))
+        lab = rgb_to_lab(list(pixel))
+        chroma = math.hypot(lab[1], lab[2])
+        return (chroma >= 8 if color_family == "chromatic" else
+                chroma < 12 and lightness_range[0] - 3 <= lab[0] <= lightness_range[1] + 3)
+
+    for sample in samples:
+        x, y = int(sample["x"] * source.width), int(sample["y"] * source.height)
+        if preview_eligible(x, y):
+            continue
+        candidates = []
+        for candidate_y in range(max(round(rect[1] * source.height), y - 6),
+                                 min(round(rect[3] * source.height), y + 7)):
+            for candidate_x in range(max(round(rect[0] * source.width), x - 6),
+                                     min(round(rect[2] * source.width), x + 7)):
+                rgb = list(source.getpixel((candidate_x, candidate_y)))
+                lab = rgb_to_lab(rgb)
+                chroma = math.hypot(lab[1], lab[2])
+                eligible = (chroma >= 10 if color_family == "chromatic" else
+                            chroma < 10 and lightness_range[0] <= lab[0] <= lightness_range[1])
+                if eligible and preview_eligible(candidate_x, candidate_y):
+                    score = sum((a - b) ** 2 for a, b in zip(lab, sample["lab"]))
+                    score += .02 * ((candidate_x - x) ** 2 + (candidate_y - y) ** 2)
+                    candidates.append((score, candidate_x, candidate_y, rgb))
+        if not candidates:
+            raise ValueError("A material marker disappears in the bundled preview; review its source region")
+        _, x, y, rgb = min(candidates)
+        sample.update(x=round((x + .5) / source.width, 6),
+                      y=round((y + .5) / source.height, 6), markerRgb=rgb,
+                      markerAdjustedForPreview=True)
+
+
+def product_record(seed: dict, defaults: dict, retrieved_at: str, source_cache: Path | None = None) -> dict:
     handle = seed["handle"]
     if not re.fullmatch(r"[a-z0-9-]+", handle):
         raise ValueError(f"Invalid product handle: {handle}")
     product_url = f"{STORE}/products/{handle}"
     metadata_url = f"{product_url}.js"
-    metadata_raw = fetch(metadata_url)
+    cached_metadata = source_cache / f"{handle}.json" if source_cache else None
+    metadata_raw = cached_metadata.read_bytes() if cached_metadata and cached_metadata.exists() else fetch(metadata_url)
     metadata = json.loads(metadata_raw)
     title = metadata["title"]
     if not title.endswith(", Medium Frit, Fusible"):
         raise ValueError(f"Unexpected product scope: {title}")
-    excluded = ("clear", "iridescent", "dichroic", "aventurine", "mix", "streaky")
+    excluded = ("clear", "iridescent", "dichroic", "mix", "streaky", "reactive ice")
     if any(word in title.lower() for word in excluded):
         raise ValueError(f"Excluded product: {title}")
     codes = {match.group(1) for variant in metadata["variants"]
@@ -263,9 +303,15 @@ def product_record(seed: dict, defaults: dict, retrieved_at: str) -> dict:
     if " Transparent," in title:
         glass_type = "Transparent"
         name = title.removesuffix(" Transparent, Medium Frit, Fusible")
-    elif " Opalescent," in title and color_family == "neutral" and identifier in ("000100", "000113"):
+    elif " Tint," in title:
+        glass_type = "Transparent"
+        name = title.removesuffix(", Medium Frit, Fusible")
+    elif " Opalescent," in title:
         glass_type = "Opalescent"
         name = title.removesuffix(" Opalescent, Medium Frit, Fusible")
+    elif title.endswith(" Translucent, Medium Frit, Fusible") and identifier == "000243" and seed.get("type") == "Opalescent":
+        glass_type = "Opalescent"
+        name = title.removesuffix(" Translucent, Medium Frit, Fusible")
     else:
         raise ValueError(f"Unreviewed product type: {title}")
     images = metadata.get("images", [])
@@ -275,7 +321,8 @@ def product_record(seed: dict, defaults: dict, retrieved_at: str) -> dict:
         image_url = image_url["src"]
     if image_url.startswith("//"):
         image_url = "https:" + image_url
-    image_raw = fetch(image_url)
+    cached_image = source_cache / "images" / f"{handle}-{image_index}.jpg" if source_cache else None
+    image_raw = cached_image.read_bytes() if cached_image and cached_image.exists() else fetch(image_url)
     source_image_hash = hashlib.sha256(image_raw).hexdigest()
     image, image_source = prepare_image(image_raw)
     rect = seed.get("sampleRect", defaults["sampleRect"])
@@ -283,18 +330,34 @@ def product_record(seed: dict, defaults: dict, retrieved_at: str) -> dict:
     lightness_range = seed.get("materialLightnessRange", [85, 100] if material_rule == "reviewed-white-region" else [0, 94])
     samples = measure_samples(image, rect, defaults["sampleCount"], band_width, color_family, material_rule,
                               lightness_range)
+    dense_boundary = rect[0] + (rect[2] - rect[0]) * 0.25
+    dense_samples = [sample for sample in samples if sample["bandCenterX"] <= dense_boundary]
+    reference = min(dense_samples or samples, key=lambda sample: sample["lab"][0])
+    thickness_reference = {key: reference[key] for key in ("rgb", "lab", "x", "y", "bandCenterX", "bandCenterY")}
+    thickness_reference["basis"] = "Darkest measured eligible material band within the left quarter of the reviewed glass region; actual photographed color, not a physical depth measurement."
     destination = PROJECT_ROOT / "extension" / "assets" / "glass" / f"{identifier}.jpg"
     destination.parent.mkdir(parents=True, exist_ok=True)
     bundle = image.copy()
     bundle.thumbnail((defaults["imageMaxPixels"], defaults["imageMaxPixels"]), Image.Resampling.LANCZOS)
-    bundle.save(destination, format="JPEG", quality=95, subsampling=0, optimize=True,
+    encoded_image = io.BytesIO()
+    bundle.save(encoded_image, format="JPEG", quality=95, subsampling=0, optimize=True,
                 icc_profile=stable_srgb_profile(destination))
+    encoded_bytes = encoded_image.getvalue()
+    preview = Image.open(io.BytesIO(encoded_bytes)).convert("RGB")
+    keep_markers_visible(image, preview, samples, color_family, lightness_range, rect)
+    thickness_reference.update({key: reference[key] for key in ("x", "y")})
+    temporary_image = destination.with_suffix(".jpg.tmp")
+    temporary_image.write_bytes(encoded_bytes)
+    temporary_image.replace(destination)
     return {
         "id": identifier,
         "name": name,
         "fullName": title,
         "code": code,
         "type": glass_type,
+        "sourceType": seed.get("sourceType", glass_type),
+        "typeGroupingSource": seed.get("typeGroupingSource"),
+        "thicknessReference": thickness_reference,
         "colorFamily": color_family,
         "grain": "Medium frit",
         "productUrl": product_url,
@@ -314,7 +377,7 @@ def product_record(seed: dict, defaults: dict, retrieved_at: str) -> dict:
             "bundledPixels": list(bundle.size),
             "bundledImageSha256": hashlib.sha256(destination.read_bytes()).hexdigest(),
             "bundledProfile": "sRGB IEC61966-2.1 (embedded ICC)",
-            "imageKind": "Fired medium-frit sample photograph",
+            "imageKind": seed.get("imageKind", "Fired medium-frit sample photograph"),
             "imageSelection": seed.get("imageSelection", defaults["imageSelection"]),
             "visuallyReviewed": bool(seed.get("visuallyReviewed", False)
                                      and seed.get("reviewedSourceImageSha256") == source_image_hash),
@@ -325,8 +388,8 @@ def product_record(seed: dict, defaults: dict, retrieved_at: str) -> dict:
             "materialThresholds": {"chromaticMinimumChroma": 10, "neutralMaximumChromaExclusive": 10,
                                    "neutralLightnessRange": lightness_range if color_family == "neutral" else None,
                                    "minimumBandCoverage": 0.05},
-            "coordinateSystem": "Normalized full bundled image coordinates, origin at upper left; x/y identify a visible material pixel closest in Lab to the measured band mean. bandCenterX/Y retain the geometric band center.",
-            "lightnessMetric": "CIELAB L*, D65 white point; darkness=100*(maxL-L)/(maxL-minL) within this product.",
+            "coordinateSystem": "Normalized full bundled image coordinates, origin at upper left; x/y identify an eligible material pixel near the measured Lab mean that remains visible in the encoded preview. bandCenterX/Y retain the geometric band center.",
+            "lightnessMetric": "Absolute CIELAB L*, D65 white point; darkness=clamp(100-L*,0,100) consistently across all glass products.",
             "currency": "USD",
         },
     }
@@ -334,91 +397,147 @@ def product_record(seed: dict, defaults: dict, retrieved_at: str) -> dict:
 
 def write_source_notes(catalog: dict) -> None:
     products = catalog["products"]
+    transparent_count = sum(product["type"] == "Transparent" for product in products)
+    opalescent_count = sum(product["type"] == "Opalescent" for product in products)
+    wedge_count = sum("wedge" in product["source"]["imageKind"].lower() for product in products)
+    discovery = catalog.get("discovery", {})
     lines = [
         "# Bullseye catalog sources",
         "",
         f"Catalog version: `{catalog['version']}`. Retrieved: {catalog['generatedAt']}.",
-        f"Scope: {len(products)} medium-frit products: colored transparents, transparent grays, "
-        "and ordinary opalescent Black and White, with "
-        f"{sum(len(product['samples']) for product in products)} measured appearance samples.",
+        f"Scope: **{len(products)} medium-frit products**, comprising **{transparent_count} transparent** "
+        f"and **{opalescent_count} opalescent-group** colors, with "
+        f"**{sum(len(product['samples']) for product in products)} measured appearance samples**.",
+        "",
+        "## Inventory and product scope",
+        "",
+        "Discovery read all three product sitemaps linked from the [current Bullseye sitemap]"
+        "(https://shop.bullseyeglass.com/sitemap.xml), covering 2,931 storefront products and 149 "
+        "medium-frit product pages. Every included entry was verified against its public `.js` product "
+        "endpoint and actual six-digit `-0002-F` SKU family. Sold-out products remain visible, with "
+        "their real variant availability preserved. No product or variant IDs are inferred.",
+        "",
+        "The transparent filter includes all 20 transparent tint colors, as well as aventurine, "
+        "shift, and striking colors. The opalescent filter includes regular Black and White, their "
+        "other current opalescent variants, colored opals, Reactive Cloud, and Translucent White. "
+        "Bullseye groups Translucent White (000243) under Opalescent Frit in its "
+        "[catalog, printed page 28](https://www.bullseyeglass.com/wp-content/uploads/Bullseye_Glass_Catalog_14.pdf); "
+        "its storefront name and `sourceType: Translucent` are retained, while `type: Opalescent` "
+        "assigns it to the corresponding search button. The [Bullseye tint reference]"
+        "(https://www.bullseyeglass.com/make-it-project-tint-tone-plate/) identifies tints as transparent glass. "
+        "[Reactive Ice 001009](https://www.bullseyeglass.com/001009-reactive-ice-clear/) is a clear "
+        "style and is excluded even though its storefront title omits the word Clear.",
+        "",
+        "### Excluded medium-frit entries",
+        "",
+        "| Product | Reason |",
+        "| --- | --- |",
+    ]
+    for entry in discovery.get("excludedProducts", []):
+        lines.append(f"| [{entry['name']}]({entry['productUrl']}) | {entry['reason']} |")
+    lines += [
+        "",
+        "Sample sets, mixed-color products, other grain sizes, and clear/colorless products are outside "
+        "this catalog. The inventory snapshot and exact exclusions are also retained in catalog JSON.",
         "",
         "## Source and attribution",
         "",
-        "Product photographs © Bullseye Glass Co. Each bundled photograph links to its current Bullseye product page.",
-        "The catalog is an independent tool for selecting Bullseye products; it is not an official Bullseye extension.",
+        "Product photographs © Bullseye Glass Co. Each bundled photograph links to its current Bullseye product page. "
+        "This is an independent product-selection tool, not an official Bullseye extension.",
         "",
         "- [Bullseye Product Image Library](https://www.bullseyeglass.com/about-our-glass/product-image-library/)",
         "- [Current image-use conditions](https://bullseyeglass.photodeck.com/-/galleries/product-image-library)",
         "- [Bullseye online store](https://shop.bullseyeglass.com/)",
         "",
         "Bullseye permits these product images for promoting Bullseye products and requires attribution. "
-        "Do not watermark or rebrand the source images. No artwork photographs are included.",
+        "Do not watermark or rebrand the source images. No user artwork or screenshots are bundled.",
         "",
-        "## Selection and measurements",
+        "## Photograph selection",
         "",
-        "The catalog includes colored transparent medium frit, three transparent grays, and ordinary "
-        "Black and White Opalescent medium frit. Opalescent Black and White are accurately labeled; "
-        "they are not represented as transparent glass. Colorless clear, other opalescent products, mixed, "
-        "streaky, iridescent, dichroic, and aventurine products are excluded. The photographs show the fired "
-        "frit samples, with a dense region at the left and a more scattered region to the right. "
-        "Product jars and cold-frit photographs are not sampled.",
+        "Most entries use Bullseye's fired medium-frit spread: a dense region at the left and progressively "
+        "more scattered grains toward the right. The official catalog describes these samples as fired "
+        "on 3 mm clear glass, with selected white styles photographed over a black-glass base. "
+        "The complete photograph is bundled without a compositional crop, at up to 600 pixels on its longest side.",
         "",
-        "The complete sample photograph is bundled without a compositional crop, at up to 600 pixels on its "
-        "longest side. Sampling uses the normalized rectangle recorded for each product and 40 narrow "
-        "vertical bands, with the outer border excluded. Each band's visible material RGB channels are "
-        "averaged in linear light from the full-resolution source. Version 0.2 excludes empty spaces "
-        "between grains before averaging: they cannot turn blue glass into a white match or black glass "
-        "into a light gray match. The resulting colors are measured material averages, not generated blends. "
-        "Marker coordinates identify the eligible source pixel closest in Lab to the measured band color, "
-        "so a marker does not simply land at a geometrical band center inside a white gap. "
-        "The original band centers and retained material coverage are recorded separately.",
+        f"For {wedge_count} transparent tints, the nearly colorless fired spread cannot show enough "
+        "visible hue, so the catalog uses the official medium-frit product's cast-wedge photograph. "
+        "Only a reviewed rectangle within the front glass face is sampled, above the black backdrop boundary "
+        "and away from the top face, bright edges, or white background. These entries explicitly record "
+        "`imageKind: Cast medium-frit wedge photograph`; they are not mislabeled as spread photographs. "
+        "No physical wedge dimensions or calibrated depth-to-color curve were provided with these photos.",
         "",
-        "For chromatic products, source pixels and resulting samples must have CIELAB chroma "
-        "`C* = sqrt(a*² + b*²) >= 10`. This is a deliberate selection threshold for visibly colored "
-        "samples, not a universal perceptual claim. Gray material must have `C* < 10` and `L* <= 94`. "
-        "The Black photograph additionally uses `L* <= 20` to exclude bright grain-edge halos. "
-        "White is sampled only within the reviewed densely filled left rectangle of its black-background "
-        "photograph, with `C* < 10` and `L* >= 85`; black background cannot become a white sample. "
-        "At least 5% of a band and at least 32 original pixels must be eligible material. A band whose "
-        "mean crosses the selected chroma boundary is discarded. No white, blue, or gray color is invented "
-        "to fill a missing range. Oregon Gray is naturally warm; only its measured neutral portions "
-        "qualify as neutral matches. These material thresholds and reviewed rectangles are retained per product.",
+        "Medieval Green (001242) and Light Mineral Green (001247) currently use four-grain fired comparison "
+        "photographs. Only the top-right tile explicitly labeled `-0002` is sampled. Their cold-grain dish "
+        "photo, the other three grain sizes, printed labels, and margins are excluded. All source images "
+        "and special sampling rectangles were visually reviewed before inclusion.",
         "",
-        "Samples are ordered by descending CIELAB L* (light to dark). Their darkness values are relative "
-        "to the measured lightest and darkest appearance of the same product: "
-        "`100 × (maxL − L) / (maxL − minL)`. This value is a label and ordering aid; full color "
-        "matching uses all three color coordinates, not darkness alone.",
+        "## Material sampling and background rejection",
+        "",
+        "Sampling operates on the full-resolution sRGB source using 40 narrow vertical bands across each "
+        "reviewed rectangle. Visible material pixels are selected before averaging in linear RGB. "
+        "White gaps between blue grains cannot become a white sample; black gaps around white grains "
+        "cannot become a gray sample. Measurements are actual retained material averages, not generated blends.",
+        "",
+        "Chromatic source pixels and resulting means must have CIELAB chroma `C* = sqrt(a*² + b*²) >= 10`. "
+        "Neutral source pixels and means must have `C* < 10`. These are deliberate library selection thresholds "
+        "for visibly colored versus neutral samples, not universal perceptual boundaries. Neutral photographs "
+        "also use the product's reviewed lightness interval: ordinary gray samples exclude near-white base "
+        "areas, black samples use `L* <= 20`, and white or pale neutral glass over black is confined to a dense "
+        "left rectangle with a specified high-lightness interval. Warm gray and cream products retain only "
+        "their eligible neutral material. French Vanilla is sampled from visibly yellow material in its dense "
+        "left region, avoiding dark gaps and blue fringe reflections.",
+        "",
+        "A band needs at least 5% eligible material and at least 32 original material pixels. A mean that "
+        "crosses the selected chroma boundary is discarded. No missing colors are invented to fill a range. "
+        "Each sample marker points to eligible source material near its measured mean in Lab. If that "
+        "source grain loses visible color when downscaled, the marker moves a few source pixels to "
+        "eligible material that remains visible in the encoded preview; the measured mean is unchanged. Its "
+        "geometrical band center and material coverage are recorded separately so the marker cannot simply "
+        "fall in a white gap. All masks, thresholds, and rectangles are retained in the product record.",
+        "",
+        "## Lightness and the estimated thickness guide",
+        "",
+        "Raw appearance samples are ordered by descending CIELAB L* (light to dark). Their stored `darkness` "
+        "uses the same absolute scale for every product: `clamp(100 − L*, 0, 100)`. Thus a photographed black "
+        "sample stays near 100 rather than being relabeled 0 because it happened to be the lightest black "
+        "sample in a narrow product range. Full-color matching continues to use all three Lab coordinates.",
+        "",
+        "Each product also records an actual `thicknessReference` color from the darkest eligible sampled "
+        "band in the left quarter of its reviewed dense-material region. This reference is independent of "
+        "array ordering and is not an inferred physical depth. The extension's estimated thickness guide "
+        "compares a transparent sample to that dense reference. Opalescent colors use their full-color "
+        "reference rather than claiming a linear transparency relationship. User reference dimensions "
+        "are an artist-supplied guide, not a Bullseye calibration of these photographs.",
         "",
         "## Color profiles and reproducibility",
         "",
-        "Embedded input ICC profiles are converted to sRGB using Pillow/LittleCMS. Untagged storefront "
-        "JPEGs are explicitly assumed to be sRGB; their original capture profile cannot be established "
-        "from those files. Bullseye's archive documentation describes Adobe RGB originals, which does "
-        "not establish the profile of an untagged storefront derivative. The pipeline does not assign "
-        "Adobe RGB to untagged files. Every bundled JPEG contains an sRGB ICC profile. No automatic "
-        "white-balance, saturation, contrast, or palette correction is applied.",
+        "Embedded source ICC profiles are converted to sRGB using Pillow/LittleCMS. Untagged storefront "
+        "JPEGs are explicitly interpreted as sRGB; their original capture profile is unknown. Bullseye's "
+        "archive documentation describes Adobe RGB originals, which does not establish the profile of an "
+        "untagged storefront derivative. Every bundled JPEG embeds an sRGB ICC profile. No automatic "
+        "white balance, contrast, saturation, or palette correction is applied.",
         "",
-        "Each product record contains the original image URL, exact source-image SHA-256, metadata SHA-256, "
-        "bundled-image SHA-256, source dimensions/profile, conversion details, sampling rectangle, "
-        "review status, and retrieval timestamp. Variant IDs, package names, SKU, availability, and "
-        "prices are copied from the public product JSON endpoint. Prices are USD integer cents and "
-        "are snapshots; the store supplies live prices and availability when shopping.",
+        "Records preserve the source URL and SHA-256, metadata SHA-256, bundled-image SHA-256, dimensions "
+        "and profile handling, review status, image kind, selected rectangle, and retrieval timestamp. "
+        "Variant IDs, sizes, SKUs, availability, and prices come from the public product JSON. Prices are "
+        "USD integer cents and are snapshots; the store provides live prices and availability when shopping.",
         "",
-        "Rebuild with `python scripts/build-catalog.py` after installing `requirements-dev.txt`. "
-        "Review any newly changed source photographs before distributing an updated catalog. "
-        "The review flag is retained only when the downloaded source hash matches the reviewed hash in the seed file. "
-        "Use `--limit 1` only for a development fixture; it replaces the output catalog with that subset.",
+        "Rebuild with `python scripts/build-catalog.py` after installing `requirements-dev.txt`. A previously "
+        "downloaded and reviewed source cache may be supplied with `--source-cache PATH`. Review changed "
+        "photos before distributing a rebuilt catalog: review flags remain true only when source-image "
+        "hashes match the reviewed hashes in the seed. `--limit N` is a development fixture that replaces "
+        "the output with that subset.",
         "",
         "## Included products",
         "",
-        "| Glass code | Product | Type | Image source | Samples | Source profile |",
+        "| Glass code | Product | Search group | Photograph kind | Samples | Source profile |",
         "| --- | --- | --- | --- | ---: | --- |",
     ]
     for product in products:
         lines.append(f"| {product['code']} | [{product['name']}]({product['productUrl']}) | {product['type']} | "
-                     f"[Photograph]({product['sourceImageUrl']}) | {len(product['samples'])} | "
+                     f"[{product['source']['imageKind']}]({product['sourceImageUrl']}) | {len(product['samples'])} | "
                      f"{product['source']['originalIccProfile']} |")
-    lines += ["", "All source URLs and image hashes are also preserved in `extension/data/catalog.json`.", ""]
+    lines += ["", "Exact source URLs and hashes are retained in `extension/data/catalog.json`.", ""]
     path = PROJECT_ROOT / "docs" / "catalog-sources.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines), encoding="utf-8")
@@ -426,6 +545,7 @@ def write_source_notes(catalog: dict) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source-cache", type=Path, help="Use previously downloaded product JSON and source photographs from a reviewed cache directory.")
     parser.add_argument("--limit", type=int, help="Build only the first N reviewed seed products (development only).")
     args = parser.parse_args()
     if args.limit is not None and args.limit < 1:
@@ -435,17 +555,20 @@ def main() -> None:
     generated_at = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     records = []
     for index, entry in enumerate(entries, start=1):
-        record = product_record(entry, seed["defaults"], generated_at)
+        record = product_record(entry, seed["defaults"], generated_at, args.source_cache)
         if any(existing["id"] == record["id"] for existing in records):
             raise ValueError(f"Duplicate glass code: {record['id']}")
         records.append(record)
         print(f"[{index}/{len(entries)}] {record['code']} {record['name']}: "
               f"{len(record['samples'])} measured samples, {len(record['variants'])} real variants", flush=True)
-    catalog = {"version": "0.2.0", "generatedAt": generated_at,
-               "scope": "Colored transparent and neutral medium frit", "attribution": ATTRIBUTION, "products": records}
+    catalog = {"version": "0.3.0", "generatedAt": generated_at,
+               "scope": "All reviewed single-color transparent and opalescent medium frit, excluding clear",
+               "discovery": seed.get("discovery", {}), "attribution": ATTRIBUTION, "products": records}
     destination = PROJECT_ROOT / "extension" / "data" / "catalog.json"
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(json.dumps(catalog, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary_catalog = destination.with_suffix(".json.tmp")
+    temporary_catalog.write_text(json.dumps(catalog, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary_catalog.replace(destination)
     write_source_notes(catalog)
     print(f"Wrote {len(records)} products and {sum(len(record['samples']) for record in records)} "
           f"full-color samples to {destination}")

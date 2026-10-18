@@ -2,8 +2,9 @@
  * Purpose: save named palette workspaces, including their source image, locally.
  * Setup: browser IndexedDB; imported by picker.js. No account or server required.
  * Destructive behavior: deletePalette removes only the palette explicitly chosen.
- * Constraints: metadata and full workspaces use separate stores so listing names
- * does not load every image. IndexedDB avoids the extension settings quota.
+ * Constraints: metadata contains only small photo thumbnails; full photos, points,
+ * selected jars, glass filters, and layout stay in the separate workspace store.
+ * IndexedDB avoids the extension settings quota.
  */
 const DATABASE = 'bullseyeSavedPalettes';
 let databasePromise;
@@ -45,7 +46,13 @@ export async function savePalette(name, workspace, id = null) {
   if (!cleaned) throw new Error('Give this palette a name.');
   if (!Array.isArray(workspace?.targets) || !workspace.targets.length) throw new Error('Add a palette color before saving.');
   const key = id || globalThis.crypto?.randomUUID?.() || `palette-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const metadata = {id: key, name: cleaned, updatedAt: Date.now(), colorCount: workspace.targets.length, glassCount: new Set((workspace.cart || []).map(item => item.productId)).size};
+  const metadata = {
+    id: key, name: cleaned, updatedAt: Date.now(), colorCount: workspace.targets.length,
+    glassCount: new Set((workspace.cart || []).map(item => item.productId)).size,
+    hasImage: Boolean(workspace.sourceDataUrl),
+    thumbnailDataUrl: String(workspace.thumbnailDataUrl || ''),
+    colors: workspace.targets.map(target => target.hex).filter(color => /^#[0-9a-f]{6}$/i.test(color || '')).slice(0,20),
+  };
   const db = await database();
   const transaction = db.transaction(['metadata', 'workspaces'], 'readwrite');
   transaction.objectStore('metadata').put(metadata);

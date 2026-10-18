@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Bullseye Palette Picker",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Pick and move photo colors, match real Bullseye medium frit, save palettes, and send selected jars to your signed-in cart.",
   "minimum_chrome_version": "116",
   "permissions": ["contextMenus", "sidePanel", "storage", "activeTab", "scripting"],

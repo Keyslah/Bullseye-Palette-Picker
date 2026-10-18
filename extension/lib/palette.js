@@ -2,7 +2,7 @@
  * Purpose: Extract representative full colors from an image and find matching glass.
  * Setup: Import this ES module; supply ImageData-like RGBA pixels and catalog products.
  * Destructive behavior: None; no input mutation, image uploads, account access, or I/O.
- * Constraints: RGB and D65 Lab are kept intact. Darkness is descriptive metadata only.
+ * Constraints: RGB and D65 Lab stay intact. Photo thickness estimates are display-only.
  * Palette weights approximate visible image area; transparency contributes by opacity.
  */
 
@@ -206,8 +206,62 @@ function colorLab(color) {
   throw new TypeError('A color needs RGB, an RGB hex string, or a D65 Lab triplet.');
 }
 
+/**
+ * Describe an actual sample on one shared darkness scale: 100 - CIELAB L*.
+ * Pure black is 100 and pure white is 0. A product's lightest black sample must
+ * still look dark, so legacy per-product sample.darkness values are ignored.
+ * Accepts the same color forms as matchCatalog; invalid colors throw rather
+ * than fabricating a label. Callers can round the finite 0..100 result for UI.
+ */
+export function sampleDarkness(sample) {
+  const [lightness] = colorLab(sample);
+  return Math.max(0, Math.min(100, 100 - lightness));
+}
+
+/**
+ * Estimate photo color strength relative to this product's dense reference.
+ * This is a thickness guide, not a measurement of millimeters from a photograph.
+ * Transparent color strength is white-anchored: sample darkness / reference
+ * darkness. It does not reset the lightest retained glass sample to zero.
+ * Opaque/opalescent grain color cannot reveal depth, so it uses the 100%
+ * full-color reference. Returns null when transparent reference data is unusable.
+ * Matching remains entirely independent of this display estimate.
+ */
+export function sampleThickness(sample, product) {
+  const darkness = sampleDarkness(sample);
+  const type = String(product?.type ?? '').trim().toLowerCase();
+  if (type === 'opalescent' || type === 'opaque') return 100;
+
+  const samples = Array.isArray(product?.samples) ? product.samples : [];
+  const family = product?.colorFamily === 'neutral' || product?.colorFamily === 'chromatic'
+    ? product.colorFamily
+    : samples.length ? productColorFamily({ samples }) : null;
+  const eligibleDarkness = candidate => {
+    if (!candidate || candidate.eligible === false || candidate.background === true) return null;
+    try {
+      if (family && getColorFamily(candidate) !== family) return null;
+      const value = sampleDarkness(candidate);
+      return value > 1e-9 ? value : null;
+    } catch {
+      return null;
+    }
+  };
+
+  // The builder records an actual material sample from the reviewed dense area.
+  // Older catalogs fall back to the darkest valid sample, regardless of order.
+  let reference = eligibleDarkness(product?.thicknessReference);
+  if (reference === null) {
+    for (const candidate of samples) {
+      const value = eligibleDarkness(candidate);
+      if (value !== null && (reference === null || value > reference)) reference = value;
+    }
+  }
+  if (reference === null) return null;
+  return Math.max(0, Math.min(100, 100 * darkness / reference));
+}
+
 // Product policy, not a claim that C*=10 is a universal visual threshold. The
-// starter library intentionally excludes nearly colorless bands of colored frit.
+// glass library intentionally excludes nearly colorless bands of colored frit.
 export const MIN_VISIBLE_CHROMA = 10;
 
 export function getColorFamily(color) {
@@ -227,20 +281,22 @@ function productColorFamily(product) {
 /**
  * Return one closest actual sample per product, ranked by full-color CIEDE2000.
  * Target accepts {rgb,lab,hex}, an RGB triplet, a hex string, or {lab}.
- * Strict tolerance: no result is returned outside the range. Pass tolerance: Infinity
- * explicitly for nearest alternatives, and limit: Infinity to return every eligible item.
- * Neutral/chromatic eligibility always applies, even for explicit broad alternatives.
+ * The default automatically returns the nearest eligible glass without a cutoff.
+ * An explicitly supplied finite tolerance remains strict; limit: Infinity returns
+ * every eligible item. Neutral/chromatic eligibility applies at every tolerance.
  * White gaps in a colored frit photo are never evidence for matching gray or white.
+ * For near-black neutral targets, regular Black wins a near-tie within 0.25 ΔE00;
+ * its actual score remains unchanged, and strict cutoffs still apply first.
  * Returned sample/product are original objects; inputs and darkness labels are untouched.
  */
-export function matchCatalog(target, products, { tolerance = 12, limit = 12 } = {}) {
+export function matchCatalog(target, products, { tolerance = Infinity, limit = 12 } = {}) {
   const lab = colorLab(target);
   const family = getColorFamily({ lab });
   if (!Array.isArray(products)) throw new TypeError('Catalog products must be an array.');
   const numericTolerance = Number(tolerance);
   const threshold = numericTolerance === Infinity
     ? Infinity
-    : Number.isFinite(numericTolerance) ? Math.max(0, numericTolerance) : 12;
+    : Number.isFinite(numericTolerance) ? Math.max(0, numericTolerance) : Infinity;
   const resultLimit = Number(limit) === Infinity
     ? Infinity
     : boundedInteger(limit, 12, 0, Number.MAX_SAFE_INTEGER);
@@ -266,8 +322,15 @@ export function matchCatalog(target, products, { tolerance = 12, limit = 12 } = 
     }
     if (closest?.withinTolerance) matches.push(closest);
   }
-  return matches
-    .sort((first, second) => first.deltaE - second.deltaE
-      || compareText(String(first.product.id ?? first.product.name ?? ''), String(second.product.id ?? second.product.name ?? '')))
-    .slice(0, resultLimit);
+  matches.sort((first, second) => first.deltaE - second.deltaE
+    || compareText(String(first.product.id ?? first.product.name ?? ''), String(second.product.id ?? second.product.name ?? '')));
+  if (family === 'neutral' && lab[0] <= 20 && matches.length > 1) {
+    // Prefer the requested ordinary Black over specialty blacks only when their
+    // actual photo colors are almost tied. No excluded product is reintroduced.
+    const regularBlack = matches.findIndex(match => String(match.product.id) === '000100');
+    if (regularBlack > 0 && matches[regularBlack].deltaE - matches[0].deltaE <= 0.25) {
+      matches.unshift(...matches.splice(regularBlack, 1));
+    }
+  }
+  return matches.slice(0, resultLimit);
 }

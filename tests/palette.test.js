@@ -1,14 +1,14 @@
 /**
- * Purpose: Verify full-color palette extraction and strict product-match behavior.
+ * Purpose: Verify full-color extraction, automatic matching, and photo thickness estimates.
  * Setup: Run node --test from the project root with the included synthetic image data.
  * Destructive behavior: None; tests do not access images, accounts, or external services.
- * Constraints: Darkness is a display label; equal lightness never makes unlike hues match.
+ * Constraints: Thickness estimates are display-only; equal lightness never equates unlike hues.
  */
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deltaE2000, labToRgb, rgbToHex, rgbToLab } from '../extension/lib/color.js';
-import { extractPalette, matchCatalog } from '../extension/lib/palette.js';
+import { extractPalette, matchCatalog, sampleDarkness, sampleThickness } from '../extension/lib/palette.js';
 import fs from 'node:fs';
 
 function pixels(groups) {
@@ -125,6 +125,123 @@ test('loosening tolerance only adds valid alternatives without silently widening
   assert.equal(matchCatalog(target, catalog, { tolerance: Infinity, limit: 2 }).length, 2);
 });
 
+test('automatic matching immediately returns the nearest eligible glass beyond the old cutoff', () => {
+  const target = '#FA4EB5';
+  const catalog = [
+    product('violet', [sample([169, 125, 176])]),
+    product('light-pink', [sample([207, 115, 139])]),
+    product('cranberry', [sample([208, 111, 130])]),
+  ];
+  const matches = matchCatalog(target, catalog);
+  assert.equal(matches[0].product.id, 'light-pink');
+  assert.ok(matches[0].deltaE > 12);
+  assert.deepEqual(matches, matchCatalog(target, catalog, { tolerance: Infinity }));
+  assert.deepEqual(matchCatalog(target, catalog, { tolerance: 12 }), []);
+});
+
+test('the actual Light Pink Striker sample is available automatically for screenshot pink #FA4EB5', () => {
+  const {products} = JSON.parse(fs.readFileSync(new URL('../extension/data/catalog.json', import.meta.url), 'utf8'));
+  // Keep this reported failure tied to the three original pink/purple products;
+  // future additions may legitimately provide an even closer full-color match.
+  const candidates = products.filter(p => ['001215', '001311', '001234'].includes(p.id));
+  assert.equal(candidates.length, 3);
+  const matches = matchCatalog('#FA4EB5', candidates);
+  assert.equal(matches[0]?.product.id, '001215');
+  assert.equal(matches[0]?.product.type, 'Transparent');
+  assert.ok(matches[0].deltaE > 12);
+});
+
+test('darkness uses one perceptual scale for black, gray, white, and colored samples', () => {
+  assert.equal(sampleDarkness('#000000'), 100);
+  assert.ok(sampleDarkness('#FFFFFF') < 1e-10);
+  assert.ok(sampleDarkness('#111111') > 90);
+  assert.ok(sampleDarkness('#777777') > sampleDarkness('#BBBBBB'));
+  assert.equal(sampleDarkness({ lab: [50, 0, 0] }), 50);
+  assert.equal(sampleDarkness({ lab: [50, 35, -20] }), 50);
+  // Perceptual lightness differs from simply dividing an encoded RGB value by 255.
+  assert.ok(Math.abs(sampleDarkness('#808080') - 46.41499) < 0.001);
+});
+
+test('darkness ignores legacy relative labels and stale Lab when actual RGB is present', () => {
+  const black = sample([8, 8, 8], 0, { lab: [100, 0, 0] });
+  const before = JSON.stringify(black);
+  assert.ok(sampleDarkness(black) > 97);
+  assert.equal(sampleDarkness(black), sampleDarkness([8, 8, 8]));
+  assert.equal(sampleDarkness({ hex: '#FFFFFF', darkness: 100 }), sampleDarkness('#FFFFFF'));
+  assert.equal(JSON.stringify(black), before);
+});
+
+test('darkness is clamped to finite bounds and refuses incomplete color data', () => {
+  assert.equal(sampleDarkness({ lab: [-5, 0, 0] }), 100);
+  assert.equal(sampleDarkness({ lab: [105, 0, 0] }), 0);
+  assert.throws(() => sampleDarkness({ darkness: 45 }), TypeError);
+  assert.throws(() => sampleDarkness({ lab: [NaN, 0, 0] }), TypeError);
+  assert.throws(() => sampleDarkness({ rgb: [1, 2, Infinity] }), TypeError);
+});
+
+test('black and white opalescent glass use the full-color thickness reference', () => {
+  const black = { ...product('black', [sample([8, 8, 8], 0)]), type: 'Opalescent' };
+  const white = { ...product('white', [sample([244, 244, 244], 0)]), type: 'Opalescent' };
+  assert.equal(sampleThickness(black.samples[0], black), 100);
+  assert.equal(sampleThickness(white.samples[0], white), 100);
+  assert.equal(sampleThickness(sample([8, 8, 8]), { type: 'Opaque' }), 100);
+});
+
+test('transparent thickness is white-anchored and a light actual sample remains above zero', () => {
+  const dense = { lab: [20, 0, 0] };
+  const middle = { lab: [60, 0, 0] };
+  const light = { lab: [90, 0, 0] };
+  const glass = { ...product('gray', [middle, light, dense]), type: 'Transparent', thicknessReference: dense };
+  assert.equal(sampleThickness(dense, glass), 100);
+  assert.equal(sampleThickness(middle, glass), 50);
+  assert.equal(sampleThickness(light, glass), 12.5);
+  assert.equal(sampleThickness({ lab: [0, 0, 0] }, glass), 100);
+  assert.equal(sampleThickness({ lab: [100, 0, 0] }, glass), 0);
+});
+
+test('thickness uses the explicit dense reference and actual RGB before stale labels or Lab', () => {
+  const target = sample([100, 100, 100], 0, { lab: [100, 0, 0] });
+  const reference = sample([30, 30, 30], 0, { lab: [100, 0, 0] });
+  const glass = { ...product('gray', [sample([0, 0, 0]), target]), thicknessReference: reference };
+  const expected = 100 * sampleDarkness([100, 100, 100]) / sampleDarkness([30, 30, 30]);
+  assert.equal(sampleThickness(target, glass), expected);
+  assert.notEqual(expected, sampleDarkness(target));
+});
+
+test('thickness fallback is independent of sample order and excludes background or ineligible samples', () => {
+  const dense = { lab: [20, 0, 0] };
+  const middle = { lab: [60, 0, 0] };
+  const light = { lab: [90, 0, 0] };
+  const samples = [middle, light, { lab: [0, 0, 0], background: true }, dense, { lab: [0, 0, 0], eligible: false }, {}];
+  const glass = product('gray', samples);
+  assert.equal(sampleThickness(middle, glass), 50);
+  assert.equal(sampleThickness(middle, { ...glass, samples: [...samples].reverse() }), 50);
+});
+
+test('invalid or zero transparent references cannot produce an invented thickness percentage', () => {
+  const target = { lab: [60, 0, 0] };
+  const glass = { ...product('gray', [{ lab: [20, 0, 0] }]), thicknessReference: { rgb: [NaN, 0, 0] } };
+  assert.equal(sampleThickness(target, glass), 50);
+  assert.equal(sampleThickness(target, product('empty', [])), null);
+  assert.equal(sampleThickness(target, product('white-only', [{ lab: [100, 0, 0] }])), null);
+  assert.equal(sampleThickness(target, { thicknessReference: { lab: [Infinity, 0, 0] } }), null);
+});
+
+test('thickness estimates never alter catalog matching, samples, or their full-color ranking', () => {
+  const products = [
+    { ...product('pink', [sample([207, 115, 139]), sample([188, 87, 113])]), type: 'Transparent' },
+    { ...product('violet', [sample([169, 125, 176])]), type: 'Opalescent' },
+  ];
+  const before = JSON.stringify(products);
+  const matches = matchCatalog('#FA4EB5', products);
+  for (const match of matches) {
+    const thickness = sampleThickness(match.sample, match.product);
+    assert.ok(Number.isFinite(thickness) && thickness > 0 && thickness <= 100);
+  }
+  assert.deepEqual(matchCatalog('#FA4EB5', products), matches);
+  assert.equal(JSON.stringify(products), before);
+});
+
 test('matching leaves catalog inputs untouched and skips incomplete samples', () => {
   const rgb = [180, 100, 30];
   const catalog = [product('missing', [{}]), product('valid', [{}, sample(rgb)])];
@@ -188,15 +305,49 @@ test('real catalog regression: screenshot gray #E3E3E3 never returns Light Sky B
   assert.deepEqual(matchCatalog('#E3E3E3', [sky], {tolerance: Infinity}), []);
 });
 
-test('the real neutral catalog matches actual black, white, and gray without substituting colored frit', () => {
+test('the core neutral catalog matches actual black, white, and gray without substituting colored frit', () => {
   const {products} = JSON.parse(fs.readFileSync(new URL('../extension/data/catalog.json', import.meta.url), 'utf8'));
-  const black = matchCatalog('#000000', products)[0];
-  const white = matchCatalog('#FFFFFF', products)[0];
-  const midGray = matchCatalog('#777777', products)[0];
-  const lightGray = matchCatalog('#E3E3E3', products)[0];
+  const originalNeutrals = products.filter(p => ['000100', '000113', '001129', '001429', '001449'].includes(p.id));
+  const black = matchCatalog('#000000', originalNeutrals)[0];
+  const white = matchCatalog('#FFFFFF', originalNeutrals)[0];
+  const midGray = matchCatalog('#777777', originalNeutrals)[0];
+  const lightGray = matchCatalog('#E3E3E3', originalNeutrals)[0];
   assert.equal(black?.product.id, '000100');
   assert.equal(white?.product.id, '000113');
   assert.equal(midGray?.product.id, '001129');
   assert.match(lightGray?.product.name || '', /Gray/);
   assert.equal(lightGray?.product.type, 'Transparent');
+  assert.ok(sampleDarkness(black.sample) > 95);
+  assert.ok(sampleDarkness(white.sample) < 15);
+});
+
+test('ordinary Black wins a near-black photo tie without changing actual scores or other ordering', () => {
+  const {products} = JSON.parse(fs.readFileSync(new URL('../extension/data/catalog.json', import.meta.url), 'utf8'));
+  const matches = matchCatalog('#000000', products, { limit: Infinity });
+  assert.equal(matches[0].product.id, '000100');
+  assert.ok(matches[0].deltaE > 0 && matches[0].deltaE <= 0.25);
+  assert.equal(matches[1].product.id, '000102');
+  assert.equal(matches[1].deltaE, 0);
+  assert.ok(matches.slice(1).every((match, index, remaining) => index === 0 || remaining[index - 1].deltaE <= match.deltaE));
+  assert.equal(matchCatalog('#000000', products, { limit: 1 })[0].product.id, '000100');
+});
+
+test('a meaningfully closer near-black sample stays ahead of ordinary Black', () => {
+  const {products} = JSON.parse(fs.readFileSync(new URL('../extension/data/catalog.json', import.meta.url), 'utf8'));
+  const matches = matchCatalog('#121715', products, { limit: Infinity });
+  const ordinaryBlack = matches.find(match => match.product.id === '000100');
+  assert.equal(matches[0].product.id, '001140');
+  assert.ok(ordinaryBlack.deltaE - matches[0].deltaE > 0.25);
+  assert.ok(matches.every((match, index) => index === 0 || matches[index - 1].deltaE <= match.deltaE));
+});
+
+test('ordinary Black preference never bypasses a material filter or explicit strict tolerance', () => {
+  const {products} = JSON.parse(fs.readFileSync(new URL('../extension/data/catalog.json', import.meta.url), 'utf8'));
+  const transparent = products.filter(p => p.type === 'Transparent');
+  const filtered = matchCatalog('#000000', transparent, { limit: Infinity });
+  assert.equal(filtered[0].product.id, '001140');
+  assert.ok(filtered.every(match => match.product.type === 'Transparent' && match.product.id !== '000100'));
+  const exact = matchCatalog('#000000', products, { tolerance: 0, limit: Infinity });
+  assert.equal(exact[0].product.id, '000102');
+  assert.ok(exact.every(match => match.deltaE === 0 && match.product.id !== '000100'));
 });

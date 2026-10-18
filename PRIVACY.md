@@ -6,13 +6,13 @@ Bullseye Palette Picker processes image pixels and compares colors inside your b
 
 The current workspace is automatically saved in `chrome.storage.local`. It includes the reduced source image (at most 1,100 pixels on its longest side), its display name and available source URL, palette colors and point positions, match preferences, chosen jar sizes, and selected glass quantities. A handoff timestamp prevents a previously handled image from overwriting a reopened edited palette.
 
-Named saved palettes use the extension's IndexedDB database. Each includes its name, save time, source image, color points, edited palette, and selected jars and quantities. Listing names reads lightweight metadata separately from image data. Named palettes stay in this browser profile; they are not uploaded or synchronized to a Bullseye account.
+Named saved palettes use the extension's IndexedDB database. Each includes its name, save time, source image, color points, edited palette, selected jars and quantities, material filters, and image size. Listing saved palettes reads lightweight metadata and small photo thumbnails separately from the stored workspace image. Named palettes stay in this browser profile; they are not uploaded or synchronized to a Bullseye account.
 
 Right-click image handoffs use `chrome.storage.session`. Temporary data can include a reduced image, its source URL, and source tab/window IDs.
 
 The direct cart action keeps a local journal of up to 20 recent cart requests, including a random request ID, variant IDs/quantities, status, timestamp, and confirmation when available. This helps prevent duplicate additions after a lost response or extension restart. It contains no password, customer email, account name, or payment data.
 
-**Remove image** clears the current image and its palette and cancels any pending image handoff. Named palettes are independent copies; delete an individual saved palette from **Saved palettes** to remove its copy. The local glass selection is separate from the store's cart. Uninstalling the extension removes its local Chrome storage and IndexedDB. The extension does not modify Bullseye's cart when removing local images or palettes.
+**Remove image** clears the current image and its palette and cancels any pending image handoff. Named palettes are independent copies; delete an individual saved palette from **All palettes** to remove its copy. The local glass selection is separate from the store's cart. Uninstalling the extension removes its local Chrome storage and IndexedDB. The extension does not modify Bullseye's cart when removing local images or palettes.
 
 A development web preview uses its own origin's local storage and IndexedDB.
 
