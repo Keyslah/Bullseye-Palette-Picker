@@ -54,3 +54,5 @@
 .compact-toolbar .view-tabs{margin:0;border:0;min-height:0}
 .compact-toolbar .view-tab{font-size:10px;padding:4px 6px;min-height:27px}
 .cart-page #main-toolbar>.view-tabs,.cart-page #glass-search,.cart-page #open-cart{display:none}
+
+.auto-count-setting{width:100%;gap:8px}.auto-count-setting>label{font-size:12px}.auto-count-setting .stepper input{width:45px}

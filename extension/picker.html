@@ -26,6 +26,7 @@
         <details class="toolbar-menu" id="settings-menu"><summary>Settings</summary><section class="global-settings menu-content" aria-label="Glass form and saved settings">
           <div class="form-setting"><span>Glass</span><div class="form-options" role="group" aria-label="Purchase glass form"><button id="form-sheets" type="button" aria-pressed="false">Sheets</button><button id="form-powder" type="button" aria-pressed="false">Powder</button><button id="form-fine" type="button" aria-pressed="false">Fine</button><button id="form-medium" type="button" aria-pressed="true">Medium</button><button id="form-coarse" type="button" aria-pressed="false">Coarse</button></div></div>
           <label class="jar-setting" for="preferred-jar-size">Default jar <select id="preferred-jar-size"><option value="5lb">5 lb.</option><option value="1lb">1 lb.</option><option value="5oz">5 oz.</option></select></label>
+          <div class="palette-tools auto-count-setting"><label for="palette-count">Auto</label><div class="stepper"><button id="palette-fewer" type="button" aria-label="Extract one fewer color">−</button><input id="palette-count" type="number" min="2" max="12" value="6" aria-label="Number of automatic colors"><button id="palette-more" type="button" aria-label="Extract one more color">+</button></div></div>
           <button class="button secondary-button" id="save-settings" type="button">Save settings</button><button class="button secondary-button" id="load-settings" type="button">Load settings</button><span id="settings-status" role="status"></span>
         </section></details>
         <details class="toolbar-menu" id="image-menu"><summary>Image</summary><div class="menu-content">
@@ -45,7 +46,7 @@
         <label class="full-palette-control"><input id="show-full-palette" type="checkbox" checked>Show full palette</label>
         <div class="palette-chips" id="palette-chips" aria-label="Palette colors"></div>
         <span id="target-count" class="visually-hidden"></span>
-        <div class="palette-tools"><label for="palette-count">Auto</label><div class="stepper"><button id="palette-fewer" type="button" aria-label="Extract one fewer color">−</button><input id="palette-count" type="number" min="2" max="12" value="6" aria-label="Number of automatic colors"><button id="palette-more" type="button" aria-label="Extract one more color">+</button></div><button class="text-button" id="remix-palette" type="button">Remix</button><button class="text-button" id="add-custom-color" type="button">+ Color</button></div>
+        <div class="palette-tools"><button class="text-button" id="remix-palette" type="button">Remix</button><button class="text-button" id="add-custom-color" type="button">+ Color</button></div>
         <button class="text-button" id="open-color-editor" type="button">Edit color</button><button class="text-button" id="show-alternatives" type="button">Alternatives</button>
         
         
