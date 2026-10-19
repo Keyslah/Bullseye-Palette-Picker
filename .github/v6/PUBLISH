@@ -1,0 +1,5 @@
+Publish the verified compact v0.6.0 interface as requested by the user.
+Successful precursor: https://github.com/Keyslah/Bullseye-Palette-Picker/actions/runs/39332222593
+Rerun all code, catalog, browser and package-byte checks before a non-forced push to main and ZIP release.
+Includes the final density correction: extra selected-count information is in the details menu, not a sparse main-page row.
+No live customer account/cart is used by the synthetic store tests.
