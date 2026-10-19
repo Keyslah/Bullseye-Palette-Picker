@@ -1,0 +1,58 @@
+# Purpose: verify the recovered v5 changes and publish only after all checks pass.
+# Setup: recovery/v0.5.0 branch; optional .github/recover-v5.py reconstruction.
+# Writes: the reconstruction may publish its verified commit and v0.5.0 release.
+# Constraints: no force pushes, no customer data, no live shopping-cart writes.
+name: Recover and verify v5
+on:
+  push:
+    branches: [recovery/v0.5.0]
+permissions:
+  contents: write
+concurrency:
+  group: recover-v5
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Recover requested changes
+        run: |
+          if test -f .github/recover-v5.py; then
+            cp .github/recover-v5.py /tmp/recover-v5.py
+            git checkout --detach origin/main
+            python /tmp/recover-v5.py
+          fi
+      - name: Tests
+        run: npm test
+      - name: Source checks
+        run: npm run check
+      - name: Package
+        run: npm run package
+      - name: Browser tests for recovered version
+        if: hashFiles('tests/v5-browser.py') != ''
+        run: |
+          python -m pip install playwright pillow
+          python -m playwright install --with-deps chromium
+          python tests/v5-browser.py
+      - name: Publish verified v5
+        if: hashFiles('docs/release-v0.5.0.md') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(node -p "require('./extension/manifest.json').version")" = 0.5.0
+          test "$(git rev-parse HEAD)" = ec892ecabf8d2da585448fb2b96e3abe8536db20
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add extension tests docs/release-v0.5.0.md README.md package.json
+          git commit -m 'Release v0.5.0: responsive workspace, named settings and full cart page'
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = ec892ecabf8d2da585448fb2b96e3abe8536db20
+          git push origin HEAD:main
+          gh release create v0.5.0 dist/Bullseye-Palette-Picker-v0.5.0.zip --target "$(git rev-parse HEAD)" --title 'Bullseye Palette Picker v0.5.0' --notes-file docs/release-v0.5.0.md
