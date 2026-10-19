@@ -88,8 +88,8 @@ export async function runBullseyeStoreAction(request) {
     return unknown('Bullseye did not return a recognized account status. Open your account and try again.');
   };
 
-  if (!['account', 'add'].includes(request?.kind)) return fail('Invalid store action.', 'INVALID_ACTION');
-  if (request.kind === 'add' && (typeof location === 'undefined' || location.origin !== origin)) {
+  if (!['account', 'add', 'read-cart'].includes(request?.kind)) return fail('Invalid store action.', 'INVALID_ACTION');
+  if (['add','read-cart'].includes(request.kind) && (typeof location === 'undefined' || location.origin !== origin)) {
     return fail('Open Bullseye before adding to your cart.', 'STORE_TAB_REQUIRED', {mutationStarted: false});
   }
   if (typeof location !== 'undefined' && /^https?:$/.test(location.protocol) && location.origin !== origin) {
@@ -123,6 +123,33 @@ export async function runBullseyeStoreAction(request) {
   const root = /^\/(?:[a-zA-Z0-9_-]+\/)*$/.test(rootCandidate) && rootCandidate.length < 80 ? rootCandidate : '/';
   const cartUrl = new URL(`${root}cart`, origin).href;
   const cartApi = new URL(`${root}cart.js`, origin).href;
+  // Explicit read/copy: return only product information, never cart tokens,
+  // customer identity, credentials, addresses, notes or checkout information.
+  if (request.kind === 'read-cart') {
+    try {
+      const {response, data} = await jsonFetch(cartApi);
+      if (!response.ok) throw new Error('The website cart is unavailable.');
+      cartTotals(data);
+      const items = data.items.map(item => {
+        const variantId = Number(item.variant_id ?? item.id);
+        if (variantId < 1 || item.quantity < 1 || item.quantity > 999) {
+          throw new Error('A website cart quantity is outside the supported 1 to 999 range.');
+        }
+        if (item.selling_plan_allocation || (item.properties && Object.keys(item.properties).length)) {
+          throw new Error('This cart has custom or subscription items that cannot be copied faithfully. Your local cart was not replaced.');
+        }
+        return {variantId, quantity:item.quantity,
+          name:plainText(item.product_title || item.title), sku:plainText(item.sku),
+          title:plainText(item.variant_title || item.title),
+          price:Number.isSafeInteger(item.final_price) && item.final_price >= 0 ? item.final_price
+            : Number.isSafeInteger(item.price) && item.price >= 0 ? item.price : 0};
+      });
+      return {read:true, items, account, mutationStarted:false,
+        itemCount:items.reduce((sum,item)=>sum+item.quantity,0), currency:plainText(data.currency || 'USD')};
+    } catch (error) {
+      return fail(plainText(error.message || 'The website cart could not be read.'), 'CART_READ_FAILED', {account, mutationStarted:false});
+    }
+  }
   const items = request.items;
   if (!Array.isArray(items) || !items.length || items.some(item => !Number.isSafeInteger(item.variantId)
     || item.variantId < 1 || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 9999)) {

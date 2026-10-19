@@ -72,6 +72,19 @@ export async function sendToCart(items) {
   finally { if (cartFlight?.promise === promise) cartFlight = null; }
 }
 
+/** User-clicked copy only. This operation never adds or removes website items. */
+export async function readBullseyeCart() {
+  if (!hasExtension()) throw new Error('Install the extension and sign in to Bullseye to copy your website cart.');
+  const result = await message('BULLSEYE_READ_CART');
+  if (result?.error) throw bridgeError(result);
+  if (result?.read !== true || !Array.isArray(result.items)) throw new Error('Bullseye did not return a readable cart.');
+  return result;
+}
+export async function openCartPage(mode = 'selection') {
+  const destination = `picker.html?workspace=1&cart=1&mode=${mode === 'list' ? 'list' : 'selection'}`;
+  if (hasExtension()) return chrome.tabs.create({url:chrome.runtime.getURL(destination)});
+  window.open(new URL(destination, location.href).href,'_blank','noopener');
+}
 export async function loadState() {
   try {
     if (hasExtension()) return (await chrome.storage.local.get(PROJECT_KEY))[PROJECT_KEY] ?? null;

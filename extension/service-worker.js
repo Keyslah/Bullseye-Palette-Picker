@@ -292,6 +292,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     CAPTURE_VISIBLE: captureSource,
     CANCEL_PENDING_IMAGE: cancelPendingImage,
     BULLSEYE_ACCOUNT: bullseyeAccount,
+    BULLSEYE_READ_CART: async () => inStore(await storeTab(true), {kind:'read-cart'}),
     BULLSEYE_SIGN_IN: signInToBullseye,
     BULLSEYE_SEND_CART: () => sendCart(request.items, request.requestId),
     PRODUCT_VARIANTS: () => productVariants(request.handle),
