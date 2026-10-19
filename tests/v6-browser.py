@@ -143,6 +143,8 @@ try:
                 header=page.locator('.app-header').bounding_box()
                 flow=page.locator('#palette-panel').bounding_box()
                 if width>=650:assert header['height']+flow['height']<155,(header,flow)
+                if width>=1440:assert header['height']<44,('Orphan toolbar row',width,header)
+                assert page.locator('#open-cart').evaluate("n=>n.closest('.palette-flow')!==null")
                 row=page.locator('#refresh-settings').bounding_box()
                 for control in ['include-transparent','include-opalescent','include-tints']:
                     assert abs(page.locator('#'+control).bounding_box()['y']-row['y'])<3
