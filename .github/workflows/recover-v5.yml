@@ -1,6 +1,6 @@
-# Purpose: verify the recovered v5 changes and publish only after all checks pass.
-# Setup: recovery/v0.5.0 branch; optional .github/recover-v5.py reconstruction.
-# Writes: the reconstruction may publish its verified commit and v0.5.0 release.
+# Purpose: apply small v5 recovery patches, save source checkpoints, and verify.
+# Setup: recovery/v0.5.0; patches in .github/v5 run once, in filename order.
+# Writes: checkpoints this branch before tests; promotes only with PUBLISH marker.
 # Constraints: no force pushes, no customer data, no live shopping-cart writes.
 name: Recover and verify v5
 on:
@@ -19,40 +19,61 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: recovery/v0.5.0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Recover requested changes
+      - name: Apply pending recovery patches
         run: |
-          if test -f .github/recover-v5.py; then
-            cp .github/recover-v5.py /tmp/recover-v5.py
-            git checkout --detach origin/main
-            python /tmp/recover-v5.py
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess
+          stamps = Path('.github/v5/applied')
+          stamps.mkdir(parents=True, exist_ok=True)
+          for patch in sorted(Path('.github/v5').glob('*.py')):
+              stamp = stamps / patch.name
+              if stamp.exists():
+                  continue
+              print('Applying', patch, flush=True)
+              subprocess.run(['python', str(patch)], check=True)
+              stamp.write_text('Applied and checkpointed. See workflow logs for verification.\n')
+          PY
+      - name: Save implementation checkpoint before tests
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add extension tests docs README.md PRIVACY.md package.json .github/v5/applied
+          if ! git diff --cached --quiet; then
+            git commit -m 'Checkpoint reconstructed v5 source before verification'
+            git push origin HEAD:recovery/v0.5.0
           fi
-      - name: Tests
+      - name: JavaScript regressions
         run: npm test
       - name: Source checks
         run: npm run check
       - name: Package
         run: npm run package
-      - name: Browser tests for recovered version
+      - name: Browser tests
         if: hashFiles('tests/v5-browser.py') != ''
         run: |
           python -m pip install playwright pillow
           python -m playwright install --with-deps chromium
           python tests/v5-browser.py
+      - name: Preserve test artifacts
+        if: always() && hashFiles('test-results/**') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: v5-browser-results
+          path: test-results/
       - name: Publish verified v5
-        if: hashFiles('docs/release-v0.5.0.md') != ''
+        if: hashFiles('.github/v5/PUBLISH') != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           test "$(node -p "require('./extension/manifest.json').version")" = 0.5.0
-          test "$(git rev-parse HEAD)" = ec892ecabf8d2da585448fb2b96e3abe8536db20
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add extension tests docs/release-v0.5.0.md README.md package.json
-          git commit -m 'Release v0.5.0: responsive workspace, named settings and full cart page'
+          test -f tests/v5-browser.py
+          test -f docs/release-v0.5.0.md
           git fetch origin main
-          test "$(git rev-parse origin/main)" = ec892ecabf8d2da585448fb2b96e3abe8536db20
+          git merge-base --is-ancestor origin/main HEAD
           git push origin HEAD:main
           gh release create v0.5.0 dist/Bullseye-Palette-Picker-v0.5.0.zip --target "$(git rev-parse HEAD)" --title 'Bullseye Palette Picker v0.5.0' --notes-file docs/release-v0.5.0.md
