@@ -48,3 +48,9 @@
 .cart-page #save-settings,.cart-page #load-settings,.cart-page #settings-status{display:inline-flex}
 @media(min-width:1600px){.app-main.image-beside{grid-template-columns:minmax(260px,25%) minmax(0,1fr)}#product-grid>.compact-card{min-height:88px}.compact-card .product-name{font-size:14px}}
 @media(max-width:560px){.app-header{padding:5px}.palette-panel{padding:4px 5px}.compact-toolbar{gap:3px}.compact-toolbar>.button,.compact-toolbar>.text-button,.compact-toolbar>.type-filter,.toolbar-menu>summary{font-size:10px;padding:4px 5px;min-height:25px}.app-main,.app-main.has-portrait,.app-main.image-beside,.app-main.image-beside[data-image-size="larger"],.app-main.image-beside[data-image-size="full"]{padding:4px 5px;gap:3px;grid-template-columns:minmax(135px,39%) minmax(0,1fr)}.app-main.image-landscape,.app-main:not(.has-image){grid-template-columns:minmax(0,1fr)}#product-grid>.compact-card{grid-template-columns:minmax(0,1fr) 48px;gap:3px;padding:4px 0 4px 3px;min-height:72px}.compact-card .product-name{font-size:11px}.compact-card .match-label{font-size:9px}.compact-card .row-alternatives,.purchase-toggle{font-size:9px}.image-landscape .product-list{grid-auto-columns:180px}}
+
+/* Search and navigation share the same left-flow toolbar, not an isolated row. */
+.compact-toolbar .selected-summary{margin-left:0;margin-right:0}
+.compact-toolbar .view-tabs{margin:0;border:0;min-height:0}
+.compact-toolbar .view-tab{font-size:10px;padding:4px 6px;min-height:27px}
+.cart-page #main-toolbar>.view-tabs,.cart-page #glass-search,.cart-page #open-cart{display:none}

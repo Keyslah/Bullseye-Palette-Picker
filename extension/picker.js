@@ -258,7 +258,8 @@ function renderImageLayout() {
   const remaining=Math.max(240,window.innerHeight-top);
   const horizontalRail=beside?0:Math.min(160,remaining*.25);
   const fitHeight=Math.max(220,remaining-horizontalRail);
-  const limit=state.imageSize==='fit'?fitHeight:state.imageSize==='larger'?fitHeight*1.25:Infinity;
+  // Larger portraits use the entire source column rather than leaving a wide gutter.
+  const limit=beside && state.imageSize!=='fit'?Infinity:state.imageSize==='fit'?fitHeight:state.imageSize==='larger'?fitHeight*1.25:Infinity;
   const scale=Math.min(availableWidth/sourceCanvas.width,limit/sourceCanvas.height);
   const width=sourceCanvas.width*scale,height=sourceCanvas.height*scale;
   const wrap=sourceCanvas.parentElement;
@@ -877,7 +878,7 @@ function bindEvents() {
   for (const type of ['transparent','opalescent']) $(`include-${type}`).addEventListener('click', () => {
     state.glassTypes[type] = !state.glassTypes[type]; reconcilePaletteSelection(); renderResults(); persist();
   });
-  $('glass-search').addEventListener('input', (event) => { state.query = event.target.value; renderResults(); });
+  $('glass-search').addEventListener('input', (event) => { state.query = event.target.value; if(state.query.trim() && state.view==='palette' && activeTarget())state.view='alternatives'; renderResults(); persist(); });
   $('empty-action').addEventListener('click', () => emptyAction?.());
   $('open-workspace').addEventListener('click', () => {
     try { flushSave().then(()=>bridge.openWorkspace()).catch((error) => notify(error.message || 'Could not open a larger workspace.', true)); }

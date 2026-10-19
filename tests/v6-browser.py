@@ -21,6 +21,7 @@ OUT.mkdir(exist_ok=True)
 checks=[]
 errors=[]
 requests=[]
+failure=None
 
 def passed(name):
     checks.append(name)
@@ -119,6 +120,7 @@ try:
             expect(page.locator('#palette-chips .palette-chip')).to_have_count(6)
             for width,height in [(1440,900),(1920,1080),(1024,1150),(820,1000),(650,900),(380,800)]:
                 page.set_viewport_size({'width':width,'height':height})
+                page.evaluate('window.scrollTo(0,0)')
                 page.wait_for_timeout(250)
                 no_overflow(page,f'{image_name} {width}x{height}')
                 if image_name!='landscape':
@@ -131,7 +133,7 @@ try:
                     photo=first.locator('.photo-button').bounding_box()
                     assert info['x']+info['width']<=photo['x']+2
                     assert photo['x']+photo['width']<=source['x']+2
-                    if width>=650:assert source['width']>width*.43
+                    if width>=650:assert source['width']>width*.43, (image_name,width,height,source)
                 else:
                     cards=page.locator('#product-grid .compact-card')
                     a,b=cards.nth(0).bounding_box(),cards.nth(1).bounding_box()
@@ -326,6 +328,7 @@ try:
             if file.is_file():assert packed.read(str(file.relative_to(EXT)))==file.read_bytes(),str(file)
     passed('Packaged extension bytes match the tested source exactly')
 except Exception:
+    failure=traceback.format_exc()
     if context:
         for i,open_page in enumerate(context.pages):
             try:open_page.screenshot(path=str(OUT/f'failure-{i}.png'),full_page=True)
@@ -334,7 +337,7 @@ except Exception:
     traceback.print_exc()
     raise
 finally:
-    report={'passed':checks,'count':len(checks),'browserErrors':errors,'storeRequests':requests,
+    report={'failure':failure,'passed':checks,'count':len(checks),'browserErrors':errors,'storeRequests':requests,
             'storeMode':'Isolated synthetic fixture. No real account or cart mutations.'}
     (OUT/'v6-report.json').write_text(json.dumps(report,indent=2))
     print(json.dumps(report,indent=2),flush=True)
