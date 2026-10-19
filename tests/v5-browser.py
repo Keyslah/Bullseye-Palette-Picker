@@ -170,6 +170,8 @@ try:
         assert all(not target['manual'] for target in remixed['targets'])
         passed('Remix samples a new palette separately from Refresh')
         page.locator('#save-palette').click();page.locator('#palette-name').fill('V5 browser palette');page.locator('#confirm-save-palette').click()
+        expect(page.locator('#saved-dialog')).not_to_be_visible()
+        page.locator('#open-saved').click()
         expect(page.locator('#saved-list')).to_contain_text('V5 browser palette')
         page.locator('#close-saved').click()
         page.reload();expect(page.locator('#image-loaded')).to_be_visible()
