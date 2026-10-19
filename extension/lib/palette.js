@@ -298,9 +298,11 @@ function productColorFamily(product) {
  * White gaps in a colored frit photo are never evidence for matching gray or white.
  * For near-black neutral targets, regular Black wins a near-tie within 0.25 ΔE00;
  * its actual score remains unchanged, and strict cutoffs still apply first.
+ * includeOtherFamilies is for explicit alternatives only: cross the target-family
+ * boundary, but still reject background/near-colorless samples of colored glass.
  * Returned sample/product are original objects; inputs and darkness labels are untouched.
  */
-export function matchCatalog(target, products, { tolerance = Infinity, limit = 12 } = {}) {
+export function matchCatalog(target, products, { tolerance = Infinity, limit = 12, includeOtherFamilies = false } = {}) {
   const lab = colorLab(target);
   const family = getColorFamily({ lab });
   if (!Array.isArray(products)) throw new TypeError('Catalog products must be an array.');
@@ -317,7 +319,8 @@ export function matchCatalog(target, products, { tolerance = Infinity, limit = 1
   for (const product of products) {
     if (!Array.isArray(product?.samples)) continue;
     if (product.colorFamily === 'clear' || product.isClear || /\bclear\b/i.test(product.name ?? '')) continue;
-    if (productColorFamily(product) !== family) continue;
+    const materialFamily = productColorFamily(product);
+    if (!includeOtherFamilies && materialFamily !== family) continue;
     let closest = null;
     for (const sample of product.samples) {
       let sampleLab;
@@ -327,7 +330,7 @@ export function matchCatalog(target, products, { tolerance = Infinity, limit = 1
         continue; // One incomplete catalog sample must not hide other valid products.
       }
       if (sample.eligible === false || sample.background === true) continue;
-      if (getColorFamily({ lab: sampleLab }) !== family) continue;
+      if (getColorFamily({ lab: sampleLab }) !== materialFamily) continue;
       const deltaE = deltaE2000(lab, sampleLab);
       if (!closest || deltaE < closest.deltaE) closest = { product, sample, deltaE, withinTolerance: deltaE <= threshold };
     }

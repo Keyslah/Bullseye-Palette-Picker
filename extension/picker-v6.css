@@ -1,0 +1,50 @@
+/* Purpose: one flowing toolbar, compact glass rail and an immediately larger source image.
+   Setup: loaded after the existing picker styles; cart and large-detail views are retained.
+   Effects: layout/display only. Never alters colors, samples or saved data. */
+.visually-hidden{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%)!important;white-space:nowrap!important;padding:0!important;border:0!important}
+.app-header{display:block;padding:6px 8px;margin:0;min-height:0;max-width:none}
+.compact-toolbar{display:flex;flex-wrap:wrap;gap:4px;align-items:center;justify-content:flex-start}
+.compact-toolbar>.button,.compact-toolbar>.text-button,.compact-toolbar>.type-filter,.toolbar-menu>summary{font-size:11px;line-height:1.3;min-height:27px;padding:5px 8px;white-space:nowrap;margin:0}
+.compact-toolbar>.type-filter{font-weight:650}
+.toolbar-menu{display:block}.toolbar-menu>summary{cursor:pointer;list-style:none;background:white;border:1px solid #bdcac0;border-radius:5px;color:#234333;font-weight:600}
+.toolbar-menu>summary::after{content:' ▾';font-size:9px}.toolbar-menu[open]>summary{background:var(--soft)}
+.toolbar-menu .menu-content{position:fixed;z-index:20;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:12px;width:min(360px,calc(100vw - 12px));max-height:calc(100vh - 70px);overflow:auto;background:#fff;border:1px solid #a8bdb0;border-radius:8px;box-shadow:0 8px 30px #193a3526;margin:0}
+.toolbar-menu:not([open]) .menu-content{display:none!important}.menu-content>p,.menu-content>h2,.menu-content #source-name{width:100%}
+#source-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--muted)}
+.palette-panel{padding:5px 8px;margin:0;border-bottom:1px solid var(--line)}
+.palette-flow{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:4px}
+.palette-flow>.full-palette-control{order:0;margin:0 4px 0 0;padding:0;white-space:nowrap;font-size:11px}
+.palette-chips{display:flex;align-items:center;flex-wrap:wrap;gap:3px;margin:0;padding:0}
+.palette-chip{min-width:0;width:28px;height:28px;padding:2px;gap:0;border-radius:5px}.palette-chip-color{width:22px;height:22px;font-size:10px;border-radius:3px}.palette-chip-hex{display:none}
+.palette-tools{display:flex;align-items:center;gap:3px;margin:0}.palette-tools label{font-size:10px}.palette-tools .stepper{height:26px}.palette-tools .stepper input{width:30px;height:24px}.palette-tools .stepper button{width:23px;height:24px}
+.palette-flow .text-button,.palette-flow .view-tab{font-size:10px;padding:4px 5px;min-height:25px}.palette-flow .view-tabs{margin:0;border:0;min-height:0}
+#glass-search{width:110px;height:26px;min-width:70px;padding:3px 6px;font-size:10px;margin:0}
+.palette-flow>.alternatives-heading{display:contents}.palette-flow>.alternatives-heading[hidden]{display:none}
+.app-main,.app-main.has-portrait,.app-main.image-beside,.app-main.image-beside[data-image-size="larger"],.app-main.image-beside[data-image-size="full"]{max-width:none;margin:0;padding:6px 8px;gap:5px;display:grid;grid-template-columns:minmax(180px,30%) minmax(0,1fr);align-items:start}
+.app-main.image-beside>.workspace-results,.workspace-results{padding:0;min-width:0;container-type:normal}
+.app-main.image-beside>.image-panel,.app-main.has-portrait>.image-panel{grid-column:2;grid-row:1;position:sticky;top:6px;padding:0;margin:0;min-width:0}
+.image-stage{justify-content:flex-start;align-items:flex-start;border:0;background:transparent;min-height:0}.canvas-wrap{margin:0}.image-beside .workspace-results{grid-column:1;grid-row:1}
+.app-main.image-landscape,.app-main:not(.has-image){grid-template-columns:minmax(0,1fr)}
+.image-landscape>.image-panel{grid-row:1;grid-column:1}.image-landscape>.workspace-results{grid-row:2;grid-column:1}
+.image-landscape .product-list{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(190px,1fr);grid-template-columns:none;gap:4px;overflow-x:auto;padding-bottom:4px}
+.app-main:not(.has-image)>.image-panel{grid-row:1}.app-main:not(.has-image)>.workspace-results{grid-row:2}
+.app-main:not(.has-image) .product-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px}
+.results-column,.results-column .product-list{margin:0;padding-top:0;border:0}
+#product-grid>.compact-card{display:grid;grid-template-columns:minmax(0,1fr) minmax(60px,31%);gap:5px;min-height:76px;padding:5px 0 5px 6px;align-items:center;margin:0;border:0;border-bottom:1px solid var(--line);border-radius:0}
+#product-grid>.compact-card>.photo-button{grid-column:2;grid-row:1;width:100%;height:auto;aspect-ratio:1;position:relative;padding:0;align-self:center}
+#product-grid>.compact-card>.product-card-content{grid-column:1;grid-row:1;min-width:0;padding:0}
+.compact-card .product-name{font-size:13px;line-height:1.2;overflow-wrap:anywhere;margin:0;font-weight:700}
+.compact-card .match-label{display:flex;gap:4px;align-items:center;font-size:11px;line-height:1.25;flex-wrap:wrap;margin:4px 0}
+.compact-card .small-swatch{width:12px;height:12px;flex:none}.compact-card .sample-strip{margin:4px 0;height:9px}
+.compact-card-actions{display:flex;gap:3px;align-items:center;flex-wrap:wrap;min-width:0}
+.compact-purchase{min-width:0}.purchase-toggle{border:1px solid #b5c9bb;background:white;color:#234333;border-radius:4px;max-width:100%;padding:3px 5px;font-size:10px;line-height:1.25;white-space:normal;text-align:left;cursor:pointer}.purchase-toggle::after{content:' ▾';font-size:8px}
+.compact-card .row-alternatives{font-size:10px;padding:3px 2px;margin:0;line-height:1.25;text-decoration:underline}
+.glass-target-badge{position:absolute;bottom:3px;left:3px;font-size:10px;line-height:18px;width:20px;height:20px;border-radius:50%;border:1px solid white;color:white;text-shadow:0 1px 2px #000,0 0 2px #000;box-shadow:0 0 0 1px #294331}
+.purchase-popover{position:fixed;inset:auto;margin:0;padding:12px;width:min(290px,calc(100vw - 12px));max-height:calc(100vh - 12px);overflow:auto;background:#fff;color:var(--ink);border:1px solid #91b39e;border-radius:8px;box-shadow:0 8px 26px #13231c30}
+.purchase-popover .dialog-heading{gap:12px;margin-bottom:8px}.purchase-popover .product-purchase{display:grid;grid-template-columns:minmax(0,1fr) 55px;gap:8px;max-width:none}.purchase-popover .variant-select{font-size:12px;min-width:0;height:32px}.purchase-popover .quantity-field{width:55px;height:32px;font-size:12px}.purchase-popover .select-row{grid-column:1/-1;display:flex;justify-content:space-between}.purchase-popover .select-glass,.purchase-popover .product-price{font-size:12px}
+.detail-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.detail-purchase .product-purchase{max-width:100%}
+#color-editor-dialog .target-editor{display:flex;gap:8px;height:auto;flex-wrap:wrap}.empty-state{padding:12px}
+.cart-page #palette-panel,.cart-page .app-main,.cart-page #include-transparent,.cart-page #include-opalescent,.cart-page #include-tints,.cart-page #save-palette,.cart-page #open-saved,.cart-page #save-cart,.cart-page #image-menu{display:none}
+.cart-page #save-settings,.cart-page #load-settings,.cart-page #settings-status{display:inline-flex}
+@media(min-width:1600px){.app-main.image-beside{grid-template-columns:minmax(260px,25%) minmax(0,1fr)}#product-grid>.compact-card{min-height:88px}.compact-card .product-name{font-size:14px}}
+@media(max-width:560px){.app-header{padding:5px}.palette-panel{padding:4px 5px}.compact-toolbar{gap:3px}.compact-toolbar>.button,.compact-toolbar>.text-button,.compact-toolbar>.type-filter,.toolbar-menu>summary{font-size:10px;padding:4px 5px;min-height:25px}.app-main,.app-main.has-portrait,.app-main.image-beside,.app-main.image-beside[data-image-size="larger"],.app-main.image-beside[data-image-size="full"]{padding:4px 5px;gap:3px;grid-template-columns:minmax(135px,39%) minmax(0,1fr)}.app-main.image-landscape,.app-main:not(.has-image){grid-template-columns:minmax(0,1fr)}#product-grid>.compact-card{grid-template-columns:minmax(0,1fr) 48px;gap:3px;padding:4px 0 4px 3px;min-height:72px}.compact-card .product-name{font-size:11px}.compact-card .match-label{font-size:9px}.compact-card .row-alternatives,.purchase-toggle{font-size:9px}.image-landscape .product-list{grid-auto-columns:180px}}

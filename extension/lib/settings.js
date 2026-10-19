@@ -7,7 +7,7 @@ export const SETTINGS_KEY = 'bullseyeSettingsV1';
 export const DEFAULT_SETTINGS = Object.freeze({
   version:1, format:'medium', preferredJarSize:'5lb',
   glassTypes:Object.freeze({transparent:true, opalescent:true}),
-  paletteCount:6, imageSize:'fit', includeTints:false, showFullPalette:true,
+  paletteCount:6, imageSize:'larger', includeTints:false, showFullPalette:true,
 });
 
 function option(value, allowed, fallback, label) {
