@@ -35,8 +35,8 @@ function nearestIndex(lab, centers) {
 }
 
 // A fixed generator makes reservoir sampling repeatable without periodic stride bias.
-function deterministicRandom() {
-  let state = 0x72a31f49;
+function deterministicRandom(seed = 0x72a31f49) {
+  let state = (Number(seed) >>> 0) || 0x72a31f49;
   return () => {
     state ^= state << 13;
     state ^= state >>> 17;
@@ -45,8 +45,8 @@ function deterministicRandom() {
   };
 }
 
-function sampledColors(data, maxSamples, width, height) {
-  const random = deterministicRandom();
+function sampledColors(data, maxSamples, width, height, seed) {
+  const random = deterministicRandom(seed);
   const reservoir = [];
   let visible = 0;
   for (let offset = 0; offset < data.length; offset += 4) {
@@ -94,11 +94,17 @@ function sampledColors(data, maxSamples, width, height) {
   });
 }
 
-function initialCenters(points, count) {
+function initialCenters(points, count, random = null) {
   let mostCommon = points[0];
   for (const point of points) {
     if (point.weight > mostCommon.weight) mostCommon = point;
   }
+  const pickWeighted = scores => {
+    let remaining = random() * scores.reduce((sum, score) => sum + score, 0);
+    for (let i = 0; i < scores.length; i++) { remaining -= scores[i]; if (remaining < 0) return i; }
+    return scores.length - 1;
+  };
+  if (random) mostCommon = points[pickWeighted(points.map(point => point.weight))];
   const centers = [mostCommon.lab.slice()];
   const distances = points.map((point) => distanceSquared(point.lab, centers[0]));
   while (centers.length < count) {
@@ -112,6 +118,7 @@ function initialCenters(points, count) {
       }
     }
     if (next < 0) break;
+    if (random) next = pickWeighted(points.map((point, index) => distances[index] * point.weight));
     const center = points[next].lab.slice();
     centers.push(center);
     for (let index = 0; index < points.length; index += 1) {
@@ -127,7 +134,7 @@ function initialCenters(points, count) {
  * chosen closest to each cluster's center. Empty or fully transparent images return [].
  * With valid width/height, normalized x/y identify an actual representative pixel.
  */
-export function extractPalette(imageData, { count = 8, maxSamples = 12000 } = {}) {
+export function extractPalette(imageData, { count = 8, maxSamples = 12000, seed } = {}) {
   const data = imageData?.data;
   if (!data || !Number.isInteger(data.length) || data.length % 4 !== 0) {
     throw new TypeError('Provide ImageData-like RGBA pixels in a data array.');
@@ -137,9 +144,9 @@ export function extractPalette(imageData, { count = 8, maxSamples = 12000 } = {}
   const width = Number.isInteger(imageData.width) && imageData.width > 0 ? imageData.width : null;
   const height = Number.isInteger(imageData.height) && imageData.height > 0 ? imageData.height : null;
   const dimensionsValid = width && height && width * height * 4 === data.length;
-  const points = sampledColors(data, sampleLimit, dimensionsValid && width, dimensionsValid && height);
+  const points = sampledColors(data, sampleLimit, dimensionsValid && width, dimensionsValid && height, seed);
   if (points.length === 0) return [];
-  const centers = initialCenters(points, Math.min(desiredCount, points.length));
+  const centers = initialCenters(points, Math.min(desiredCount, points.length), seed === undefined ? null : deterministicRandom(seed));
 
   for (let iteration = 0; iteration < 24; iteration += 1) {
     const totals = centers.map(() => ({ lab: [0, 0, 0], weight: 0 }));
@@ -223,14 +230,18 @@ export function sampleDarkness(sample) {
  * This is a thickness guide, not a measurement of millimeters from a photograph.
  * Transparent color strength is white-anchored: sample darkness / reference
  * darkness. It does not reset the lightest retained glass sample to zero.
- * Opaque/opalescent grain color cannot reveal depth, so it uses the 100%
- * full-color reference. Returns null when transparent reference data is unusable.
+ * Chromatic opals also compare photographed color strength. Neutral opaque
+ * glass retains its 100% full-color reference. Neither is physical calibration.
+ * Returns null when reference data is unusable.
  * Matching remains entirely independent of this display estimate.
  */
 export function sampleThickness(sample, product) {
   const darkness = sampleDarkness(sample);
   const type = String(product?.type ?? '').trim().toLowerCase();
-  if (type === 'opalescent' || type === 'opaque') return 100;
+  // Neutral opaque black/white use their full-color reference. Chromatic opals
+  // use the same photo-strength comparison as transparent glass, not a constant.
+  if ((type === 'opalescent' || type === 'opaque')
+    && (product?.colorFamily || getColorFamily(sample)) === 'neutral') return 100;
 
   const samples = Array.isArray(product?.samples) ? product.samples : [];
   const family = product?.colorFamily === 'neutral' || product?.colorFamily === 'chromatic'

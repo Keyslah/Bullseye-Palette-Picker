@@ -7,7 +7,7 @@ export const SETTINGS_KEY = 'bullseyeSettingsV1';
 export const DEFAULT_SETTINGS = Object.freeze({
   version:1, format:'medium', preferredJarSize:'5lb',
   glassTypes:Object.freeze({transparent:true, opalescent:true}),
-  paletteCount:6, imageSize:'fit',
+  paletteCount:6, imageSize:'fit', includeTints:false, showFullPalette:true,
 });
 
 function option(value, allowed, fallback, label) {
@@ -28,8 +28,12 @@ export function normalizeSettings(value = {}) {
   if (!Number.isInteger(paletteCount) || paletteCount < 2 || paletteCount > 12) {
     throw new Error('Choose between 2 and 12 starting palette colors.');
   }
+  for (const flag of ['includeTints','showFullPalette']) {
+    if (value[flag] !== undefined && typeof value[flag] !== 'boolean') throw new Error('View settings must be on or off.');
+  }
   return {
     version:1,
+    includeTints:value.includeTints ?? false, showFullPalette:value.showFullPalette ?? true,
     format:option(value.format === 'sheet' ? 'sheets' : value.format, ['sheets','powder','fine','medium','coarse'], DEFAULT_SETTINGS.format, 'glass format'),
     preferredJarSize:option(value.preferredJarSize, ['5lb','1lb','5oz'], DEFAULT_SETTINGS.preferredJarSize, 'default jar size'),
     glassTypes:{transparent:types.transparent ?? true, opalescent:types.opalescent ?? true},

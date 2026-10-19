@@ -23,7 +23,7 @@ function memoryStorage(initial = {}) {
 
 test('default settings use medium frit and 5 lb jars without sharing mutable objects', () => {
   assert.deepEqual(normalizeSettings(), {
-    version:1, format:'medium', preferredJarSize:'5lb', glassTypes:{transparent:true,opalescent:true}, paletteCount:6,imageSize:'fit',
+    version:1, format:'medium', preferredJarSize:'5lb', glassTypes:{transparent:true,opalescent:true}, paletteCount:6,imageSize:'fit',includeTints:false,showFullPalette:true,
   });
   const first = normalizeSettings(), second = normalizeSettings();
   first.glassTypes.transparent = false;
