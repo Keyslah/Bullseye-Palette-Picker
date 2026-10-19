@@ -145,7 +145,7 @@ function remixPalette() {
 }
 function workspaceSnapshot() {
   return {
-    version:5, includeTints:state.includeTints, format:state.format, preferredJarSize:state.preferredJarSize,
+    version:6, includeTints:state.includeTints, format:state.format, preferredJarSize:state.preferredJarSize,
     sourceDataUrl:state.sourceDataUrl, sourceName:state.sourceName, sourceUrl:state.sourceUrl,
     thumbnailDataUrl:state.sourceThumbnail, glassTypes:state.glassTypes, imageSize:state.imageSize, imageLayout:'auto',
     paletteCount:state.paletteCount, targets:state.targets, activeTargetId:state.activeTargetId,
@@ -980,6 +980,8 @@ async function initialize() {
     $('library-count').textContent = String(state.products.length);
     const saved = savedResult.status === 'fulfilled' ? savedResult.value : null;
     restoreWorkspace(saved);
+    // Apply the requested larger starting view once on upgrade, not on each reload.
+    if(saved && Number(saved.version || 0)<6 && saved.imageSize==='fit')state.imageSize='larger';
     renderAll();
     if(formatsResult.status==='rejected')notify('Product form options could not load. Medium frit is available; reload to use the other forms.',true);
     if(settingsResult.status==='rejected')notify('Saved defaults could not be read. Your current workspace is still available.',true);

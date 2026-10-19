@@ -2,7 +2,7 @@
 
 **Right-click a photo, get matching Bullseye glass selected automatically, and click Send to my cart.**
 
-Version **0.5.0** selects the suggested glass as soon as a palette loads. Choose **Sheets, Powder, Fine, Medium, or Coarse** at the top, save your preferred settings, and keep multiple named carts that you can edit, duplicate, and send directly to Bullseye. Frit starts with an available **5 lb. jar**, with another available size used when necessary.
+Version **0.6.0** selects the suggested glass as soon as a palette loads. Choose **Sheets, Powder, Fine, Medium, or Coarse** at the top, save your preferred settings, and keep multiple named carts that you can edit, duplicate, and send directly to Bullseye. Frit starts with an available **5 lb. jar**, with another available size used when necessary.
 
 The reviewed color guide contains **141 colors — 75 transparent and 66 in the opalescent group —** with **5,484 photographed color samples**. The purchase catalog maps those colors to **2,088 actual Bullseye variants**, including standard sheets for 137 colors. Clear is excluded. Independent **Transparent** and **Opalescent** buttons let you search either group or both. See [product-format coverage and sources](docs/product-formats.md).
 
@@ -13,20 +13,25 @@ The reviewed color guide contains **141 colors — 75 transparent and 66 in the 
 Product reference photography © Bullseye Glass Co.
 
 
-## New in v0.5.0
+## New in v0.6.0
 
-- **Better use of the screen:** square and portrait photos sit beside the palette/results on wide windows. Wide landscapes remain above the results. Photo aspect ratios and draggable dots stay aligned.
-- **Tints start off:** enable **Tints** when you want the 20 pale-tint products included. They have not been removed from the catalog.
-- **Corrected thickness labels:** chromatic opalescent samples compare photographed color strength instead of all being labeled 100%. The two Dark Forest Green regression targets reproduce 100% and 77%. These remain photo estimates, not calibrated physical thicknesses.
-- **Refresh and Remix are separate:** top **Refresh** resets working settings and returns to the full-palette view without changing the photo, colors, edited colors, or dot positions. **Remix** deliberately samples a new palette from the same photo and replaces the current color edits/dots.
-- **Named settings:** **Save settings** always opens a name form. **Load settings** restores a named preset without resampling the image. Saving the same currently selected preset name updates it; a different name creates another preset. Existing default settings remain supported.
-- **Clear palette navigation:** **Load palettes** opens the existing photo-palette library. **Show full palette** is beside color #1.
-- **A full cart tab:** **Saved Carts**, **Save cart**, or the selected-glass summary opens the cart workspace in a normal browser tab. Save and Duplicate ask for a name. The cart has its own material/tint-filtered color browser with photo thickness ranges. Global format changes affect new additions, not already saved cart variants.
-- **Copy my Bullseye cart:** reads the currently signed-in website cart into an editable, unsaved local copy. Copying does not add, remove, or change website quantities. Save the copy under a name to keep it. Catalog prices are estimates; the website remains authoritative.
+The workspace puts the source photo and glass comparison first. Buttons share one compact, left-to-right wrapping toolbar rather than separate rows for settings, image controls, cart actions, and filters.
 
-**Website-copy limits:** items outside the bundled glass catalog remain visible in the local copy with exact variant IDs and quantities, but must be removed before sending that copy with this tool. Custom-property/subscription items are rejected rather than silently changed. USD and quantities from 1 to 999 per variant are supported.
+**Top controls.** Refresh, Transparent, Opalescent, and Tints start the toolbar together. Load palettes, Save palette, Save cart, Saved Carts, Send, search, and navigation share its remaining space. Settings contains the glass form, default jar size, named Save settings, and Load settings. Image contains import/capture controls and Fit / Larger / Full width. Account and the information menu hold status and reference text.
 
-**Send is additive.** Sending a copied cart adds the selected quantities to what is already on the website; it does not replace existing quantities. No action here clears the website cart or completes checkout.
+**Palette strip.** Show full palette is first at the far left, followed by an uninterrupted sequence of swatches. Color hex values and the editor live behind Edit color rather than occupying every swatch and another full row. Numbered dots still identify sampled image locations.
+
+**Portrait and square photos.** The vertical glass list is to the left of the source photo, even in the narrower side panel. Each card's name, thickness estimate, and purchase control are on the left; its glass photograph is on the right, nearest the source image. Larger is the starting image size and fills the available portrait column. The previous v5 workspace's Fit view changes to Larger once on upgrade, without modifying its image, colors, or dots. Explicitly loading a saved palette or settings preset still restores its chosen view.
+
+**Landscape photos.** Glass cards form a horizontal comparison strip directly beneath the larger image. Extra cards scroll horizontally instead of creating a long vertical list below it.
+
+**Compact product cards.** A single purchase dropdown contains package/sheet size, quantity, selection, and price. The main card no longer repeats SKUs and long detail text. Click the glass photograph for the large reference view, product code, sampled colors, full purchase information, and Use for this color / Alternatives controls.
+
+**French Vanilla and coral alternatives.** Explicit Alternatives and glass search include both neutral and chromatic product families while continuing to ignore background gaps in product photographs. French Vanilla is no longer completely excluded from a pale cream target by the old neutral/chromatic cutoff. Sunset Coral stays available in alternatives. Coral Orange Tint is included when Tints is on. All are still sorted by measured full-color difference; automatic suggestions retain the existing stricter neutral/chromatic eligibility. A deliberately chosen alternative persists through reloads and palette saving.
+
+Refresh still resets settings/view without resampling the photo. Remix separately creates a new sampled palette. Named settings, named palettes, the full cart page, and read-only website-cart copying remain available. Tints remain off by default.
+
+**Cart boundary:** Copy my Bullseye cart reads a local draft without modifying website quantities. Send is additive, not a replacement of the website cart. The v5 cart-copy limits remain: ordinary USD items, quantities 1 to 999, and only supported catalog glass can be sent by this tool. No action completes checkout.
 
 ## Install or update in Chrome
 
@@ -41,19 +46,19 @@ Chrome documents these [unpacked-extension steps](https://developer.chrome.com/d
 
 **Updating an existing installation:** replace the files in the same extension folder with the new version, click **Reload** on its card at `chrome://extensions`, refresh Pinterest or any source page already open, and close/reopen the picker. Keep the same installed extension and folder to retain its saved palettes. An unpacked extension does not automatically update when this GitHub repository changes.
 
-The prepared **`Bullseye-Palette-Picker-v0.5.0.zip`** has `manifest.json` at its root. If you use that package instead of the repository ZIP, extract it and load the extracted root folder.
+The prepared **`Bullseye-Palette-Picker-v0.6.0.zip`** has `manifest.json` at its root. If you use that package instead of the repository ZIP, extract it and load the extracted root folder.
 
 ## Pick and edit colors
 
-- **A larger image.** Right-click an image, choose a file, paste, or capture a region. Portrait and square photos use a large left column in the full workspace, with the palette and glass list beside them. Landscape photos run across the top. **Fit / Larger / Full width** controls resize the complete image without cropping it.
+- **A larger image.** Right-click an image, choose a file, paste, or capture a region. Portrait and square photos occupy the right column, with the glass list on their left. Landscape photos run above a horizontal glass strip. **Fit / Larger / Full width** controls resize the complete image without cropping it.
 - **A dot for every image color.** Automatic colors have numbered points at actual source pixels. Drag a point to resample; click another image location to add another color. Fully transparent pixels do not create false black samples.
-- **A clear way back.** Select a swatch or point to edit its hex/color, remove it, or inspect alternatives. Check **Show full palette** beside color #1 to return to all palette colors together.
-- **One vertical glass list.** Each row includes the real reference photo, glass name and code, estimated thickness percentage, package or sheet size, quantity, and selection control.
+- **A clear way back.** Select a swatch or point to edit its hex/color, remove it, or inspect alternatives. Check **Show full palette** at the far left of the swatches to return to all palette colors together.
+- **Compact glass comparison.** A vertical list sits left of portrait/square images; landscape images use a horizontal strip. Each card shows a real reference photo, name, estimated thickness, and a compact purchase dropdown. Codes and full information are in the photo detail view.
 - **Selected by default.** Each photo color starts with the closest eligible glass that has an available option in the chosen format. Frit prefers an available 5 lb. jar; the **Default jar** control also offers 1 lb. and 5 oz. Shared matches select one package per distinct variant with one shared quantity. No range control, slider, or preliminary checkbox clicks are needed.
 - **Editable selections.** Uncheck any glass, change its size or quantity, or choose an alternative. Moving a dot updates its automatic selection. Your unchecked choices remain unchecked while you browse, reopen the picker, or save and reload the palette. Deliberately added extras from All glass are retained.
-- **Save the complete palette.** Saved palettes include a local copy of the photo, point positions, edited colors, selected glass, purchase format, package choices, quantities, material filters, and image size. **Load palettes** is the leftmost control immediately below the palette swatches. Saved entries include photo thumbnails and restore their own photo and purchase choices.
+- **Save the complete palette.** Saved palettes include a local copy of the photo, point positions, edited colors, selected glass, purchase format, package choices, quantities, material filters, and image size. **Load palettes** is in the top toolbar. Saved entries include photo thumbnails and restore their own photo and purchase choices.
 
-The narrow side panel keeps the image above the palette and results. The full workspace adapts to the image's orientation. An expanded glass reference view lets you inspect the measured samples without enlarging every list row.
+The side panel and full workspace both adapt to image orientation. Portrait/square glass comparisons stay on the left; landscape comparisons run horizontally below the photo. An expanded glass reference view lets you inspect the measured samples without enlarging every list row.
 
 Some web images are hosted on a separate domain. The picker requests access to that particular image host after you select the image. File import, paste, and region capture are available when a host will not serve the image.
 
@@ -131,7 +136,7 @@ npm run check
 npm run package
 ```
 
-Development requires Node 20 or later. Packaging also uses Python 3's standard library and creates `dist/Bullseye-Palette-Picker-v0.5.0.zip`, with the manifest at the ZIP root. Extract that packaged ZIP and load its root folder in Chrome. Version 0.5.0 retains the reviewed **0.3.0 color catalog byte for byte**, including its photographs, RGB/Lab samples, and source timestamps. Its additional purchase options live in a separate format index.
+Development requires Node 20 or later. Packaging also uses Python 3's standard library and creates `dist/Bullseye-Palette-Picker-v0.6.0.zip`, with the manifest at the ZIP root. Extract that packaged ZIP and load its root folder in Chrome. Version 0.6.0 retains the reviewed **0.3.0 color catalog byte for byte**, including its photographs, RGB/Lab samples, and source timestamps. Its additional purchase options live in a separate format index.
 
 To refresh public purchase-format records or reproduce them from an existing source cache:
 

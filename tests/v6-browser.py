@@ -209,6 +209,13 @@ try:
         restored=saved(page)
         assert restored['targets']==remixed['targets']
         passed('Existing saved-photo and workspace restoration survive v6 reload')
+        older=copy.deepcopy(restored);older['version']=5;older['imageSize']='fit'
+        page.evaluate("async value=>chrome.storage.local.set({bullseyeProjectV1:value})",older)
+        page.reload();expect(page.locator('#image-loaded')).to_be_visible()
+        upgraded=saved(page)
+        assert upgraded['version']==6 and upgraded['imageSize']=='larger'
+        assert image_state(upgraded)==image_state(restored)
+        passed('Upgrading the old Fit workspace starts larger without changing its photo or colors')
         with context.expect_page() as new_tab:
             page.locator('#open-workspace').click()
         full=new_tab.value;watch(full);full.wait_for_load_state()
