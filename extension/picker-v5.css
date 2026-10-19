@@ -1,0 +1,34 @@
+/* Purpose: v5 responsive workspace, named settings and full-page carts.
+   Setup: after picker.css; no external resources or destructive effects. */
+.app-header,.global-settings,.app-main{max-width:none}
+.app-header{gap:12px;flex-wrap:wrap}
+.header-actions{flex-wrap:wrap;justify-content:flex-end}
+.header-actions .button{min-height:29px;font-size:11px;padding:4px 9px}
+.brand-heading{gap:12px;min-width:0}
+.palette-chips{align-items:center;flex-wrap:wrap}
+.palette-chips .full-palette-control{padding:4px 6px;margin-right:7px;white-space:nowrap}
+.palette-topline,.palette-bottomline,.results-toolbar,.results-subheading{min-width:0;flex-wrap:wrap}
+.palette-tools,.action-buttons{flex-wrap:wrap}
+#settings-name{flex:1;min-width:0;height:33px;border:1px solid #c4d0c7;padding:5px 8px;background:white}
+#settings-dialog-message{margin:8px 0;overflow-wrap:anywhere}
+.settings-preset-row{display:flex;justify-content:space-between;gap:10px;align-items:center;border-top:1px solid var(--line);padding:12px 0}
+.settings-preset-row>div{min-width:0;overflow-wrap:anywhere}.settings-preset-row p{font-size:11px;color:var(--muted)}
+@media(min-width:900px){
+ .app-main.image-beside{display:grid;grid-template-columns:minmax(0,43%) minmax(0,1fr);gap:18px;align-items:start}
+ .app-main.image-beside[data-image-size="larger"]{grid-template-columns:minmax(0,49%) minmax(0,1fr)}
+ .app-main.image-beside[data-image-size="full"]{grid-template-columns:minmax(0,53%) minmax(0,1fr)}
+ .app-main.image-beside>.image-panel{position:sticky;top:8px}
+ .app-main.image-beside>.workspace-results{padding-top:5px}
+}
+@media(min-width:1200px){
+ .product-card{min-height:86px;padding-block:5px}
+ .photo-button{width:80px;height:80px}
+}
+@media(max-width:899px){.app-main.has-portrait{display:block}.header-actions{justify-content:flex-start}}
+@media(max-width:540px){
+ .app-header,.global-settings{padding-inline:9px}.app-main{padding-inline:9px}
+ .header-actions{gap:5px}.header-actions .button{font-size:10px;padding-inline:7px}
+ .thickness-reference{font-size:9px}.palette-chips .full-palette-control{font-size:10px}
+ .palette-tools{gap:4px}.source-toolbar{flex-wrap:wrap}.source-toolbar>span{max-width:100%}
+ .glass-type-filters{flex-wrap:wrap}
+}

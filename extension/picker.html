@@ -6,17 +6,18 @@
     <meta name="color-scheme" content="light">
     <title>Bullseye Palette Picker</title>
     <link rel="stylesheet" href="./picker.css">
+    <link rel="stylesheet" href="./picker-v5.css">
     <script type="module" src="./picker.js"></script>
   </head>
   <body>
     <header class="app-header">
-      <div class="brand-heading"><h1><span class="brand-dot" aria-hidden="true"></span>Bullseye Palette Picker</h1><p class="thickness-reference" title="Photo-based estimate, not measured depth. Opaque colors use a full-color reference."><span>Estimated thickness guide</span>100% thickness = 6 mm solid glass, 16 mm fine frit</p></div>
-      <div class="header-actions"><button class="text-button" id="open-workspace" type="button" title="Open full page" aria-label="Open full page">Open full page ↗</button></div>
+      <div class="brand-heading"><h1><span class="brand-dot" aria-hidden="true"></span>Bullseye Palette Picker</h1><p class="thickness-reference" title="Photo-based estimate, not measured depth. Photo color strength, not measured physical depth."><span>Estimated thickness guide</span>100% thickness = 6 mm solid glass, 16 mm fine frit</p></div>
+      <div class="header-actions"><button class="button secondary-button" id="refresh-settings" type="button" title="Reset settings only. Keep the photo, palette colors and dot positions.">Refresh</button><button class="button primary-button" id="send-to-cart" type="button" disabled>Send to My Cart</button><button class="button secondary-button" id="open-saved-carts" type="button">Saved Carts</button><button class="text-button" id="open-workspace" type="button" title="Open full page" aria-label="Open full page">Open full page ↗</button></div>
     </header>
     <section class="global-settings" aria-label="Glass form and saved settings">
       <div class="form-setting"><span>Glass</span><div class="form-options" role="group" aria-label="Purchase glass form"><button id="form-sheets" type="button" aria-pressed="false">Sheets</button><button id="form-powder" type="button" aria-pressed="false">Powder</button><button id="form-fine" type="button" aria-pressed="false">Fine</button><button id="form-medium" type="button" aria-pressed="true">Medium</button><button id="form-coarse" type="button" aria-pressed="false">Coarse</button></div></div>
       <label class="jar-setting" for="preferred-jar-size">Default jar <select id="preferred-jar-size"><option value="5lb">5 lb.</option><option value="1lb">1 lb.</option><option value="5oz">5 oz.</option></select></label>
-      <button class="button secondary-button" id="save-settings" type="button" title="Remember glass form, default jar size, glass types, starting color count, and image size.">Save settings</button><span id="settings-status" role="status" aria-live="polite"></span>
+      <button class="button secondary-button" id="save-settings" type="button" title="Remember glass form, default jar size, glass types, starting color count, and image size.">Save settings</button><button class="button secondary-button" id="load-settings" type="button">Load settings</button><span id="settings-status" role="status" aria-live="polite"></span>
     </section>
     <main class="app-main">
       <section class="image-panel" aria-label="Source image">
@@ -32,25 +33,25 @@
 
       <div class="workspace-results">
       <section class="palette-panel" id="palette-panel" aria-label="Editable palette">
-        <div class="palette-topline"><h2>Palette <span class="inline-count" id="target-count"></span></h2><div class="palette-tools"><label for="palette-count">Auto</label><div class="stepper"><button id="palette-fewer" type="button" aria-label="Extract one fewer color">−</button><input id="palette-count" type="number" min="2" max="12" value="6" aria-label="Number of automatic colors"><button id="palette-more" type="button" aria-label="Extract one more color">+</button></div><button class="text-button" id="add-custom-color" type="button">+ Color</button></div></div>
+        <div class="palette-topline"><h2>Palette <span class="inline-count" id="target-count"></span></h2><div class="palette-tools"><label for="palette-count">Auto</label><div class="stepper"><button id="palette-fewer" type="button" aria-label="Extract one fewer color">−</button><input id="palette-count" type="number" min="2" max="12" value="6" aria-label="Number of automatic colors"><button id="palette-more" type="button" aria-label="Extract one more color">+</button></div><button class="text-button" id="remix-palette" type="button" title="Sample a new palette from this image">Remix</button><button class="text-button" id="add-custom-color" type="button">+ Color</button></div></div>
         <div class="palette-chips" id="palette-chips" aria-label="Palette colors"></div>
-        <div class="palette-navigation"><button class="button secondary-button" id="open-saved" type="button">All palettes</button><button class="button secondary-button" id="open-saved-carts" type="button">Saved carts</button><label class="full-palette-control" hidden><input id="show-full-palette" type="checkbox" checked>Show full palette</label></div>
+        <div class="palette-navigation"><button class="button secondary-button" id="open-saved" type="button">Load palettes</button><label class="full-palette-control" hidden><input id="show-full-palette" type="checkbox" checked>Show full palette</label></div>
         <div class="palette-bottomline"><div class="target-editor" id="target-editor"><span id="editing-target">Color 1</span><input id="target-color" type="color" value="#537967" aria-label="Edit selected palette color"><input id="target-hex" type="text" value="#537967" maxlength="7" spellcheck="false" autocomplete="off" aria-label="Selected color hex code"><button class="text-button" id="remove-target" type="button">Remove</button></div><button class="text-button" id="show-alternatives" type="button">Alternatives for color 1</button></div>
       </section>
 
       <section class="cart-actions" aria-label="Palette actions">
-        <div class="action-buttons"><button class="button primary-button" id="send-to-cart" type="button" disabled>Send to my cart</button><button class="button secondary-button" id="save-palette" type="button" disabled>Save palette</button><button class="button secondary-button" id="save-cart" type="button" disabled>Save cart</button><button class="text-button selected-summary" id="open-cart" type="button"><span id="cart-count">0</span> selected<span id="selection-total"></span></button></div>
+        <div class="action-buttons"><button class="button secondary-button" id="save-palette" type="button" disabled>Save palette</button><button class="button secondary-button" id="save-cart" type="button" disabled>Save cart</button><button class="text-button selected-summary" id="open-cart" type="button"><span id="cart-count">0</span> selected<span id="selection-total"></span></button></div>
         <div class="account-row"><span class="account-status" id="account-status">Checking Bullseye sign-in…</span><button class="text-button" id="sign-in" type="button" hidden>Sign in</button><button class="text-button" id="check-account" type="button" hidden>Check again</button><a class="text-button" id="view-bullseye-cart" href="https://shop.bullseyeglass.com/cart" target="_blank" rel="noopener noreferrer" hidden>View cart ↗</a></div>
       </section>
 
       <section class="results-column" aria-label="Bullseye glass colors">
-        <div class="glass-type-filters" role="group" aria-label="Include glass types"><span>Include</span><button class="type-filter is-active" id="include-transparent" type="button" aria-pressed="true">Transparent</button><button class="type-filter is-active" id="include-opalescent" type="button" aria-pressed="true">Opalescent</button></div>
+        <div class="glass-type-filters" role="group" aria-label="Include glass types"><span>Include</span><button class="type-filter is-active" id="include-transparent" type="button" aria-pressed="true">Transparent</button><button class="type-filter is-active" id="include-opalescent" type="button" aria-pressed="true">Opalescent</button><button class="type-filter" id="include-tints" type="button" aria-pressed="false">Tints</button></div>
         <div class="results-toolbar"><div class="view-tabs" role="tablist" aria-label="Glass views"><button class="view-tab is-active" id="palette-tab" type="button" role="tab" aria-selected="true" aria-controls="glass-results">Palette matches</button><button class="view-tab" id="library-tab" type="button" role="tab" aria-selected="false" aria-controls="glass-results">All glass <span id="library-count"></span></button></div><div class="results-tools"><input id="glass-search" type="search" placeholder="Name or code" aria-label="Search glass by name or code"></div></div>
         <div class="results-subheading"><h2 id="results-title">Bullseye colors</h2><span id="catalog-scope">Medium frit</span></div>
         <div class="alternatives-heading" id="alternatives-heading" hidden><span id="alternatives-label"></span><button class="text-button" id="back-to-palette" type="button">All palette colors</button></div>
         <div id="glass-results" role="tabpanel" aria-labelledby="palette-tab"><div class="product-list" id="product-grid"><p class="loading-state">Loading glass colors…</p></div></div>
         <div class="empty-state" id="empty-state" hidden><h3 id="empty-title"></h3><p id="empty-copy"></p><button class="button secondary-button" id="empty-action" type="button" hidden></button></div>
-        <p class="photo-note">All forms use the medium-frit color guide. Thickness is a photo-based estimate; opaque colors use the full-color reference.</p>
+        <p class="photo-note">All forms use the medium-frit color guide. Thickness is a photo-based color-strength estimate; neutral opaque glass uses its full-color reference.</p>
       </section>
       <footer class="app-footer">Independent tool · Product photos © Bullseye Glass Co. · <a href="https://shop.bullseyeglass.com/" target="_blank" rel="noopener noreferrer">Bullseye store ↗</a></footer>
       </div>
@@ -78,7 +79,7 @@
           <div id="saved-cart-items" class="saved-cart-items"></div>
           <section class="saved-cart-add" aria-label="Add glass to saved cart"><label for="saved-cart-search">Add a color</label><input id="saved-cart-search" type="search" placeholder="Glass name or code" autocomplete="off"><div id="saved-cart-search-results" class="saved-cart-search-results"></div></section>
         </div>
-        <div class="saved-cart-footer"><button class="button primary-button" id="send-saved-cart" type="button">Send to my cart</button><button class="button secondary-button" id="duplicate-cart-draft" type="button">Duplicate</button><button class="text-button" id="back-to-saved-carts" type="button">Saved carts</button><a class="text-link" href="https://shop.bullseyeglass.com/cart" target="_blank" rel="noopener noreferrer">View cart ↗</a></div>
+        <div class="saved-cart-footer"><button class="button primary-button" id="send-saved-cart" type="button">Send to my cart</button><button class="button secondary-button" id="duplicate-cart-draft" type="button">Duplicate</button><button class="text-button" id="back-to-saved-carts" type="button">Saved Carts</button><a class="text-link" href="https://shop.bullseyeglass.com/cart" target="_blank" rel="noopener noreferrer">View cart ↗</a></div>
       </div>
     </dialog>
 

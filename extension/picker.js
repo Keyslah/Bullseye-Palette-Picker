@@ -16,7 +16,9 @@ import {availableVariant, emptySelection, restoreSelection, reconcileSelection, 
 import {initializeCartLibrary} from './lib/cart-library.js';
 import {normalizeCartItems} from './lib/saved-carts.js';
 import {FORM_OPTIONS, normalizeForm, productForForm, defaultFormatVariant} from './lib/product-formats.js';
-import {loadSettings, saveSettings, normalizeSettings} from './lib/settings.js';
+import {loadSettings, normalizeSettings, DEFAULT_SETTINGS} from './lib/settings.js';
+import {includedGlass} from './lib/material-filters.js';
+import {initializeSettingsDialog} from './lib/settings-dialog.js';
 
 const $ = id => document.getElementById(id);
 const MAX_TARGETS = 20;
@@ -24,7 +26,7 @@ const state = {
   products: [], baseProducts: [], formatIndex: null, format:'medium', preferredJarSize:'5lb',
   sourceDataUrl: '', sourceName: '', sourceUrl: '', sourceThumbnail: '', imageData: null,
   paletteCount: 6, targets: [], activeTargetId: null,
-  glassTypes: {transparent: true, opalescent: true}, imageSize: 'fit',
+  glassTypes: {transparent: true, opalescent: true}, includeTints:false, imageSize: 'fit',
   view: 'palette', query: '', selectedVariants: {}, quantities: {}, chosenMatches: {}, cart: [], selection: emptySelection(),
   lastPendingImageAt: 0, savedPaletteId: null, savedPaletteName: '',
   account: {signedIn: null, status: 'checking'}, sending: false,
@@ -41,7 +43,9 @@ let captureBase = null, captureSelection = null, captureStart = null;
 let emptyAction = null, pendingReceivedThisSession = false;
 let draggingPoint = null, pointRenderFrame = 0, accountCheck = null, lastAccountCheck = 0;
 let cartLibrary = null, sendingFingerprint = '';
-let savedSettingsFingerprint = '', settingsSaving = false;
+let savedSettingsFingerprint = '', settingsSaving = false, settingsDialog = null;
+const isCartPage = new URLSearchParams(location.search).get('cart') === '1';
+document.body.classList.toggle('cart-page',isCartPage);
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -78,7 +82,7 @@ function cartSendState(items) {
     sent:Boolean(items.length && state.sentCartFingerprint === fingerprint),
     uncertain:Boolean(items.length && state.cartUnconfirmed === fingerprint)};
 }
-function currentSettings() { return normalizeSettings({format:state.format,preferredJarSize:state.preferredJarSize,glassTypes:state.glassTypes,paletteCount:state.paletteCount,imageSize:state.imageSize}); }
+function currentSettings() { return normalizeSettings({format:state.format,preferredJarSize:state.preferredJarSize,glassTypes:state.glassTypes,includeTints:state.includeTints,showFullPalette:state.view!=='alternatives',paletteCount:state.paletteCount,imageSize:state.imageSize}); }
 function renderSettings() {
   for (const option of FORM_OPTIONS) {
     const button=$(`form-${option.id}`);button.setAttribute('aria-pressed',String(state.format===option.id));button.disabled=!state.products.length;
@@ -117,15 +121,31 @@ function changePurchaseOptions(form, preferredJarSize=state.preferredJarSize, fo
     if(skipped.length)notify(`No available ${FORM_OPTIONS.find(option=>option.id===nextForm).grain.toLowerCase()} size for ${[...new Set(skipped)].join(', ')}. Those sizes are not selected.`,false,7500);
   } catch(error){notify(error.message||'The purchase options could not change.',true);}
 }
-async function saveCurrentSettings() {
-  if(settingsSaving)return;settingsSaving=true;renderSettings();
-  try{const saved=await saveSettings(currentSettings());savedSettingsFingerprint=JSON.stringify(saved);notify('Settings saved: glass form, jar size, glass types, starting colors, and image size.');}
-  catch(error){notify(error.message||'These settings could not be saved.',true);}
-  finally{settingsSaving=false;renderSettings();}
+function saveCurrentSettings() { settingsDialog.open(true); }
+function applyWorkingSettings(value) {
+  if(state.sending)throw new Error('Wait for the current cart addition to finish.');
+  const settings=normalizeSettings(value);
+  state.glassTypes={...settings.glassTypes};state.includeTints=settings.includeTints;
+  state.paletteCount=settings.paletteCount;state.imageSize=settings.imageSize;
+  state.query='';$('glass-search').value='';
+  state.view=settings.showFullPalette || !activeTarget()?'palette':'alternatives';
+  changePurchaseOptions(settings.format,settings.preferredJarSize,true);
+  renderAll();persist();
+}
+function refreshWorkingSettings() {
+  try{applyWorkingSettings(DEFAULT_SETTINGS);notify('Settings reset. Your photo, colors and dot positions were kept.');}
+  catch(error){notify(error.message,true);}
+}
+function remixPalette() {
+  if(!state.imageData || state.sending)return;
+  const seed=crypto.getRandomValues(new Uint32Array(1))[0];
+  state.targets=[];state.activeTargetId=null;state.chosenMatches={};state.view='palette';
+  state.savedPaletteId=null;state.savedPaletteName='';
+  extractStartingColors(false,seed);notify('Remixed a new palette from the same image.');
 }
 function workspaceSnapshot() {
   return {
-    version:4, format:state.format, preferredJarSize:state.preferredJarSize,
+    version:5, includeTints:state.includeTints, format:state.format, preferredJarSize:state.preferredJarSize,
     sourceDataUrl:state.sourceDataUrl, sourceName:state.sourceName, sourceUrl:state.sourceUrl,
     thumbnailDataUrl:state.sourceThumbnail, glassTypes:state.glassTypes, imageSize:state.imageSize, imageLayout:'auto',
     paletteCount:state.paletteCount, targets:state.targets, activeTargetId:state.activeTargetId,
@@ -136,7 +156,7 @@ function workspaceSnapshot() {
     cartUnconfirmed:state.cartUnconfirmed,
   };
 }
-function persist() { renderSettings(); clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 250); }
+function persist() { renderSettings(); if(isCartPage)return; clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 250); }
 async function flushSave() {
   if (!saveTimer) return; clearTimeout(saveTimer); saveTimer = undefined;
   try { await bridge.saveState(workspaceSnapshot()); }
@@ -153,6 +173,7 @@ function normalizeTarget(target, index = 0) {
 }
 function restoreWorkspace(saved) {
   if (!saved || typeof saved !== 'object') return;
+  state.includeTints = saved.includeTints === true;
   state.format = normalizeForm(saved.format || 'medium');
   if (['5lb','1lb','5oz'].includes(saved.preferredJarSize)) state.preferredJarSize=saved.preferredJarSize;
   rebuildProducts();
@@ -191,7 +212,7 @@ function renderPalette() {
   $('palette-count').value = state.paletteCount; $('palette-count').disabled = !state.imageData;
   $('palette-fewer').disabled = !state.imageData || state.paletteCount <= 2;
   $('palette-more').disabled = !state.imageData || state.paletteCount >= 12;
-  const chips = $('palette-chips'); chips.replaceChildren();
+  const chips = $('palette-chips'); document.querySelector('.palette-navigation').append($('show-full-palette').closest('label')); chips.replaceChildren();
   for (const [index,target] of state.targets.entries()) {
     const button = element('button', `palette-chip${target.id === state.activeTargetId ? ' is-active' : ''}`);
     button.type = 'button'; button.dataset.targetId = target.id;
@@ -200,6 +221,7 @@ function renderPalette() {
     const color = element('span','palette-chip-color',index+1); color.style.backgroundColor = target.hex;
     button.append(color, element('span','palette-chip-hex',target.hex));
     button.addEventListener('click', () => selectTarget(target.id)); chips.append(button);
+    if(index===0)chips.append($('show-full-palette').closest('label')); 
   }
   const target = activeTarget(); $('target-editor').hidden = !target; $('show-alternatives').hidden = !target;
   if (target) {
@@ -211,6 +233,7 @@ function renderPalette() {
   }
   $('add-custom-color').disabled = state.targets.length >= MAX_TARGETS;
   $('save-palette').disabled = !state.targets.length;
+  $('remix-palette').disabled = !state.imageData || state.sending;
   renderPoints();
 }
 
@@ -218,12 +241,14 @@ function renderImageLayout() {
   const main = document.querySelector('.app-main');
   const portrait = Boolean(state.imageData && sourceCanvas.height > sourceCanvas.width);
   main.classList.toggle('has-portrait', portrait);
+  const beside = Boolean(state.imageData && window.innerWidth >= 900 && sourceCanvas.width / sourceCanvas.height <= 1.55);
+  main.classList.toggle('image-beside',beside);
   main.dataset.imageSize = state.imageSize;
   for (const size of ['fit','larger','full']) $(`image-${size}`).setAttribute('aria-pressed', String(state.imageSize === size));
   if (!state.imageData || $('image-loaded').hidden) return;
   const stage = $('image-stage');
   const availableWidth = Math.max(1, stage.clientWidth - 2);
-  const beside = portrait && window.innerWidth >= 900;
+  // Layout follows both viewport width and photo aspect ratio, including square images.
   const settingsHeight = document.querySelector('.global-settings')?.offsetHeight || 0;
   const fitHeight = beside ? Math.max(300, window.innerHeight - 112 - settingsHeight) : Math.max(220, Math.min(360, window.innerHeight * .34));
   const maxHeight = state.imageSize === 'full' ? Infinity : state.imageSize === 'larger' ? fitHeight * 1.65 : fitHeight;
@@ -342,15 +367,10 @@ function nearestSourcePoint(rgb) {
   return best<0 ? null : {x:((best%width)+.5)/width,y:(Math.floor(best/width)+.5)/height};
 }
 
-function includedProducts() {
-  return state.products.filter(product => {
-    const type = String(product.type || '').toLowerCase();
-    return type === 'transparent' ? state.glassTypes.transparent : ['opalescent','opaque'].includes(type) && state.glassTypes.opalescent;
-  });
-}
+function includedProducts() { return state.products.filter(product=>includedGlass(product,state)); }
 function matchesFor(target) {
   if (!target) return [];
-  const key = `${target.hex}:${state.glassTypes.transparent}:${state.glassTypes.opalescent}`;
+  const key = `${target.hex}:${state.glassTypes.transparent}:${state.glassTypes.opalescent}:${state.includeTints}`;
   if (!matchCache.has(key)) {
     if (matchCache.size >= 128) matchCache.delete(matchCache.keys().next().value);
     const products = includedProducts();
@@ -389,6 +409,7 @@ function renderResults() {
     $(`include-${type}`).classList.toggle('is-active',state.glassTypes[type]);
     $(`include-${type}`).setAttribute('aria-pressed',String(state.glassTypes[type]));
   }
+  $('include-tints').setAttribute('aria-pressed',String(state.includeTints));
   const products=includedProducts();
   $('library-count').textContent=String(products.length);
   $('catalog-scope').textContent=`${products.length} colors · ${FORM_OPTIONS.find(option=>option.id===state.format).grain}`;
@@ -569,7 +590,7 @@ function removeTarget(id){const index=state.targets.findIndex(target=>target.id=
 function addTarget(rgb,point=null){if(state.targets.length>=MAX_TARGETS){notify(`Remove a color before adding more than ${MAX_TARGETS}.`,true);return null;}const target=normalizeTarget({id:`manual-${Date.now()}-${++manualTargetId}`,rgb,manual:true,...point});state.targets.push(target);state.activeTargetId=target.id;state.view='palette';reconcilePaletteSelection();renderPalette();renderResults();persist();return target;}
 function createCustomTarget(){const rgb=activeTarget()?.rgb||[83,121,103],target=addTarget(rgb,nearestSourcePoint(rgb));if(target){target.custom=true;renderPalette();$('target-color').click();}}
 function editTarget(hex){const normalized=hex.startsWith('#')?hex:`#${hex}`;if(!/^#[0-9a-f]{6}$/i.test(normalized)){$('target-hex').setAttribute('aria-invalid','true');return false;}const target=activeTarget();if(!target)return false;target.rgb=[1,3,5].map(index=>parseInt(normalized.slice(index,index+2),16));target.hex=normalized.toUpperCase();target.lab=rgbToLab(target.rgb);target.manual=true;target.custom=true;target.weight=0;delete state.chosenMatches[target.id];reconcilePaletteSelection();renderPalette();renderResults();persist();return true;}
-function extractStartingColors(preserveManual=true){if(!state.imageData)return;const manual=preserveManual?state.targets.filter(target=>target.manual):[],manualHexes=new Set(manual.map(target=>target.hex));const extracted=extractPalette(state.imageData,{count:state.paletteCount}).map((target,index)=>normalizeTarget({...target,id:`auto-${index}-${colorHex(target.rgb)}`,manual:false})).filter(target=>!manualHexes.has(target.hex));state.targets=[...extracted.slice(0,MAX_TARGETS-manual.length),...manual];if(!activeTarget())state.activeTargetId=state.targets[0]?.id||null;reconcilePaletteSelection();renderPalette();renderResults();persist();}
+function extractStartingColors(preserveManual=true,seed=undefined){if(!state.imageData)return;const manual=preserveManual?state.targets.filter(target=>target.manual):[],manualHexes=new Set(manual.map(target=>target.hex));const extracted=extractPalette(state.imageData,{count:state.paletteCount,seed}).map((target,index)=>normalizeTarget({...target,id:`auto-${index}-${colorHex(target.rgb)}`,manual:false})).filter(target=>!manualHexes.has(target.hex));state.targets=[...extracted.slice(0,MAX_TARGETS-manual.length),...manual];if(!activeTarget())state.activeTargetId=state.targets[0]?.id||null;reconcilePaletteSelection();renderPalette();renderResults();persist();}
 function changePaletteCount(value){state.paletteCount=clamp(Math.round(Number(value)||6),2,12);extractStartingColors(true);}
 function pickSourceColor(event){const point=pointerPoint(event);if(!point)return;const rgb=sampleImagePoint(point);if(!rgb){notify('That area is transparent. Pick a visible color.');return;}addTarget(rgb,point);}
 
@@ -736,6 +757,11 @@ async function useCapture(region = false) {
 }
 
 function bindEvents() {
+  settingsDialog=initializeSettingsDialog({getSettings:currentSettings,applySettings:applyWorkingSettings,onSaved:settings=>{savedSettingsFingerprint=JSON.stringify(settings);renderSettings();},notify});
+  $('load-settings').addEventListener('click',()=>settingsDialog.open(false));
+  $('refresh-settings').addEventListener('click',refreshWorkingSettings);
+  $('remix-palette').addEventListener('click',remixPalette);
+  $('include-tints').addEventListener('click',()=>{state.includeTints=!state.includeTints;reconcilePaletteSelection();renderResults();persist();});
   cartLibrary=initializeCartLibrary({getProducts:()=>state.products,getSelection:()=>state.cart,
     getSelectionName:()=>state.savedPaletteName||state.sourceName||'My cart',sendItems:sendCartItems,
     getSendState:cartSendState,getAccount:()=>state.account,getPreferredJarSize:()=>state.preferredJarSize,signIn,notify});
@@ -798,7 +824,7 @@ function bindEvents() {
   $('glass-search').addEventListener('input', (event) => { state.query = event.target.value; renderResults(); });
   $('empty-action').addEventListener('click', () => emptyAction?.());
   $('open-workspace').addEventListener('click', () => {
-    try { Promise.resolve(bridge.openWorkspace()).catch((error) => notify(error.message || 'Could not open a larger workspace.', true)); }
+    try { flushSave().then(()=>bridge.openWorkspace()).catch((error) => notify(error.message || 'Could not open a larger workspace.', true)); }
     catch (error) { notify(error.message || 'Could not open a larger workspace.', true); }
   });
   for (const id of ['open-cart']) $(id).addEventListener('click', () => { renderCart(); $('cart-dialog').showModal(); });
@@ -908,6 +934,7 @@ async function initialize() {
       if (saved?.sourceDataUrl && !pendingReceivedThisSession) await loadImage(saved.sourceDataUrl, { name: saved.sourceName, sourceUrl: saved.sourceUrl, restore: true });
       if (pending) await handlePendingImage(pending);
     }
+    if(!saved && preferences?.showFullPalette===false && activeTarget()){state.view='alternatives';renderResults();}
     persist();
   } catch (error) {
     console.error('Palette Picker could not start:', error);
