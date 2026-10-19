@@ -5,6 +5,8 @@
  */
 import {listCarts, saveCart, loadCart, duplicateCart, deleteCart, copiedCartName, normalizeCartItems} from './saved-carts.js';
 import {FORM_OPTIONS, defaultFormatVariant} from './product-formats.js';
+import {includedGlass} from './material-filters.js';
+import {sampleThickness} from './palette.js';
 
 const $ = id => document.getElementById(id);
 const node = (tag, className = '', text) => {
@@ -15,8 +17,8 @@ const node = (tag, className = '', text) => {
 };
 const money = cents => new Intl.NumberFormat('en-US', {style:'currency', currency:'USD'}).format(cents / 100);
 
-export function initializeCartLibrary({getProducts, getSelection, getSelectionName, sendItems, getSendState, getAccount, getPreferredJarSize = ()=>'5lb', signIn, notify}) {
-  let draft = null, records = [], saving = false, listRequest = 0, editorRequest = 0;
+export function initializeCartLibrary({getProducts, getSelection, getSelectionName, sendItems, getSendState, getAccount, getPreferredJarSize = ()=>'5lb', getFilters = ()=>({}), pageMode=false, openPage, readWebsiteCart, signIn, notify}) {
+  let draft = null, records = [], saving = false, listRequest = 0, editorRequest = 0, filters = null, naming = false;
   const listDialog = $('saved-carts-dialog'), editorDialog = $('cart-editor-dialog');
   const productFor = id => getProducts().find(product => product.id === id);
   const variantFor = (product, id) => product?.variants?.find(variant => String(variant.id) === String(id)) || product?.allVariants?.find(variant=>String(variant.id)===String(id));
@@ -60,7 +62,7 @@ export function initializeCartLibrary({getProducts, getSelection, getSelectionNa
     for (const button of document.querySelectorAll('[data-cart-mutation]')) button.disabled = saving;
     const needsSignIn = getAccount()?.signedIn === false;
     $('saved-carts-sign-in').hidden = !needsSignIn; $('saved-cart-sign-in').hidden = !needsSignIn;
-    if (!draft) return;
+    if (!draft) {if(pageMode)$('send-to-cart').disabled=true;return;}
     $('saved-cart-name').disabled = saving;
     $('saved-cart-search').disabled = saving;
     for (const input of $('saved-cart-items').querySelectorAll('input')) input.disabled = saving;
@@ -71,6 +73,7 @@ export function initializeCartLibrary({getProducts, getSelection, getSelectionNa
     $('save-cart-draft').textContent = saving ? 'Saving…' : draft.id ? 'Save changes' : 'Save cart';
     $('duplicate-cart-draft').disabled = saving || !draft.name.trim();
     applySendState($('send-saved-cart'), draft.items);
+    if(pageMode)applySendState($('send-to-cart'),draft.items);
   }
   function markChanged() { draft.dirty = true; message(); refresh(); }
   async function storageAction(action) {
@@ -98,7 +101,7 @@ export function initializeCartLibrary({getProducts, getSelection, getSelectionNa
         const actions = node('div', 'saved-cart-card-actions');
         for (const [label, action] of [
           ['Edit', () => editSaved(record.id)],
-          ['Duplicate', () => storageAction(async () => { const copy = await duplicateCart(record.id); await renderList(); openEditor(copy); })],
+          ['Duplicate', () => duplicateSaved(record)],
           ['Delete', () => storageAction(async () => { await deleteCart(record.id); if (draft?.id === record.id) draft = null; await renderList(); })],
         ]) {
           const button = node('button', label === 'Delete' ? 'text-button delete-saved-cart' : 'button secondary-button', label);
@@ -112,37 +115,88 @@ export function initializeCartLibrary({getProducts, getSelection, getSelectionNa
       refresh();
     } catch (error) { if (request === listRequest) $('saved-carts-list').replaceChildren(node('p','saved-empty',error.message)); }
   }
-  async function openList() { if (saving) return; editorRequest++; message(); listDialog.showModal(); await renderList(); }
+  async function openList() { if (saving) return; if(!pageMode && openPage){await openPage('list');return;} editorRequest++; message(); if(!listDialog.open)listDialog.showModal(); await renderList(); }
   function openEditor(record = null) {
     editorRequest++;
     draft = {id:record?.id || null, name:record?.name || 'My cart', items:hydrate(record?.items || []), dirty:false};
     listDialog.close(); $('cart-dialog').close();
     $('saved-cart-name').value = draft.name; $('saved-cart-search').value = ''; message(); renderEditor(); renderSearch();
-    if (!editorDialog.open) editorDialog.showModal(); $('saved-cart-name').focus();
+    if (!editorDialog.open) {if(pageMode)editorDialog.show();else editorDialog.showModal();} $('saved-cart-name').focus();
   }
-  function captureSelection() {
+  async function captureSelection() {
+    if(!pageMode && openPage){await openPage('selection');return;}
     const name = String(getSelectionName() || 'My cart').replace(/\.[a-z0-9]{2,5}$/i,'').slice(0,80);
     openEditor({name, items:getSelection()}); draft.dirty = true; refresh(); $('saved-cart-name').select();
   }
   async function editSaved(id) {
+    if(!mayReplaceDraft())return;
     const request = ++editorRequest;
     try { const record = await loadCart(id); if (request !== editorRequest) return; if (!record) throw new Error('This saved cart no longer exists.'); openEditor(record); }
     catch (error) { if (request === editorRequest) message(error.message, true); }
   }
   async function saveDraft(event) {
-    event.preventDefault(); if (!draft) return;
+    event.preventDefault(); if (!draft || saving || naming) return;
+    const name=await requestName(draft.name,'Save cart');if(name===null)return;
     await storageAction(async () => {
-      const saved = await saveCart(draft.name, hydrate(draft.items), draft.id);
+      const saved = await saveCart(name, hydrate(draft.items), draft.id);
       draft = {...saved, dirty:false}; $('saved-cart-name').value = saved.name;
       renderEditor(); renderSearch(); notify(`Saved cart “${saved.name}”.`);
     });
   }
   async function duplicateDraft() {
-    if (!draft) return;
+    if (!draft || saving || naming) return;
+    const name=await requestName(copiedCartName(draft.name || 'My cart',records.map(record=>record.name)),'Duplicate cart');if(name===null)return;
     await storageAction(async () => {
-      const existing = await listCarts(), name = copiedCartName(draft.name, existing.map(record => record.name));
       const copy = await saveCart(name, hydrate(draft.items)); openEditor(copy); notify(`Created “${copy.name}”.`);
     });
+  }
+  async function duplicateSaved(record) {
+    if(saving || naming)return;
+    const name=await requestName(copiedCartName(record.name,records.map(value=>value.name)),'Duplicate cart');if(name===null)return;
+    await storageAction(async()=>{const copy=await duplicateCart(record.id,name);await renderList();openEditor(copy);});
+  }
+  function requestName(value, title) {
+    naming=true;
+    return new Promise(resolve=>{
+      const dialog=node('dialog','saved-dialog');dialog.id='cart-name-dialog';
+      const shell=node('div','dialog-shell'),heading=node('h2','',title);
+      heading.id='cart-name-title';dialog.setAttribute('aria-labelledby',heading.id);
+      const form=node('form','save-palette-form'),label=node('label','','Cart name');label.htmlFor='cart-confirm-name';
+      const line=node('div'),input=node('input');input.id='cart-confirm-name';input.value=value;input.required=true;input.maxLength=80;
+      const save=node('button','button primary-button',title);save.type='submit';save.id='confirm-cart-name';
+      const cancel=node('button','button secondary-button','Cancel');cancel.type='button';
+      const finish=name=>{dialog.remove();naming=false;resolve(name);};
+      form.addEventListener('submit',event=>{event.preventDefault();if(input.value.trim())finish(input.value.trim());});
+      cancel.addEventListener('click',()=>finish(null));dialog.addEventListener('cancel',event=>{event.preventDefault();finish(null);});
+      line.append(input,save,cancel);form.append(label,line);shell.append(heading,form);dialog.append(shell);document.body.append(dialog);dialog.showModal();input.select();
+    });
+  }
+  function mayReplaceDraft() {
+    return !draft?.dirty || window.confirm('Discard the unsaved changes in this local cart?');
+  }
+  async function copyWebsiteCart() {
+    if(saving || naming || !mayReplaceDraft())return;
+    await storageAction(async()=>{
+      message('Reading your signed-in Bullseye cart…');
+      const result=await readWebsiteCart();
+      if(result.currency && result.currency !== 'USD')throw new Error('Only USD carts are supported. Your local cart was not replaced.');
+      const items=result.items.map(item=>{
+        const product=getProducts().find(product=>variantFor(product,item.variantId));
+        const variant=product && variantFor(product,item.variantId);
+        return product && variant ? itemFor(product,variant,item.quantity)
+          : {...item,productId:`website-${item.variantId}`,available:false};
+      });
+      const cleaned=normalizeCartItems(items);
+      openEditor({name:'My Bullseye cart',items:cleaned});draft.dirty=true;
+      const unsupported=cleaned.filter(item=>!productFor(item.productId)).length;
+      message(`Copied ${result.itemCount ?? cleaned.reduce((sum,item)=>sum+item.quantity,0)} items. Your website cart was not changed. Save this copy under a name.${unsupported ? ` ${unsupported} items outside the glass catalog are kept in the copy but must be removed before sending from this tool.` : ''}`);
+    });
+  }
+  function thicknessGuide(product) {
+    const values=(product?.samples || []).map(sample=>sampleThickness(sample,product)).filter(Number.isFinite);
+    if(!values.length)return 'Photo thickness guide unavailable';
+    const low=Math.round(Math.min(...values)),high=Math.round(Math.max(...values));
+    return `Photo guide: ${low === high ? high : `${low}–${high}`}% thickness`;
   }
   async function runSend(items) {
     message();
@@ -185,7 +239,8 @@ export function initializeCartLibrary({getProducts, getSelection, getSelectionNa
         price.textContent = money(item.price * item.quantity); markChanged();
       });
       const price = node('span','cart-item-price',money(item.price * item.quantity)); controls.append(size,quantity,price); body.append(controls);
-      if (!knownVariant?.available) body.append(node('p','cart-unavailable','Saved size is unavailable. Choose another size or remove it.'));
+      if(product)body.append(node('p','cart-thickness',thicknessGuide(product)));
+      if (!knownVariant?.available) body.append(node('p','cart-unavailable',product?'Saved size is unavailable. Choose another size or remove it.':'Copied website item outside this glass catalog. Kept in this copy; remove it before sending with this tool.'));
       const remove = node('button','icon-button','×'); remove.type = 'button'; remove.setAttribute('aria-label',`Remove saved ${item.name}, ${item.title}`);
       remove.addEventListener('click', () => { draft.items = draft.items.filter(current => current !== item); markChanged(); renderEditor(); renderSearch(); });
       row.append(photo(item.productId,item.name),body,remove); list.append(row);
@@ -195,11 +250,16 @@ export function initializeCartLibrary({getProducts, getSelection, getSelectionNa
   function renderSearch() {
     const list = $('saved-cart-search-results'); list.replaceChildren(); if (!draft) return;
     const query = $('saved-cart-search').value.trim().toLowerCase();
-    const products = getProducts().filter(product => `${product.name} ${product.id} ${product.code}`.toLowerCase().includes(query)).sort((a,b) => a.name.localeCompare(b.name));
+    filters ||= structuredClone(getFilters());
+    filters.glassTypes ||= {transparent:true,opalescent:true};
+    for(const kind of ['transparent','opalescent'])$(`cart-include-${kind}`).setAttribute('aria-pressed',String(filters.glassTypes[kind] !== false));
+    $('cart-include-tints').setAttribute('aria-pressed',String(filters.includeTints === true));
+    const products = getProducts().filter(product => includedGlass(product,filters) && `${product.name} ${product.id} ${product.code}`.toLowerCase().includes(query)).sort((a,b) => a.name.localeCompare(b.name));
     for (const product of products) {
       const variant = defaultFormatVariant(product,product.form,undefined,getPreferredJarSize()), already = variant && draft.items.some(item => String(item.variantId) === String(variant.id));
       const row = node('div','saved-cart-search-result'), label = node('div');
       label.append(node('strong','',product.name),node('span','',`${product.grain || 'Medium frit'} · ${variant?.title || 'Unavailable'}`));
+      label.append(node('span','cart-thickness',thicknessGuide(product)));
       const add = node('button','button secondary-button',already ? 'Added' : 'Add'); add.type = 'button'; add.disabled = !variant || already;
       add.setAttribute('aria-label',`Add ${product.name} to saved cart`);
       add.addEventListener('click', () => { if (!variant || draft.items.some(item => item.variantId === variant.id)) return; draft.items.push(itemFor(product,variant)); markChanged(); renderEditor(); renderSearch(); });
@@ -208,12 +268,14 @@ export function initializeCartLibrary({getProducts, getSelection, getSelectionNa
     if (!products.length) list.append(node('p','saved-empty','No glass by that name or code.'));
   }
 
-  $('open-saved-carts').addEventListener('click',openList);
+  $('open-saved-carts').addEventListener('click',()=>openList().catch(error=>notify(error.message,true)));
+  $('copy-website-cart').addEventListener('click',copyWebsiteCart);
+  for(const kind of ['transparent','opalescent','tints'])$(`cart-include-${kind}`).addEventListener('click',()=>{filters ||= structuredClone(getFilters());filters.glassTypes ||= {transparent:true,opalescent:true};if(kind==='tints')filters.includeTints=!filters.includeTints;else filters.glassTypes[kind]=filters.glassTypes[kind]===false;renderSearch();});
   $('close-saved-carts').addEventListener('click',() => { editorRequest++; listDialog.close(); });
-  $('new-saved-cart').addEventListener('click',() => openEditor());
-  $('close-cart-editor').addEventListener('click',() => { editorRequest++; editorDialog.close(); });
-  $('back-to-saved-carts').addEventListener('click',() => { editorDialog.close(); openList(); });
-  for (const id of ['save-cart','save-cart-selection']) $(id).addEventListener('click',captureSelection);
+  $('new-saved-cart').addEventListener('click',() => {if(mayReplaceDraft())openEditor();});
+  $('close-cart-editor').addEventListener('click',() => {if(!mayReplaceDraft())return;editorRequest++;if(pageMode){if(draft)draft.dirty=false;location.href=new URL('picker.html?workspace=1',location.href).href;}else editorDialog.close();});
+  $('back-to-saved-carts').addEventListener('click',() => { if(!pageMode)editorDialog.close();openList(); });
+  for (const id of ['save-cart','save-cart-selection']) $(id).addEventListener('click',()=>captureSelection().catch(error=>notify(error.message,true)));
   $('saved-cart-form').addEventListener('submit',saveDraft);
   $('saved-cart-name').addEventListener('input',() => { if (draft) { draft.name = $('saved-cart-name').value; markChanged(); } });
   $('duplicate-cart-draft').addEventListener('click',duplicateDraft);
@@ -222,5 +284,14 @@ export function initializeCartLibrary({getProducts, getSelection, getSelectionNa
   for (const id of ['saved-carts-sign-in','saved-cart-sign-in']) $(id).addEventListener('click',signIn);
   for (const dialog of [listDialog,editorDialog]) dialog.addEventListener('cancel',event => { if (saving) event.preventDefault(); else editorRequest++; });
   refresh();
-  return {refresh};
+  if(pageMode)window.addEventListener('beforeunload',event=>{if(draft?.dirty){event.preventDefault();event.returnValue='';}});
+  return {
+    refresh,
+    optionsChanged(){if(draft){renderEditor();renderSearch();}},
+    sendDraft(){if(draft && !saving)return runSend(draft.items);},
+    async openPage(mode='selection'){
+      if(mode==='list'){openEditor();await openList();}
+      else await captureSelection();
+    },
+  };
 }

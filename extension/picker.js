@@ -117,7 +117,7 @@ function changePurchaseOptions(form, preferredJarSize=state.preferredJarSize, fo
     state.selectedVariants=selectedVariants;state.selection=selection;state.cart=cart;matchCache.clear();
     for(const item of cart)state.quantities[item.key]=item.quantity;
     if(detailProduct)$('detail-dialog').close();
-    reconcilePaletteSelection();renderAll();persist();
+    reconcilePaletteSelection();renderAll();cartLibrary?.optionsChanged();persist();
     if(skipped.length)notify(`No available ${FORM_OPTIONS.find(option=>option.id===nextForm).grain.toLowerCase()} size for ${[...new Set(skipped)].join(', ')}. Those sizes are not selected.`,false,7500);
   } catch(error){notify(error.message||'The purchase options could not change.',true);}
 }
@@ -764,7 +764,7 @@ function bindEvents() {
   $('include-tints').addEventListener('click',()=>{state.includeTints=!state.includeTints;reconcilePaletteSelection();renderResults();persist();});
   cartLibrary=initializeCartLibrary({getProducts:()=>state.products,getSelection:()=>state.cart,
     getSelectionName:()=>state.savedPaletteName||state.sourceName||'My cart',sendItems:sendCartItems,
-    getSendState:cartSendState,getAccount:()=>state.account,getPreferredJarSize:()=>state.preferredJarSize,signIn,notify});
+    getSendState:cartSendState,getAccount:()=>state.account,getPreferredJarSize:()=>state.preferredJarSize,getFilters:()=>({glassTypes:{...state.glassTypes},includeTints:state.includeTints}),pageMode:isCartPage,openPage:async mode=>{await flushSave();await bridge.openCartPage(mode);},readWebsiteCart:()=>bridge.readBullseyeCart(),signIn,notify});
   for(const option of FORM_OPTIONS)$(`form-${option.id}`).addEventListener('click',()=>{if(state.format!==option.id)changePurchaseOptions(option.id);});
   $('preferred-jar-size').addEventListener('change',event=>changePurchaseOptions(state.format,event.target.value,true));
   $('save-settings').addEventListener('click',saveCurrentSettings);
@@ -827,7 +827,7 @@ function bindEvents() {
     try { flushSave().then(()=>bridge.openWorkspace()).catch((error) => notify(error.message || 'Could not open a larger workspace.', true)); }
     catch (error) { notify(error.message || 'Could not open a larger workspace.', true); }
   });
-  for (const id of ['open-cart']) $(id).addEventListener('click', () => { renderCart(); $('cart-dialog').showModal(); });
+  for (const id of ['open-cart']) $(id).addEventListener('click', async () => {try{await flushSave();await bridge.openCartPage('selection');}catch(error){notify(error.message,true);}});
   for (const id of ['close-cart', 'back-to-glass']) $(id).addEventListener('click', () => $('cart-dialog').close());
   $('close-detail').addEventListener('click', () => $('detail-dialog').close());
   $('detail-photo').addEventListener('click', (event) => {
@@ -843,7 +843,7 @@ function bindEvents() {
   });
   $('detail-dialog').addEventListener('close', () => { detailProduct = null; detailSample = null; });
   $('copy-order').addEventListener('click', copyOrder);
-  for (const id of ['send-to-cart', 'send-cart-dialog']) $(id).addEventListener('click', sendSelection);
+  for (const id of ['send-to-cart', 'send-cart-dialog']) $(id).addEventListener('click', () => isCartPage ? cartLibrary.sendDraft() : sendSelection());
   $('allow-image-access').addEventListener('click', async () => {
     if (!pendingAccessUrl) return;
     const button = $('allow-image-access'); button.disabled = true;
@@ -925,6 +925,7 @@ async function initialize() {
     if(formatsResult.status==='rejected')notify('Product form options could not load. Medium frit is available; reload to use the other forms.',true);
     if(settingsResult.status==='rejected')notify('Saved defaults could not be read. Your current workspace is still available.',true);
     checkAccount(true);
+    if(isCartPage){document.title='Carts | Bullseye Palette Picker';await cartLibrary.openPage(new URLSearchParams(location.search).get('mode'));return;}
     bridge.subscribePendingImage((image) => handlePendingImage(image));
     let pending = null;
     try { pending = await bridge.getPendingImage(); }
