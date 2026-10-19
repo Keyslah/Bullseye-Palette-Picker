@@ -95,7 +95,7 @@ try:
         context.route('https://shop.bullseyeglass.com/**',route_store)
         worker=context.service_workers[0] if context.service_workers else context.wait_for_event('serviceworker')
         # Service-worker requests cannot bypass the isolated storefront fixture.
-        worker.evaluate("globalThis.fetch = async () => { throw new Error('External worker requests disabled in acceptance tests.'); };")
+        worker.evaluate("() => { globalThis.fetch = async () => { throw new Error('External worker requests disabled in acceptance tests.'); }; }")
         extension_id=worker.url.split('/')[2]
         base=f'chrome-extension://{extension_id}/picker.html'
         store_page=context.new_page();store_page.goto('https://shop.bullseyeglass.com/cart')

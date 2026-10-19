@@ -4,9 +4,9 @@ Bullseye Palette Picker processes image pixels and compares colors inside your b
 
 ## Stored data
 
-The current workspace is automatically saved in `chrome.storage.local` under `bullseyeProjectV1`. The version 4 workspace includes the reduced source image (at most 1,100 pixels on its longest side), its display name and available source URL, palette colors and point positions, selected purchase format, preferred jar size, exact package choices, quantities, and which suggestions you unchecked or added manually. Material filters and image size are also retained. These selection preferences keep your edits intact when automatic suggestions update. A handoff timestamp prevents a previously handled image from overwriting a reopened edited palette.
+The current workspace is automatically saved in `chrome.storage.local` under `bullseyeProjectV1`. The version 5 workspace includes the reduced source image (at most 1,100 pixels on its longest side), its display name and available source URL, palette colors and point positions, selected purchase format, preferred jar size, exact package choices, quantities, and which suggestions you unchecked or added manually. Material filters, tint inclusion, and image size are also retained. The cart-only page does not overwrite this photo workspace. These selection preferences keep your edits intact when automatic suggestions update. A handoff timestamp prevents a previously handled image from overwriting a reopened edited palette.
 
-**Save settings** explicitly writes defaults to the separate `bullseyeSettingsV1` key in `chrome.storage.local`: glass format, preferred frit jar size, transparent/opalescent inclusion, starting automatic-color count, and image size. It stores no photo or named-cart contents. Loading settings does not rewrite them, and saving defaults does not overwrite named palettes or carts. A Chrome storage failure is reported rather than redirecting extension data into preview storage.
+**Save settings** explicitly writes defaults to the separate `bullseyeSettingsV1` key in `chrome.storage.local`: glass format, preferred frit jar size, transparent/opalescent inclusion, starting automatic-color count, image size, tint inclusion, and full-palette view. Named presets also use the separate `bullseyeSettingsPresetsV1` key, storing only a preset ID, name, settings, and update time. It stores no photo or named-cart contents. Loading settings does not rewrite them, and saving defaults does not overwrite named palettes or carts. A Chrome storage failure is reported rather than redirecting extension data into preview storage.
 
 Named saved palettes use the `bullseyeSavedPalettes` IndexedDB database. Each includes its name, save time, source image, color points, edited palette, purchase format, selected variants and quantities, material filters, and image size. Listing saved palettes reads lightweight metadata and small photo thumbnails separately from the stored workspace image.
 
@@ -18,7 +18,7 @@ Right-click image handoffs use `chrome.storage.session`. Temporary data can incl
 
 The direct cart action keeps a local journal of up to 20 recent cart requests under `bullseyeCartRequestsV1` in `chrome.storage.local`, including a random request ID, variant IDs/quantities, status, timestamp, and confirmation when available. This helps prevent duplicate additions after a lost response or extension restart. It contains no password, customer email, account name, or payment data.
 
-**Remove image** clears the current image and its palette and cancels any pending image handoff. Named palettes and carts are independent copies: delete a palette from **All palettes** or a cart from **Saved carts** to remove that record. The local glass selection is separate from the store's cart. Uninstalling the extension removes its local Chrome storage and IndexedDB. Removing local images, palettes, or saved carts does not modify Bullseye's cart.
+**Remove image** clears the current image and its palette and cancels any pending image handoff. Named palettes and carts are independent copies: delete a palette from **Load palettes** or a cart from **Saved carts** to remove that record. The local glass selection is separate from the store's cart. Uninstalling the extension removes its local Chrome storage and IndexedDB. Removing local images, palettes, or saved carts does not modify Bullseye's cart.
 
 A development web preview uses its own origin's `localStorage` for the workspace and explicitly saved defaults, and its own IndexedDB for palettes and carts. This preview fallback is used only outside the installed extension.
 
@@ -40,6 +40,8 @@ Automatic color selection, format changes, saving settings, and creating, editin
 
 An uncertain or partial addition is reported to the user instead of automatically retrying the write. Bullseye's own privacy practices apply to its account, cart, and product pages.
 
+**Copy my Bullseye cart** runs only when clicked. It uses the same native store tab and sign-in check, then reads the cart with GET requests. Only product names, SKUs, variant IDs, size labels, quantities, and display prices are returned to the local cart editor. The copy does not return cart tokens, customer identity, notes, addresses, payment data, or checkout information. It is an unsaved draft until you choose a name and save it locally. Copying does not post a cart change or alter website quantities. Unsupported custom-property/subscription items produce an error rather than silently changing their meaning.
+
 ## Other network requests
 
 - Selecting a web image requests that image from its existing source host with credentials omitted. The image is not sent to a color-analysis server.
@@ -54,7 +56,7 @@ An uncertain or partial addition is reported to the user instead of automaticall
 | `sidePanel` | Picker alongside the current webpage |
 | `storage` | Current workspace, explicitly saved settings, request journal, and temporary image handoff |
 | `activeTab` | Capture the page on which you explicitly invoke the extension |
-| `scripting` | Check the store session and add explicitly chosen variants in a Bullseye tab |
+| `scripting` | Check the store session, read a cart copy when clicked, and add explicitly chosen variants in a Bullseye tab |
 | Bullseye shop host | Read public products and customer-status indicators; use the native cart after your click |
 | Optional image-host access | Fetch an image from the particular host you select |
 
