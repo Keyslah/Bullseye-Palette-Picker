@@ -1,0 +1,4 @@
+Publish the tested v0.5.0 reconstruction after rerunning every required check.
+Verified precursor workflow: https://github.com/Keyslah/Bullseye-Palette-Picker/actions/runs/39205081571
+Required checks: all JavaScript regressions, module/catalog validation, native Chromium interactions, and ZIP/source byte equality.
+Do not force-push main or modify any live customer cart. Store tests use isolated fixtures.
