@@ -1,0 +1,81 @@
+# Purpose: checkpoint, test, package and publish the requested compact v6 interface.
+# Setup: feature/compact-v0.6.0 branch; numbered .github/v6 Python patches run once.
+# Writes: source checkpoints and explicit gated release only; no live shopping requests.
+name: Compact v6 verification
+on:
+  push:
+    branches: [feature/compact-v0.6.0]
+permissions:
+  contents: write
+concurrency:
+  group: compact-v6
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: feature/compact-v0.6.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply compact UI changes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess
+          stamps = Path('.github/v6/applied')
+          stamps.mkdir(parents=True, exist_ok=True)
+          for patch in sorted(Path('.github/v6').glob('*.py')):
+              stamp = stamps / patch.name
+              if stamp.exists(): continue
+              subprocess.run(['python', str(patch)], check=True)
+              stamp.write_text('Applied. Verification is recorded in the workflow.\n')
+          PY
+      - name: Checkpoint source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add extension tests scripts docs README.md PRIVACY.md package.json .github/v6
+          if ! git diff --cached --quiet; then
+            git commit -m 'Checkpoint compact v6 source before tests'
+            git push origin HEAD:feature/compact-v0.6.0
+          fi
+      - run: npm test && npm run check && npm run package
+      - name: Native browser acceptance
+        if: hashFiles('tests/v6-browser.py') != ''
+        run: |
+          python -m pip install playwright pillow
+          python -m playwright install --with-deps chromium
+          python tests/v6-browser.py
+      - name: Source and test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compact-v6-workspace
+          path: |
+            extension/
+            tests/
+            scripts/
+            docs/
+            package.json
+            README.md
+            PRIVACY.md
+            ATTRIBUTION.md
+            LICENSE
+            dist/
+            test-results/
+      - name: Publish v0.6.0
+        if: hashFiles('.github/v6/PUBLISH') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(node -p "require('./extension/manifest.json').version")" = 0.6.0
+          test -f test-results/v6-report.json
+          git fetch origin main
+          git merge-base --is-ancestor origin/main HEAD
+          git push origin HEAD:main
+          gh release create v0.6.0 dist/Bullseye-Palette-Picker-v0.6.0.zip --target "$(git rev-parse HEAD)" --title 'Bullseye Palette Picker v0.6.0' --notes-file docs/release-v0.6.0.md
