@@ -108,3 +108,8 @@
 .cart-photo-footer{display:flex;align-items:center;gap:8px;flex:none;flex-wrap:wrap}
 .cart-photo-note{font-size:11px;color:var(--muted);overflow-wrap:anywhere}
 @media(max-width:540px){#cart-photo-dialog{padding:10px}.cart-large-photo{height:55vh}.cart-add-controls .type-filter{font-size:10px}}
+
+.cart-size-option{width:auto}
+#cart-add-size{width:105px;flex:none}
+.cart-size-option.sheet-sizes #cart-add-size{width:clamp(150px,19vw,270px);flex:1}
+@media(max-width:540px){.cart-size-option{width:auto}.cart-size-option.sheet-sizes{width:100%}.cart-size-option.sheet-sizes #cart-add-size{width:auto}}

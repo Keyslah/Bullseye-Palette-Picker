@@ -138,6 +138,7 @@ try:
     done('Mixed clear/colored grades save and reopen exactly; saved-cart previews also enlarge')
     for width,height in [(1440,900),(800,900),(380,800)]:
         page.set_viewport_size({'width':width,'height':height});page.wait_for_timeout(100);no_overflow(page)
+        if width>=1400:assert abs(page.locator('#cart-add-form').bounding_box()['y']-page.locator('#cart-add-size').bounding_box()['y'])<3
         page.screenshot(path=str(OUT/f'cart-builder-{width}.png'),full_page=True)
     done('Cart grade/size controls and photo viewer fit desktop and narrow panels')
     page.set_viewport_size({'width':1440,'height':900});page.locator('#send-to-cart').click();expect(page.locator('#send-to-cart')).to_contain_text('Added to cart')

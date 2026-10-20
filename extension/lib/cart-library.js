@@ -283,6 +283,7 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
     }
     sizeControl.value=sizeKey;
     $('cart-add-size-label').textContent=addForm==='sheets' ? 'Size / thickness' : 'Size';
+    sizeControl.closest('.cart-size-option').classList.toggle('sheet-sizes',addForm==='sheets');
     sizeControl.setAttribute('aria-label',addForm==='sheets'?'Sheet size and thickness to add':'Jar size to add');
     sizeControl.title=sizeControl.selectedOptions[0]?.textContent || '';
     const gradeLabel=FORM_OPTIONS.find(option=>option.id===addForm)?.grain || 'Glass';
