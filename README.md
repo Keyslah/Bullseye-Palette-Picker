@@ -1,5 +1,9 @@
 # Bullseye Palette Picker
 
+## v0.6.1 update
+
+Landscape glass photographs now have their information below them. All match cards fit across the available width or wrap to another row without sideways scrolling. Each name has a plain selection checkbox. Purchase controls show the frit grade or actual sheet thickness as well as size. Alternatives opens in a separate searchable popup without replacing the main palette. Light Orange Striker is preferred over an automatic Carnelian choice; explicitly selected Carnelian remains available and saved.
+
 **Right-click a photo, get matching Bullseye glass selected automatically, and click Send to my cart.**
 
 Version **0.6.0** selects the suggested glass as soon as a palette loads. Choose **Sheets, Powder, Fine, Medium, or Coarse** at the top, save your preferred settings, and keep multiple named carts that you can edit, duplicate, and send directly to Bullseye. Frit starts with an available **5 lb. jar**, with another available size used when necessary.
@@ -46,7 +50,7 @@ Chrome documents these [unpacked-extension steps](https://developer.chrome.com/d
 
 **Updating an existing installation:** replace the files in the same extension folder with the new version, click **Reload** on its card at `chrome://extensions`, refresh Pinterest or any source page already open, and close/reopen the picker. Keep the same installed extension and folder to retain its saved palettes. An unpacked extension does not automatically update when this GitHub repository changes.
 
-The prepared **`Bullseye-Palette-Picker-v0.6.0.zip`** has `manifest.json` at its root. If you use that package instead of the repository ZIP, extract it and load the extracted root folder.
+The prepared **`Bullseye-Palette-Picker-v0.6.1.zip`** has `manifest.json` at its root. If you use that package instead of the repository ZIP, extract it and load the extracted root folder.
 
 ## Pick and edit colors
 
@@ -136,7 +140,7 @@ npm run check
 npm run package
 ```
 
-Development requires Node 20 or later. Packaging also uses Python 3's standard library and creates `dist/Bullseye-Palette-Picker-v0.6.0.zip`, with the manifest at the ZIP root. Extract that packaged ZIP and load its root folder in Chrome. Version 0.6.0 retains the reviewed **0.3.0 color catalog byte for byte**, including its photographs, RGB/Lab samples, and source timestamps. Its additional purchase options live in a separate format index.
+Development requires Node 20 or later. Packaging also uses Python 3's standard library and creates `dist/Bullseye-Palette-Picker-v0.6.1.zip`, with the manifest at the ZIP root. Extract that packaged ZIP and load its root folder in Chrome. Version 0.6.0 retains the reviewed **0.3.0 color catalog byte for byte**, including its photographs, RGB/Lab samples, and source timestamps. Its additional purchase options live in a separate format index.
 
 To refresh public purchase-format records or reproduce them from an existing source cache:
 
