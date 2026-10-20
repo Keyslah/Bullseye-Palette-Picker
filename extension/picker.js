@@ -252,7 +252,8 @@ function renderImageLayout() {
   main.dataset.view = state.view;
   for (const size of ['fit','larger','full']) $(`image-${size}`).setAttribute('aria-pressed',String(state.imageSize===size));
   const grid=$('product-grid');
-  const columns=Math.max(1,Math.min(grid.children.length || 1,Math.floor((grid.clientWidth+6)/136)));
+  const count=grid.children.length || 1,maximum=Math.max(1,Math.floor((grid.clientWidth+6)/126));
+  const columns=Math.ceil(count/Math.ceil(count/maximum));
   main.style.setProperty('--match-columns',String(columns));
   if (!state.imageData || $('image-loaded').hidden) return;
   const stage=$('image-stage');
