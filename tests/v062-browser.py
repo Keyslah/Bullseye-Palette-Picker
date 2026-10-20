@@ -67,15 +67,19 @@ try:
         page=context.new_page();page.set_default_timeout(30000);page.on('pageerror',lambda e:errors.append(str(e)));page.goto(base+'?workspace=1')
         expect(page.locator('#form-fine')).to_be_enabled()
         assert page.evaluate('chrome.runtime.getManifest().version')=='0.6.2'
+        page.wait_for_timeout(700)  # Complete the empty workspace's debounced startup save.
         seed=page.evaluate('''async()=>{
           const c=document.createElement('canvas');c.width=1200;c.height=500;const ctx=c.getContext('2d');
           const ids=['001108','001247','001215','001025','001305','000137'];
           const colors=['#98B5B3','#307965','#E99EBE','#F49A1C','#D59D89','#E7D7AB'];
           const targets=colors.map((hex,i)=>{ctx.fillStyle=hex;ctx.fillRect(i*200,0,200,500);return {id:'photo-test-'+i,rgb:[1,3,5].map(n=>parseInt(hex.slice(n,n+2),16)),hex,x:(i+.5)/6,y:.5,manual:true,custom:true};});
           const record={version:6,format:'fine',preferredJarSize:'5lb',sourceName:'Grain photo verification',sourceDataUrl:c.toDataURL(),targets,activeTargetId:targets[0].id,chosenMatches:Object.fromEntries(targets.map((t,i)=>[t.id,ids[i]])),glassTypes:{transparent:true,opalescent:true},paletteCount:6,imageSize:'larger',view:'palette'};
-          await chrome.storage.local.set({bullseyeProjectV1:record});return record;
+          return record;
         }''')
-        page.reload();expect(page.locator('#image-loaded')).to_be_visible()
+        page.close()
+        worker.evaluate('(record)=>chrome.storage.local.set({bullseyeProjectV1:record})',seed)
+        page=context.new_page();page.set_default_timeout(30000);page.on('pageerror',lambda e:errors.append(str(e)))
+        page.goto(base+'?workspace=1');expect(page.locator('#image-loaded')).to_be_visible()
         expect(page.locator('#product-grid .compact-card')).to_have_count(6)
         aqua_card=page.locator('#product-grid [data-product-id="001108"]')
         first_state=state(page)
