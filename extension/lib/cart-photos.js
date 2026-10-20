@@ -9,7 +9,7 @@ import {FORM_OPTIONS} from './product-formats.js';
 import {cartSizeLabel} from './cart-options.js';
 
 export function cartPhotoSpec(product, variant, index = {}) {
-  const handle = variant?.handle || product?.handle;
+  const handle = variant?.handle || (variant?.form && variant.form !== product?.form ? null : product?.handle);
   const entry = index.products?.[handle];
   const specific = entry?.variantImages?.[String(variant?.id)];
   const gallery = [...new Set([specific, ...(entry?.images || [])].filter(Boolean))];

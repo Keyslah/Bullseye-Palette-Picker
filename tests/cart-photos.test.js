@@ -65,3 +65,9 @@ test('photo index uses public HTTPS assets and records independently hashed prod
     }
   }
 });
+
+test('an unavailable size never borrows another grade listing as though it matched',()=>{
+  const photo=cartPhotoSpec(vanilla,{form:'sheets',title:'Unknown size'},photos);
+  assert.equal(photo.kind,'reference');assert.equal(photo.form,'sheets');
+  assert.match(photo.note,/reference/);
+});

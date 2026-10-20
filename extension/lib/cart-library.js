@@ -8,7 +8,7 @@ import {FORM_OPTIONS} from './product-formats.js';
 import {includedGlass} from './material-filters.js';
 import {createCartPhotoViewer} from './cart-photos.js';
 import {sampleThickness} from './palette.js';
-import {cartVariants, cartSizeLabel, cartSizeChoices, preferredCartSize, exactCartVariant, switchedCartVariant, cartPurchasable} from './cart-options.js';
+import {cartVariants, cartSizeLabel, cartSizeKey, cartSizeChoices, preferredCartSize, exactCartVariant, switchedCartVariant, cartPurchasable} from './cart-options.js';
 
 const $ = id => document.getElementById(id);
 const node = (tag, className = '', text) => {
@@ -302,7 +302,7 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
       const add = node('button','button secondary-button',already ? 'Added' : 'Add'); add.type = 'button'; add.disabled = saving || !variant || already;
       add.setAttribute('aria-label',`Add ${product.name} to saved cart`);
       add.addEventListener('click', () => { if (saving || naming || !variant || draft.items.some(item => item.variantId === variant.id)) return; draft.items.push(itemFor(product,variant)); markChanged(); renderEditor(); renderSearch(); });
-      row.append(photo(product.id,product.name,variant || cartVariants(product,addForm)[0]),label,add); list.append(row);
+      row.append(photo(product.id,product.name,variant || cartVariants(product,addForm).find(option=>cartSizeKey(option)===sizeKey) || {form:addForm,title:requestedSize}),label,add); list.append(row);
     }
     if (!products.length) list.append(node('p','saved-empty','No glass by that name or code.'));
     refresh();
