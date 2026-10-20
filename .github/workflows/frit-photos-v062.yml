@@ -1,0 +1,99 @@
+# Purpose: inspect public grain photographs, checkpoint targeted fixes and verify v0.6.2.
+# Setup: fix/frit-photos-v0.6.2; this workflow never operates on a personal store session.
+# Writes: source checkpoints, verification artifacts, and an explicitly gated release.
+name: Frit photo verification
+on:
+  push:
+    branches: [fix/frit-photos-v0.6.2]
+permissions:
+  contents: write
+concurrency:
+  group: frit-photos-v062
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: fix/frit-photos-v0.6.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply targeted patches
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess
+          stamps=Path('.github/v062/applied');stamps.mkdir(parents=True,exist_ok=True)
+          for patch in sorted(Path('.github/v062').glob('[0-9]*.py')):
+              if (stamps/patch.name).exists():continue
+              subprocess.run(['python',str(patch)],check=True)
+              (stamps/patch.name).write_text('Applied; verification is in the workflow log.\n')
+          PY
+      - name: Inspect public grain photos
+        run: |
+          python - <<'PY'
+          import json,urllib.request,concurrent.futures
+          from pathlib import Path
+          out=Path('test-results/live-photos');out.mkdir(parents=True,exist_ok=True)
+          forms=json.loads(Path('extension/data/product-formats.json').read_text())['products']
+          ids=['001108','001247','001215','000224','000137','001322','001025']
+          tasks=sorted({v['handle'] for code in ids if code in forms for f in forms[code].values() for v in f.get('variants',[]) if v.get('handle')})
+          def get(handle):
+              url=f'https://shop.bullseyeglass.com/products/{handle}.js'
+              try:
+                  with urllib.request.urlopen(url,timeout=25) as r: data=json.load(r)
+                  (out/(handle+'.json')).write_text(json.dumps(data))
+                  if handle.startswith(('aquamarine-blue-','light-mineral-green-')):print(json.dumps({'handle':handle,'images':data.get('images'),'variants':[{k:v.get(k) for k in ('id','sku','featured_image')} for v in data.get('variants',[])]}),flush=True)
+              except Exception as error: print('PUBLIC_LOOKUP_ERROR',handle,str(error),flush=True)
+          with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:list(pool.map(get,tasks))
+          print('Public product responses saved:',len(list(out.glob('*.json'))))
+          PY
+      - name: Checkpoint implementation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add extension tests scripts docs README.md PRIVACY.md ATTRIBUTION.md package.json .github/v062
+          if ! git diff --cached --quiet; then
+            git commit -m 'Checkpoint grain-specific photo source before verification'
+            git push origin HEAD:fix/frit-photos-v0.6.2
+          fi
+      - name: Code and package checks
+        run: npm test && npm run check && npm run package
+      - name: Native extension image checks
+        if: hashFiles('tests/v062-browser.py') != ''
+        run: |
+          python -m pip install playwright pillow
+          python -m playwright install --with-deps chromium
+          python tests/v062-browser.py
+      - name: Preserve source and actual-photo evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frit-photos-v062
+          path: |
+            extension/
+            tests/
+            scripts/
+            docs/
+            package.json
+            README.md
+            PRIVACY.md
+            ATTRIBUTION.md
+            LICENSE
+            dist/
+            test-results/
+      - name: Publish verified v0.6.2
+        if: hashFiles('.github/v062/PUBLISH') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(node -p "require('./extension/manifest.json').version")" = 0.6.2
+          test -f test-results/v062-report.json
+          git fetch origin main
+          git merge-base --is-ancestor origin/main HEAD
+          git push origin HEAD:main
+          gh release create v0.6.2 dist/Bullseye-Palette-Picker-v0.6.2.zip --target "$(git rev-parse HEAD)" --title 'Bullseye Palette Picker v0.6.2' --notes-file docs/release-v0.6.2.md
