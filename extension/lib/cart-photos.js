@@ -1,5 +1,5 @@
 /**
- * Purpose: enlarge cart photos and show the actual selected grade/sheet listing.
+ * Purpose: share the selected-grade photo selector across picker, alternatives and cart.
  * Setup: pass the separate bundled cart-photo metadata; original color guide is not changed.
  * Writes: dialog DOM only. Remote images are public Bullseye/Shopify assets, without referrers.
  * Constraints: use a variant-assigned image when present, otherwise identify the shared
@@ -8,7 +8,7 @@
 import {FORM_OPTIONS} from './product-formats.js';
 import {cartSizeLabel} from './cart-options.js';
 
-export function cartPhotoSpec(product, variant, index = {}) {
+export function productPhotoSpec(product, variant, index = {}) {
   const handle = variant?.handle || (variant?.form && variant.form !== product?.form ? null : product?.handle);
   const entry = index.products?.[handle];
   const specific = entry?.variantImages?.[String(variant?.id)];
@@ -27,6 +27,9 @@ export function cartPhotoSpec(product, variant, index = {}) {
       : 'Medium-frit color reference. A photo for the selected grade is unavailable.',
   };
 }
+
+// Keep the cart API compatible; both picker and cart use this exact selector.
+export const cartPhotoSpec = productPhotoSpec;
 
 export function createCartPhotoViewer(getIndex = () => ({})) {
   const el=(tag,className='',text)=>{const n=document.createElement(tag);n.className=className;if(text!==undefined)n.textContent=text;return n;};

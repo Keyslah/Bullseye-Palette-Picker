@@ -113,3 +113,12 @@
 #cart-add-size{width:105px;flex:none}
 .cart-size-option.sheet-sizes #cart-add-size{width:clamp(150px,19vw,270px);flex:1}
 @media(max-width:540px){.cart-size-option{width:auto}.cart-size-option.sheet-sizes{width:100%}.cart-size-option.sheet-sizes #cart-add-size{width:auto}}
+
+/* Selected-grade photographs are separate from medium-reference sampling coordinates. */
+.detail-photo-grade{text-align:center;font-weight:650;margin:6px 0 12px}
+#detail-reference{border-top:1px solid var(--line);padding:8px 0;margin:6px 0}
+#detail-reference>summary{cursor:pointer;color:var(--green);font-size:12px;font-weight:600}
+#detail-reference[open]>summary{margin-bottom:8px}
+#detail-reference-photo{max-width:240px;max-height:none;margin:0 auto 8px}
+#detail-reference-photo .glass-photo{width:100%;max-height:none}
+#detail-reference-photo img{width:100%;height:auto;object-fit:contain}

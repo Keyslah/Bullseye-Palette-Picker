@@ -14,6 +14,7 @@ import * as bridge from './lib/extension.js';
 import {listPalettes, savePalette, loadPalette, deletePalette} from './lib/saved-palettes.js';
 import {availableVariant, emptySelection, restoreSelection, reconcileSelection, setItemSelected, changeSelectedVariant} from './lib/selection.js';
 import {initializeCartLibrary} from './lib/cart-library.js';
+import {productPhotoSpec} from './lib/cart-photos.js';
 import {normalizeCartItems} from './lib/saved-carts.js';
 import {FORM_OPTIONS, normalizeForm, productForForm, defaultFormatVariant} from './lib/product-formats.js';
 import {loadSettings, normalizeSettings, DEFAULT_SETTINGS} from './lib/settings.js';
@@ -118,7 +119,7 @@ function changePurchaseOptions(form, preferredJarSize=state.preferredJarSize, fo
     state.format=nextForm;state.preferredJarSize=preferredJarSize;state.products=products;
     state.selectedVariants=selectedVariants;state.selection=selection;state.cart=cart;matchCache.clear();
     for(const item of cart)state.quantities[item.key]=item.quantity;
-    if(detailProduct)$('detail-dialog').close();
+    if(detailProduct){detailProduct=products.find(p=>p.id===detailProduct.id)||null;if(detailProduct)renderDetailSample();else $('detail-dialog').close();}
     reconcilePaletteSelection();renderAll();cartLibrary?.optionsChanged();persist();
     if(skipped.length)notify(`No available ${FORM_OPTIONS.find(option=>option.id===nextForm).grain.toLowerCase()} size for ${[...new Set(skipped)].join(', ')}. Those sizes are not selected.`,false,7500);
   } catch(error){notify(error.message||'The purchase options could not change.',true);}
@@ -456,7 +457,19 @@ function renderResults() {
   if (focusedKey) for (const node of document.querySelectorAll('[data-focus-key]')) if (node.dataset.focusKey===focusedKey) {node.focus({preventScroll:true});break;}
 }
 function setEmpty(title,copy,actionText,action) {$('empty-title').textContent=title;$('empty-copy').textContent=copy;$('empty-action').textContent=actionText;$('empty-action').hidden=!action;emptyAction=action;}
-function photoElement(product,sample,eager=true) {
+function photoElement(product,sample,eager=true,variant=currentVariant(product)) {
+  const spec=productPhotoSpec(product,variant,cartPhotoIndex);
+  const wrapper=element('div','glass-photo'),img=element('img');
+  // The selected grade is resolved synchronously from verified listing records.
+  // Each render owns its image node; an older download cannot replace a new grade.
+  wrapper.dataset.photoForm=spec.form;wrapper.dataset.photoHandle=spec.handle || '';
+  wrapper.dataset.photoKind=spec.kind;
+  img.alt=spec.kind==='reference'?spec.note:spec.label;img.title=img.alt;
+  img.loading=eager?'eager':'lazy';img.width=600;img.height=600;img.decoding='async';img.referrerPolicy='no-referrer';
+  if(spec.kind!=='reference' && spec.images[0])img.src=spec.images[0];
+  wrapper.append(img);return wrapper;
+}
+function referencePhotoElement(product,sample,eager=true) {
   const wrapper=element('div','glass-photo'),img=element('img');img.src=product.image;img.alt=`${product.name}, actual Bullseye medium-frit photograph`;img.loading=eager?'eager':'lazy';img.width=600;img.height=600;img.decoding='async';wrapper.append(img);
   if (sample && Number.isFinite(sample.x) && Number.isFinite(sample.y)) {const marker=element('span','sample-marker');marker.style.left=`${clamp(sample.x,0,1)*100}%`;marker.style.top=`${clamp(sample.y,0,1)*100}%`;marker.setAttribute('aria-hidden','true');wrapper.append(marker);}
   return wrapper;
@@ -505,7 +518,7 @@ function renderProduct(entry,alternative=false) {
     const label=element('p','match-label'),swatch=element('span','small-swatch'),thickness=sampleThickness(sample,product);
     swatch.style.backgroundColor=sample.hex||colorHex(sample.rgb);
     label.append(swatch,element('span','',thickness===null?'Photo guide unavailable':`${thickness}% thickness`));
-    label.title=`${target?`Color ${targetNumber(target)} · `:''}Photo estimate, not measured depth. Click the photograph for codes and details.`;
+    label.title=`${target?`Color ${targetNumber(target)} · `:''}Estimate from the medium-frit color reference, not measured depth. The photograph shows the selected purchase grade.`;
     body.append(label);
   }else{
     const strip=element('div','sample-strip');
@@ -595,7 +608,7 @@ function renderCartSummary() {
 function renderCart() {
   renderCartSummary();
   $('cart-items').replaceChildren();
-  for(const item of state.cart){const product=getProduct(item.productId),variant=getVariant(product,item.variantId);if(!product||!variant)continue;const row=element('div','cart-item'),photo=element('div','cart-item-image'),img=element('img');img.src=product.image;img.alt=product.name;photo.append(img);const body=element('div');body.append(element('h3','cart-item-name',product.name),element('p','cart-item-code',item.sku),variantSelect(product,variant,value=>changeCartVariant(item.key,value)));const bottom=element('div','cart-item-bottom'),quantity=element('input','quantity-field');quantity.type='number';quantity.min='1';quantity.max='999';quantity.value=item.quantity;quantity.dataset.quantityKey=item.key;quantity.setAttribute('aria-label',`Quantity of selected ${product.name}`);quantity.addEventListener('change',()=>changeQuantity(item.key,quantity.value));const price=element('span','cart-item-price',money(item.price*item.quantity));price.dataset.cartPriceKey=item.key;bottom.append(quantity,price);body.append(bottom);if(!variant.available)body.append(element('p','section-note','Unavailable. Choose another jar size.'));const remove=element('button','icon-button cart-item-remove','×');remove.type='button';remove.setAttribute('aria-label',`Remove ${product.name}, ${variant.title} from selection`);remove.addEventListener('click',()=>removeCartItem(item.key));row.append(photo,body,remove);$('cart-items').append(row);}
+  for(const item of state.cart){const product=getProduct(item.productId),variant=getVariant(product,item.variantId);if(!product||!variant)continue;const row=element('div','cart-item'),photo=element('div','cart-item-image'),img=element('img');const spec=productPhotoSpec(product,variant,cartPhotoIndex);if(spec.kind!=='reference' && spec.images[0])img.src=spec.images[0];img.alt=spec.label;img.referrerPolicy='no-referrer';photo.append(img);const body=element('div');body.append(element('h3','cart-item-name',product.name),element('p','cart-item-code',item.sku),variantSelect(product,variant,value=>changeCartVariant(item.key,value)));const bottom=element('div','cart-item-bottom'),quantity=element('input','quantity-field');quantity.type='number';quantity.min='1';quantity.max='999';quantity.value=item.quantity;quantity.dataset.quantityKey=item.key;quantity.setAttribute('aria-label',`Quantity of selected ${product.name}`);quantity.addEventListener('change',()=>changeQuantity(item.key,quantity.value));const price=element('span','cart-item-price',money(item.price*item.quantity));price.dataset.cartPriceKey=item.key;bottom.append(quantity,price);body.append(bottom);if(!variant.available)body.append(element('p','section-note','Unavailable. Choose another jar size.'));const remove=element('button','icon-button cart-item-remove','×');remove.type='button';remove.setAttribute('aria-label',`Remove ${product.name}, ${variant.title} from selection`);remove.addEventListener('click',()=>removeCartItem(item.key));row.append(photo,body,remove);$('cart-items').append(row);}
   renderSendButtons();
 }
 function renderSendButtons() {
@@ -749,11 +762,11 @@ async function restoreSavedPalette(id){
   }catch(error){if(requestId===imageLoadId)notify(error.message||'This palette could not be loaded.',true);}
 }
 
-function openDetail(product,sample,target=null){detailTargetId=target?.id || state.activeTargetId;detailProduct=product;detailSample=sample||[...(product.samples||[])].sort((a,b)=>sampleThickness(b,product)-sampleThickness(a,product))[0]||null;$('detail-title').textContent=product.name;renderDetailSample();renderDetailPurchase();const targetInfo=state.targets.find(t=>t.id===detailTargetId);$('detail-match-info').textContent=targetInfo?`Palette color ${targetNumber(targetInfo)} · ${targetInfo.hex}`:'';$('detail-alternatives').hidden=!targetInfo;$('detail-choose').hidden=!targetInfo;closeToolbarMenus();$('detail-dialog').showModal();refreshProduct(product);}
+function openDetail(product,sample,target=null){detailTargetId=target?.id || state.activeTargetId;detailProduct=product;detailSample=sample||[...(product.samples||[])].sort((a,b)=>sampleThickness(b,product)-sampleThickness(a,product))[0]||null;$('detail-title').textContent=product.name;$('detail-reference').open=false;renderDetailSample();renderDetailPurchase();const targetInfo=state.targets.find(t=>t.id===detailTargetId);$('detail-match-info').textContent=targetInfo?`Palette color ${targetNumber(targetInfo)} · ${targetInfo.hex}`:'';$('detail-alternatives').hidden=!targetInfo;$('detail-choose').hidden=!targetInfo;closeToolbarMenus();$('detail-dialog').showModal();refreshProduct(product);}
 function renderDetailSample(){
   if(!detailProduct)return;
-  $('detail-photo').replaceChildren(photoElement(detailProduct,detailSample));
-  $('detail-sample-label').textContent=sampleLabel(detailProduct,detailSample);
+  $('detail-reference-photo').replaceChildren(referencePhotoElement(detailProduct,detailSample));
+  $('detail-sample-label').textContent=`${sampleLabel(detailProduct,detailSample)} · medium-frit sampling reference`;
   $('detail-samples').replaceChildren();
   for(const sample of detailProduct.samples||[]){
     const button=element('button',`detail-sample${sample===detailSample?' is-active':''}`),thickness=sampleThickness(sample,detailProduct);
@@ -766,6 +779,9 @@ function renderDetailSample(){
 }
 function renderDetailPurchase(){
   if(!detailProduct)return;
+  $('detail-photo').replaceChildren(photoElement(detailProduct,null,true));
+  const photo=productPhotoSpec(detailProduct,currentVariant(detailProduct),cartPhotoIndex);
+  $('detail-photo-grade').textContent=`${photo.grade} · Bullseye photograph`;
   $('detail-purchase').replaceChildren(purchaseControls(detailProduct,true));
   const variant=currentVariant(detailProduct),url=variant?.productUrl||detailProduct.productUrl;
   $('detail-code').textContent=`${purchaseCode(detailProduct,variant)} · ${detailProduct.type||'Glass'} · ${detailProduct.grain}`;
@@ -941,8 +957,8 @@ function bindEvents() {
   $('close-detail').addEventListener('click', () => $('detail-dialog').close());
   $('detail-alternatives').addEventListener('click',()=>{const id=detailTargetId;$('detail-dialog').close();if(id)showAlternatives(id);});
   $('detail-choose').addEventListener('click',()=>{const id=detailTargetId,product=detailProduct;if(id && product){$('detail-dialog').close();chooseAlternative(id,product.id);}});
-  $('detail-photo').addEventListener('click', (event) => {
-    const photo = $('detail-photo').querySelector('.glass-photo');
+  $('detail-reference-photo').addEventListener('click', (event) => {
+    const photo = $('detail-reference-photo').querySelector('.glass-photo');
     if (!photo || !detailProduct?.samples?.length) return;
     const bounds = photo.getBoundingClientRect();
     const x = clamp((event.clientX - bounds.left) / bounds.width, 0, 1);
