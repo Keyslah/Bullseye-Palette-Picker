@@ -44,9 +44,9 @@ Verified sheet options include 2 mm, 3 mm, and 6 mm products where listed. Each 
 
 ## Color and thickness guide
 
-The [reviewed color catalog](../extension/data/catalog.json) remains **version 0.3.0, byte for byte unchanged**. The format index records its `colorGuideVersion` and `colorGuideSha256`. The 141 reference photographs and 5,484 RGB/Lab samples continue to drive full-color matching for every purchase format.
+The [reviewed color catalog](../extension/data/catalog.json) remains **version 0.3.0, byte for byte unchanged**. The format index records its `colorGuideVersion` and `colorGuideSha256`. Its 141 reference photographs and 5,484 RGB/Lab samples remain the original shared reference. Frit matching now uses the selected form's own samples from the separate form-samples index; sheet matching retains the original reference.
 
-The displayed percentage remains an **estimated thickness guide from the medium-frit color photographs**, including when Sheets is selected. It is not a new measurement of sheet transmission, frit packing, or physical depth. Actual sheet thickness is shown separately in the size selector. The project's header reference remains **100% thickness = 6 mm solid glass, 16 mm fine frit**. See the [README thickness explanation](../README.md#thickness-guide) and [photo sampling record](catalog-sources.md) for the underlying method.
+The displayed percentage is an **estimated thickness guide from the selected frit photograph**, measured on the glass color's shared original reference. Sheets retain the original Medium matching reference, without placing its coordinates on a sheet photograph. See [per-form sample provenance](form-sampling.md). It is not a new measurement of sheet transmission, frit packing, or physical depth. Actual sheet thickness is shown separately in the size selector. The project's header reference remains **100% thickness = 6 mm solid glass, 16 mm fine frit**. See the [README thickness explanation](../README.md#thickness-guide) and [photo sampling record](catalog-sources.md) for the underlying method.
 
 ## Rebuilding the format index
 

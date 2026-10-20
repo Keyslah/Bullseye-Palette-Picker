@@ -1,0 +1,66 @@
+# Purpose: verify per-form photo samples and layout, then publish the requested v0.6.3 ZIP.
+# Setup: runs only on the v0.6.3 development branch; store traffic uses isolated fixtures.
+# Writes: verification artifacts; main/tag/release only when the explicit publish file exists.
+# Constraints: no personal browser/account/cart; publication requires every verification gate.
+name: Frit samples and popup verification
+on:
+  push:
+    branches: [fix/form-samples-v0.6.3]
+permissions:
+  contents: write
+concurrency:
+  group: frit-samples-v063
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install verification tools
+        run: |
+          python -m pip install -r requirements-dev.txt playwright
+          python -m playwright install --with-deps chromium
+      - name: Regression and source checks
+        run: |
+          npm test
+          npm run check
+          python scripts/check-sampling.py
+          python scripts/check-form-sampling.py
+          npm run package
+          python scripts/verify-package.py
+      - name: Native extension and actual-photo verification
+        run: |
+          python tests/v062-browser.py
+          python tests/item-purchase-browser.py
+          python tests/v063-layout-browser.py
+          python tests/v063-samples-browser.py
+          python scripts/verify-package.py
+      - name: Preserve screenshots, photo audits, and installable ZIP
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frit-samples-v063
+          path: |
+            dist/
+            test-results/
+      - name: Publish verified v0.6.3
+        if: hashFiles('.github/v063/PUBLISH') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(node -p "require('./extension/manifest.json').version")" = 0.6.3
+          python scripts/verify-package.py
+          git diff --exit-code
+          git fetch origin main
+          git merge-base --is-ancestor origin/main HEAD
+          git push origin HEAD:main
+          gh release create v0.6.3 dist/Bullseye-Palette-Picker-v0.6.3.zip --target "$(git rev-parse HEAD)" --title 'Bullseye Palette Picker v0.6.3' --notes-file docs/release-v0.6.3.md

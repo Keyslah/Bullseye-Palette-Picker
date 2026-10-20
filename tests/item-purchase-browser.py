@@ -115,6 +115,27 @@ try:
         assert saved_palette['workspace']['sourceDataUrl']==initial['sourceDataUrl']
         assert saved_palette['workspace']['targets']==initial['targets']
         done('Named palette stores the exact individual form and source data independently of later settings')
+        # Explicit transparent choices must survive while filters temporarily
+        # display opalescent fallbacks and another visible item's form is edited.
+        before_filter=saved(page)
+        assert before_filter['chosenMatches']['aqua']=='001108'
+        page.locator('#include-transparent').click()
+        hidden_aqua=page.locator('#product-grid .compact-card[data-target-id="aqua"]')
+        other_fallback=page.locator('#product-grid .compact-card[data-target-id="orange"]')
+        expect(hidden_aqua).to_be_visible();expect(other_fallback).to_be_visible()
+        assert hidden_aqua.get_attribute('data-product-id')!='001108'
+        assert other_fallback.get_attribute('data-product-id')!='001025'
+        other_fallback.locator('.purchase-toggle').click()
+        other_fallback.locator('.purchase-popover .product-form-select').select_option('fine')
+        while_hidden=saved(page)
+        assert while_hidden['chosenMatches']==before_filter['chosenMatches'],(before_filter['chosenMatches'],while_hidden['chosenMatches'])
+        page.locator('#include-transparent').click()
+        expect(page.locator('#product-grid .compact-card[data-target-id="aqua"]')).to_have_attribute('data-product-id','001108')
+        after_filter=saved(page)
+        assert after_filter['chosenMatches']==before_filter['chosenMatches']
+        assert after_filter['sourceDataUrl']==before_filter['sourceDataUrl'] and after_filter['targets']==before_filter['targets']
+        expect(card(page).locator('.purchase-toggle')).to_contain_text('Fine frit')
+        done('Changing another visible item form preserves explicit glass choices hidden by material filters and restores their original cards')
         assert not errors,errors
         done('No uncaught browser errors; all account/cart traffic was blocked')
         context.close();context=None

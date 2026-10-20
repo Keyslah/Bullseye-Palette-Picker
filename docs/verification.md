@@ -1,8 +1,66 @@
 # Verification record
 
-## Version 0.4.0
+## Version 0.6.3
 
-Verified on 2026-10-18 with Node 24.19.0 and isolated Google Chrome for Testing 155.0.8059.84 profiles. This section describes the current release; the records below retain the results of earlier versions.
+Verified on 2026-10-20 with Node 24.19.0, Python/Pillow/NumPy, and disposable native Chromium 156.0.8078.4 extension profiles. This release continues from the published v0.6.2 source. The earlier records below are historical and describe their respective versions.
+
+### Repeatable checks
+
+```sh
+npm test
+npm run check
+python scripts/check-sampling.py
+python scripts/check-form-sampling.py
+npm run package
+python scripts/verify-package.py
+python tests/v062-browser.py
+python tests/item-purchase-browser.py
+python tests/v063-layout-browser.py
+python tests/v063-samples-browser.py
+```
+
+The JavaScript suite passes **175 tests**. The five original Python sampling tests still pass. The independent form audit verifies **564 original Bullseye photographs**, **22,499 matching/swatches samples**, and **37,670 spatial inspection entries** against exact source pixels, image hashes, dimensions, and material regions. The original 141-image catalog and its reference data remain intact. The new matching data is specific to Powder, Fine, Medium, and Coarse; jar weights share the corresponding grain photograph.
+
+The native suites cover:
+
+| Suite | Passed checks | Scope |
+| --- | ---: | --- |
+| Retained v0.6.1 interface | 45 | Source layout, edited colors/dots, palettes, settings, alternatives, and carts |
+| Retained v0.6.2 photographs | 22 | All 564 live image sources; main, detail, alternatives, cart, enlarged previews, and exact package bytes |
+| Cart builder | 9 | Independent grain/package controls, clear glass, and enlarged photos |
+| Individual item purchase | 12 | Real frit/sheet variants, quantity, isolation, reload, named palettes, and filtered explicit choices |
+| Alternatives layout and toolbar | 12 | Computed geometry, wrapping, scrolling, usable purchase popovers, and Sign in beside Refresh |
+| Selected-photo samples | 11 | Real images, full-color matches, swatches, photo clicks, shared ranges, delayed requests, and saved-work migration |
+
+The retained photograph suite invokes the v0.6.1 and cart-builder suites; the table lists their results separately, not as independent runs to add twice. Successful runs report zero uncaught page errors. An initial concurrent local browser run stalled; sequential reruns and the release workflow execute the native suites without competing browser runs.
+
+### Photographs, markers, and preservation
+
+Actual Aquamarine Blue image bytes were downloaded and decoded for all four forms. Native checks verify the displayed URL, image dimensions, marker position, swatch RGB, nearest full-color match, and approximate percentage together. The supported sampled ranges on the existing shared reference are Powder **20–100%**, Fine **18–100%**, Medium **35–100%**, and Coarse **45–100%**. These minima come from measured samples, not hard-coded form rules. The detailed provenance and material masks are documented in [form sampling](form-sampling.md).
+
+The browser test holds an actual Powder response, switches through Medium and Coarse to Fine, and releases the old response. Fine's photograph, marker, sample, and controls remain current. A real 1186 × 1200 source checks marker placement inside the image's actual contain bounds. White background clicks are ignored when distant or inspect a valid nearby glass point; no white gap becomes a sample.
+
+A v0.6.2 saved workspace upgrades with the same glass choices, exact variant IDs, quantities, source-image pixels, source dots, and manually edited colors. Individual form changes preserve other items and deliberate unchecked states. A regression was confirmed failing before the final fix and passing afterward: changing another item while Transparent is filtered out preserves explicit Aquamarine Blue and Orange Striker choices for when the filter is restored.
+
+### Actual popup layout inspection
+
+The original Alternatives grid assigned approximately 76 px rows to cards roughly 191 px tall. Photo/content overflow then covered following rows. The correction is scoped to Alternatives: content-sized grid rows, explicit bounded photos, and independent card content sizing. Main source-image and match-card density are retained.
+
+Screenshots and computed DOM bounds were inspected at **320, 380, 650, 1440, and 1920 px** viewport widths. Every photo, name, checkbox, percentage, and purchase trigger stays inside its card; rows do not overlap and columns do not spill horizontally. The grid scrolls vertically. Purchase popovers near its lower edge remain visible above the scroller, and their inputs can be used. The existing Sign in control is directly beside Refresh in the same compact toolbar.
+
+### Shopping isolation and release integrity
+
+Tests use disposable profiles with shopping requests blocked or intercepted by explicit fixtures. No personal account or live cart is used. Existing cart safety tests remain in the 175-test suite, including authentication checks, exact variant quantities, concurrent/repeated sends, and uncertain-response recovery. The original named palettes/settings/carts, clear-glass options, enlarged previews, website-cart copying, and Orange Striker preference/Carnelian alternative remain covered.
+
+`scripts/verify-package.py` checks the ZIP's exact **182-file** inventory, root-level manifest version, CRCs, and every file byte against the tested source. It also records the source tree, archive SHA-256, and individual file hashes. The release workflow repeats the regressions before promoting the tested commit to main and publishing v0.6.3. The downloaded release archive is verified with the same checker.
+
+After replacing files in the same installed folder, click **Reload** at `chrome://extensions`, confirm **0.6.3**, then close and reopen picker/cart tabs. Refresh existing source pages before using the image context menu. Keeping the same installed extension preserves Chrome's local saved work.
+
+---
+
+## Version 0.4.0 — historical
+
+Verified on 2026-10-18 with Node 24.19.0 and isolated Google Chrome for Testing 155.0.8059.84 profiles. This section retains the results of version 0.4.0.
 
 ### Project checks
 

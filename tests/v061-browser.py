@@ -6,6 +6,8 @@ Constraints: no user account or live cart access; every store page request is mo
 import copy
 import hashlib
 import json
+import os
+import re
 import tempfile
 import traceback
 import zipfile
@@ -16,6 +18,7 @@ from playwright.sync_api import sync_playwright, expect
 
 ROOT=Path(__file__).resolve().parents[1]
 EXT=ROOT/'extension'
+VERSION=json.loads((EXT/'manifest.json').read_text())['version']
 OUT=ROOT/'test-results'
 OUT.mkdir(exist_ok=True)
 checks=[]
@@ -92,7 +95,8 @@ try:
             image=Image.new('RGB',(width,height))
             image.putdata([((x*255//width),(y*255//height),((x//55+y//67)%4)*80) for y in range(height) for x in range(width)])
             image.save(temp/f'{name}.png')
-        context=playwright.chromium.launch_persistent_context(str(temp/'profile'),channel='chromium',headless=True,viewport={'width':1440,'height':900},args=[f'--disable-extensions-except={EXT}',f'--load-extension={EXT}'])
+        proxy=os.environ.get('HTTPS_PROXY') or os.environ.get('HTTP_PROXY')
+        context=playwright.chromium.launch_persistent_context(str(temp/'profile'),channel='chromium',headless=True,viewport={'width':1440,'height':900},proxy={'server':proxy} if proxy else None,ignore_https_errors=bool(proxy),args=[f'--disable-extensions-except={EXT}',f'--load-extension={EXT}'])
         context.route('https://shop.bullseyeglass.com/**',route_store)
         worker=context.service_workers[0] if context.service_workers else context.wait_for_event('serviceworker')
         # Service-worker requests cannot bypass the isolated storefront fixture.
@@ -103,8 +107,8 @@ try:
         page=context.new_page();watch(page);page.goto(base+'?workspace=1')
         expect(page.locator('#form-medium')).to_be_enabled()
         expect(page.locator('#account-status')).to_have_text('Signed in to Bullseye')
-        assert page.evaluate('chrome.runtime.getManifest().version')=='0.6.2'
-        passed('Native MV3 extension starts at version 0.6.2')
+        assert page.evaluate('chrome.runtime.getManifest().version')==VERSION
+        passed(f'Native MV3 extension starts at source manifest version {VERSION}')
 
         page.locator('#library-tab').click()
         expect(page.locator('#include-tints')).to_have_attribute('aria-pressed','false')
@@ -258,7 +262,13 @@ try:
             page.locator('#settings-menu > summary').click()
             first.locator('.purchase-toggle').click()
             expect(first.locator('.purchase-popover .purchase-grade')).to_have_text(label)
-            assert all(label in option for option in first.locator('.purchase-popover option').all_text_contents())
+            expect(first.locator('.purchase-popover .product-form-select')).to_have_value(form)
+            options=first.locator('.purchase-popover .variant-select option')
+            actual=options.evaluate_all('(ns)=>ns.map(n=>({id:Number(n.value),label:n.textContent}))')
+            expected=formats['products'][first.get_attribute('data-product-id')][form]['variants']
+            assert {option['id'] for option in actual}=={variant['id'] for variant in expected}
+            if form=='sheets':assert all(re.search(r'\d+(?:\.\d+)? mm.*\d+x\d+',option['label']) for option in actual), actual
+            else:assert all(re.search(r'\d+\s*(?:lb|oz).*jar',option['label']) for option in actual), actual
             first.locator('.purchase-popover').get_by_role('button',name='Close purchase options',exact=True).click()
         passed('Every purchase summary and dropdown identifies the frit grade or sheet thickness')
         page.locator('#open-color-editor').click()
@@ -395,10 +405,10 @@ try:
         passed('No uncaught browser JavaScript errors')
         context.close();context=None
 
-    archive=ROOT/'dist/Bullseye-Palette-Picker-v0.6.2.zip'
+    archive=ROOT/f'dist/Bullseye-Palette-Picker-v{VERSION}.zip'
     with zipfile.ZipFile(archive) as packed:
         assert packed.testzip() is None
-        assert json.loads(packed.read('manifest.json'))['version']=='0.6.2'
+        assert json.loads(packed.read('manifest.json'))['version']==VERSION
         for file in EXT.rglob('*'):
             if file.is_file():assert packed.read(str(file.relative_to(EXT)))==file.read_bytes(),str(file)
     passed('Packaged extension bytes match the tested source exactly')

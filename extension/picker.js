@@ -17,6 +17,7 @@ import {initializeCartLibrary} from './lib/cart-library.js';
 import {productPhotoSpec} from './lib/cart-photos.js';
 import {productWithFormSamples, samplesForPhoto, nearestPhotoSample} from './lib/form-samples.js';
 import {containedImageBounds, imagePointFromClient} from './lib/photo-geometry.js';
+import {preservedPhotoGuideMatches} from './lib/photo-guide-workspace.js';
 import {normalizeCartItems} from './lib/saved-carts.js';
 import {FORM_OPTIONS, normalizeForm, productForForm, defaultFormatVariant} from './lib/product-formats.js';
 import {cartSizeLabel, switchedCartVariant} from './lib/cart-options.js';
@@ -143,7 +144,7 @@ function changeProductForm(productId, form) {
   const old=selectedItem(current,previous),quantity=old?.quantity || state.quantities[variantKey(current,previous || {})] || 1;
   // Retain all visible color choices while this one product's sample range changes.
   // Full-color matching still finds its closest sample within the newly selected form.
-  for(const target of state.targets){const match=primaryMatch(target);if(match)state.chosenMatches[target.id]=match.product.id;}
+  for(const target of state.targets)if(!Object.hasOwn(state.chosenMatches,target.id)){const match=primaryMatch(target);if(match)state.chosenMatches[target.id]=match.product.id;}
   state.selectedForms=selectedForms;state.selectedVariants[productId]=String(variant.id);
   state.products=state.products.map(entry=>entry.id===productId?product:entry);matchCache.clear();
   state.quantities[variantKey(product,variant)]=quantity;
@@ -184,7 +185,7 @@ function remixPalette() {
 }
 function workspaceSnapshot() {
   return {
-    version:6, includeTints:state.includeTints, format:state.format, preferredJarSize:state.preferredJarSize,
+    version:6, photoGuideVersion:1, includeTints:state.includeTints, format:state.format, preferredJarSize:state.preferredJarSize,
     sourceDataUrl:state.sourceDataUrl, sourceName:state.sourceName, sourceUrl:state.sourceUrl,
     thumbnailDataUrl:state.sourceThumbnail, glassTypes:state.glassTypes, imageSize:state.imageSize, imageLayout:'auto',
     paletteCount:state.paletteCount, targets:state.targets, activeTargetId:state.activeTargetId,
@@ -226,8 +227,8 @@ function restoreWorkspace(saved) {
   state.sourceThumbnail = typeof saved.thumbnailDataUrl === 'string' ? saved.thumbnailDataUrl : '';
   state.selectedVariants = saved.selectedVariants && typeof saved.selectedVariants === 'object' ? saved.selectedVariants : {};
   state.quantities = saved.quantities && typeof saved.quantities === 'object' ? saved.quantities : {};
-  state.chosenMatches = saved.chosenMatches && typeof saved.chosenMatches === 'object' ? saved.chosenMatches : {};
   state.targets = Array.isArray(saved.targets) ? saved.targets.map(normalizeTarget).filter(Boolean).slice(0,MAX_TARGETS) : [];
+  state.chosenMatches = preservedPhotoGuideMatches(saved,state.targets,state.baseProducts);
   state.activeTargetId = saved.activeTargetId;
   if (!activeTarget()) state.activeTargetId = state.targets[0]?.id || null;
   state.view = ['library','alternatives'].includes(saved.view) ? saved.view : 'palette';

@@ -1,11 +1,14 @@
 # Bullseye Palette Picker
 
-## v0.6.2: selected-grade photos throughout the app
+## v0.6.3: sample the selected frit photograph
 
-Powder, Fine, Medium and Coarse now control the actual Bullseye photograph in the main palette, All glass, alternatives, enlarged details and every cart view. These views use the same verified photo selector and the existing 838-listing photo index. Jar weight is independent of frit grain size. Switching grades while details are open refreshes the displayed photo without allowing an earlier image request to replace it.
+Powder, Fine, Medium and Coarse each use their own actual Bullseye photograph for full-color matching, percentage estimates, clickable sample swatches, and the small sample-location circle. Click the enlarged photograph to inspect a nearby valid glass sample. The photo, swatches, circle and percentage update together when the form changes; no Medium coordinates are placed on another photograph. Jar weights share the same frit-form photograph.
 
-The selected-grade product photo no longer carries sample coordinates from another photograph. The existing medium-frit sampling image, swatches and thickness estimates remain together under **Thickness color reference · Medium frit** in the detail window. Your source image, colors, dots and chosen matches are unchanged.
+Each glass color retains its shared reference scale. Photographs are not independently stretched from 0% to 100%: Aquamarine Blue's sampled ranges are Powder 20–100%, Fine 18–100%, Medium 35–100%, and Coarse 45–100%. These are approximate photo-color guides. The viewer identifies fired spreads, unfired frit dishes and cast wedges.
 
+**Sign in** sits beside **Refresh** at the top-left. Each color's compact purchase dropdown now has **Form**, **Package size** and **Quantity**, with actual frit variants or sheet dimensions/thicknesses. Individual form choices persist independently of the global default. Alternatives remains a separate popup, with wrapping cards, properly sized rows, vertical scrolling and unclipped purchase popovers.
+
+The existing source image, edited colors, dots, named palettes/settings/carts and shopping safeguards remain. Saved glass choices are retained when the new photo samples are adopted. See the [release notes](docs/release-v0.6.3.md) and [exact-photo sampling record](docs/form-sampling.md).
 
 ## v0.6.1 update
 
@@ -15,7 +18,7 @@ Landscape glass photographs now have their information below them. All match car
 
 Version **0.6.0** selects the suggested glass as soon as a palette loads. Choose **Sheets, Powder, Fine, Medium, or Coarse** at the top, save your preferred settings, and keep multiple named carts that you can edit, duplicate, and send directly to Bullseye. Frit starts with an available **5 lb. jar**, with another available size used when necessary.
 
-The reviewed color guide contains **141 colors — 75 transparent and 66 in the opalescent group —** with **5,484 photographed color samples**. The purchase catalog maps those colors to **2,088 actual Bullseye variants**, including standard sheets for 137 colors. Clear is excluded. Independent **Transparent** and **Opalescent** buttons let you search either group or both. See [product-format coverage and sources](docs/product-formats.md).
+The color guide contains **141 colors — 75 transparent and 66 in the opalescent group —** with **22,499 measured matching/swatches samples across 564 frit photographs**, plus spatial points for photo inspection. The original 5,484-sample Medium catalog remains unchanged as the shared reference. The purchase catalog maps those colors to **2,088 actual Bullseye variants**, including standard sheets for 137 colors. Clear is excluded from automatic color matching and remains available in the cart builder. Independent **Transparent** and **Opalescent** buttons let you search either group or both. See [product-format coverage and sources](docs/product-formats.md).
 
 **Pinterest fix:** the right-click command also appears on photo links and their hover overlays. It reads the visible photo inside the clicked link, using its displayed image source. No additional permissions are required.
 
@@ -28,15 +31,15 @@ Product reference photography © Bullseye Glass Co.
 
 The workspace puts the source photo and glass comparison first. Buttons share one compact, left-to-right wrapping toolbar rather than separate rows for settings, image controls, cart actions, and filters.
 
-**Top controls.** Refresh, Transparent, Opalescent, and Tints start the toolbar together. Load palettes, Save palette, Save cart, Saved Carts, Send, search, and navigation share its remaining space. Settings contains the glass form, default jar size, named Save settings, and Load settings. Image contains import/capture controls and Fit / Larger / Full width. Account and the information menu hold status and reference text.
+**Top controls.** Refresh, Sign in, Transparent, Opalescent, and Tints start the toolbar together. Load palettes, Save palette, Save cart, Saved Carts, Send, search, and navigation share its remaining space. Settings contains the glass form, default jar size, named Save settings, and Load settings. Image contains import/capture controls and Fit / Larger / Full width. Account and the information menu hold status and reference text.
 
 **Palette strip.** Show full palette is first at the far left, followed by an uninterrupted sequence of swatches. Color hex values and the editor live behind Edit color rather than occupying every swatch and another full row. Numbered dots still identify sampled image locations.
 
 **Portrait and square photos.** The vertical glass list is to the left of the source photo, even in the narrower side panel. Each card's name, thickness estimate, and purchase control are on the left; its glass photograph is on the right, nearest the source image. Larger is the starting image size and fills the available portrait column. The previous v5 workspace's Fit view changes to Larger once on upgrade, without modifying its image, colors, or dots. Explicitly loading a saved palette or settings preset still restores its chosen view.
 
-**Landscape photos.** Glass cards form a horizontal comparison strip directly beneath the larger image. Extra cards scroll horizontally instead of creating a long vertical list below it.
+**Landscape photos.** Glass cards form a horizontal comparison strip directly beneath the larger image. Extra cards wrap to the available width, with their information below their photographs.
 
-**Compact product cards.** A single purchase dropdown contains package/sheet size, quantity, selection, and price. The main card no longer repeats SKUs and long detail text. Click the glass photograph for the large reference view, product code, sampled colors, full purchase information, and Use for this color / Alternatives controls.
+**Compact product cards.** A single purchase dropdown contains form, package/sheet size, quantity, and price; the checkbox remains beside the glass name. The main card no longer repeats SKUs and long detail text. Click the glass photograph for the large reference view, product code, sampled colors, full purchase information, and Use for this color / Alternatives controls.
 
 **French Vanilla and coral alternatives.** Explicit Alternatives and glass search include both neutral and chromatic product families while continuing to ignore background gaps in product photographs. French Vanilla is no longer completely excluded from a pale cream target by the old neutral/chromatic cutoff. Sunset Coral stays available in alternatives. Coral Orange Tint is included when Tints is on. All are still sorted by measured full-color difference; automatic suggestions retain the existing stricter neutral/chromatic eligibility. A deliberately chosen alternative persists through reloads and palette saving.
 
@@ -57,7 +60,7 @@ Chrome documents these [unpacked-extension steps](https://developer.chrome.com/d
 
 **Updating an existing installation:** replace the files in the same extension folder with the new version, click **Reload** on its card at `chrome://extensions`, refresh Pinterest or any source page already open, and close/reopen the picker. Keep the same installed extension and folder to retain its saved palettes. An unpacked extension does not automatically update when this GitHub repository changes.
 
-The prepared **`Bullseye-Palette-Picker-v0.6.2.zip`** has `manifest.json` at its root. If you use that package instead of the repository ZIP, extract it and load the extracted root folder.
+The prepared [**Bullseye-Palette-Picker-v0.6.3.zip**](https://github.com/Keyslah/Bullseye-Palette-Picker/releases/download/v0.6.3/Bullseye-Palette-Picker-v0.6.3.zip) has `manifest.json` at its root. If you use that package instead of the repository ZIP, extract it and load the extracted root folder.
 
 ## Pick and edit colors
 
@@ -75,7 +78,7 @@ Some web images are hosted on a separate domain. The picker requests access to t
 
 ## Glass format and saved settings
 
-The top **Sheets / Powder / Fine / Medium / Coarse** buttons change the actual purchase options for the current selection. Each option uses its own verified Bullseye product and variant IDs. The source photo, sampled colors, and thickness guide stay available while you switch formats. A color without a verified or available option is not replaced with a fabricated SKU.
+The **Sheets / Powder / Fine / Medium / Coarse** settings change the default purchase form. A color with an explicit individual form keeps that choice; the other colors follow the default. Each option uses its own verified Bullseye product and variant IDs. The source photo, sampled colors, and thickness guide stay available while you switch formats. A color without a verified or available option is not replaced with a fabricated SKU.
 
 | Purchase format | Colors with a verified listing | Purchase variants |
 | --- | ---: | ---: |
@@ -119,11 +122,11 @@ A result reads, for example, **“Spring Green at 75% thickness.”** At the top
 
 **100% thickness = 6 mm solid glass, 16 mm fine frit**
 
-This is an **estimated thickness guide based on photographed color strength**, not a measurement of the source glass or a Bullseye-certified firing recipe. Percentages remain visible for **every purchase format, including Sheets**. All formats retain the reviewed medium-frit color samples for matching and thickness estimates, separately from the actual selected-grade product photographs; choosing sheets or another frit grain does not create a new physical calibration. A sheet's actual millimeter thickness is shown separately in its purchase-size label. The fine-frit value above is the project's requested reference text.
+This is an **estimated thickness guide based on photographed color strength**, not a measurement of the source glass or a Bullseye-certified firing recipe. Percentages remain visible for **every purchase format, including Sheets**. Each frit form uses samples from its own photograph while retaining the glass color's original shared reference. Sheets retain the original Medium matching reference; their sheet photographs do not show unrelated sample coordinates or swatches. Choosing a form does not create a physical calibration. A sheet's actual millimeter thickness is shown separately in its purchase-size label. The fine-frit value above is the project's requested reference text.
 
 For transparent glass, the estimate compares the matched sample's lightness with that product's dense color reference, using white as the zero-color anchor. It does not reset the lightest retained material sample to zero. Chromatic opalescent glass also uses the photographed-strength comparison, so different shades no longer all display 100%. Neutral opalescent and opaque glass, including ordinary Black and White, retain their **100% full-color reference**. Neither model establishes physical depth from opaque grains. These labels do not affect the full-color match ranking. The photograph and exact sampled color remain visible for inspection.
 
-The reference library uses **123 fired medium-frit spreads, two explicitly labeled medium-frit tiles, and 16 cast medium-frit wedges**. The wedges provide visible color for pale tints; their reviewed sampling rectangles exclude the surrounding backdrop. Of the 141 source images, **120 are untagged and interpreted as sRGB; 21 carry embedded profiles and are converted to sRGB**. Every bundled image embeds sRGB. Lighting, screens, and actual glass can differ. See [catalog sources and sampling details](docs/catalog-sources.md) for all product links, source hashes, image selections, and measurements.
+The original shared-reference library uses **123 fired medium-frit spreads, two explicitly labeled medium-frit tiles, and 16 cast medium-frit wedges**. The selected-form photo data adds **480 fired spreads, eight unfired dishes, and 76 cast wedges**; see [per-form sampling](docs/form-sampling.md). The wedges provide visible color for pale tints; their reviewed sampling rectangles exclude the surrounding backdrop. Of the 141 source images, **120 are untagged and interpreted as sRGB; 21 carry embedded profiles and are converted to sRGB**. Every bundled image embeds sRGB. Lighting, screens, and actual glass can differ. See [catalog sources and sampling details](docs/catalog-sources.md) for all product links, source hashes, image selections, and measurements.
 
 ## Direct cart behavior
 
@@ -147,7 +150,7 @@ npm run check
 npm run package
 ```
 
-Development requires Node 20 or later. Packaging also uses Python 3's standard library and creates `dist/Bullseye-Palette-Picker-v0.6.2.zip`, with the manifest at the ZIP root. Extract that packaged ZIP and load its root folder in Chrome. Version 0.6.0 retains the reviewed **0.3.0 color catalog byte for byte**, including its photographs, RGB/Lab samples, and source timestamps. Its additional purchase options live in a separate format index.
+Development requires Node 20 or later. Packaging also uses Python 3's standard library and creates `dist/Bullseye-Palette-Picker-v0.6.3.zip`, with the manifest at the ZIP root. Extract that packaged ZIP and load its root folder in Chrome. Version 0.6.3 retains the reviewed **0.3.0 base catalog byte for byte**, including its photographs, RGB/Lab samples, and source timestamps. The purchase options and new form-specific samples live in separate data indexes.
 
 To refresh public purchase-format records or reproduce them from an existing source cache:
 

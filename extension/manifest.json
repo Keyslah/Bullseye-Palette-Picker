@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Bullseye Palette Picker",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "Match photo colors to Bullseye sheets or frit, save palettes and carts, and send selected glass to your signed-in cart.",
   "minimum_chrome_version": "116",
   "permissions": ["contextMenus", "sidePanel", "storage", "activeTab", "scripting"],

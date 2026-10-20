@@ -8,8 +8,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {productPhotoSpec,cartPhotoSpec} from '../extension/lib/cart-photos.js';
 import {productForForm} from '../extension/lib/product-formats.js';
+import {productWithFormSamples, samplesForPhoto} from '../extension/lib/form-samples.js';
 const read=name=>JSON.parse(fs.readFileSync(new URL('../extension/data/'+name,import.meta.url)));
 const catalog=read('catalog.json'),formats=read('product-formats.json'),photos=read('cart-photos.json');
+const formSamples=read('form-samples.json');
 const grades={powder:'0008',fine:'0001',medium:'0002',coarse:'0003'};
 
 test('picker and cart use the identical photo selector',()=>assert.equal(productPhotoSpec,cartPhotoSpec));
@@ -40,6 +42,25 @@ test('Aquamarine Blue screenshot regression: Fine and Powder use -0001 and -0008
       assert.doesNotMatch(photo.images[0],/001108-0002/);
     }
   }
+});
+test('every selected frit photograph has its own samples and coordinates on the shared color reference',()=>{
+  let checked=0;
+  for(const base of catalog.products)for(const form of Object.keys(grades)){
+    const product=productWithFormSamples(productForForm(base,formats,form),form,formSamples);
+    const photo=productPhotoSpec(product,product.variants[0],photos);
+    const samples=samplesForPhoto(product,photo.images[0]);
+    assert.ok(samples.length>0,`${base.id} ${form} must have measured glass samples`);
+    assert.equal(product.thicknessReference,base.thicknessReference);
+    assert.equal(product.photoGuide.imageUrl,photo.images[0]);
+    assert.deepEqual(samplesForPhoto(product,base.image),[],'Old Medium image coordinates cannot cross into the selected photo');
+    for(const sample of samples){
+      assert.ok(Number.isFinite(sample.x)&&sample.x>=0&&sample.x<=1);
+      assert.ok(Number.isFinite(sample.y)&&sample.y>=0&&sample.y<=1);
+      assert.notEqual(sample.eligible,false);assert.notEqual(sample.background,true);
+    }
+    checked++;
+  }
+  assert.equal(checked,564);
 });
 test('an item in a mixed-grade cart follows its own variant, not the global product form',()=>{
   const product=productForForm(catalog.products.find(p=>p.id==='001108'),formats,'medium');

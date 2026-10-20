@@ -5,7 +5,7 @@ Constraints: shopping is entirely mocked; no real account or live cart mutation.
 """
 from pathlib import Path
 from urllib.parse import urlparse
-import io, json, tempfile, traceback
+import io, json, os, tempfile, traceback
 from PIL import Image
 from playwright.sync_api import sync_playwright, expect
 ROOT=Path(__file__).resolve().parents[1]; EXT=ROOT/'extension'; OUT=ROOT/'test-results';OUT.mkdir(exist_ok=True)
@@ -73,7 +73,8 @@ def check_preview(page,row,variant,name):
     return src
 try:
   with tempfile.TemporaryDirectory() as folder,sync_playwright() as pw:
-    context=pw.chromium.launch_persistent_context(folder,channel='chromium',headless=True,viewport={'width':1440,'height':900},args=[f'--disable-extensions-except={EXT}',f'--load-extension={EXT}'])
+    proxy=os.environ.get('HTTPS_PROXY') or os.environ.get('HTTP_PROXY')
+    context=pw.chromium.launch_persistent_context(folder,channel='chromium',headless=True,viewport={'width':1440,'height':900},proxy={'server':proxy} if proxy else None,ignore_https_errors=bool(proxy),args=[f'--disable-extensions-except={EXT}',f'--load-extension={EXT}'])
     context.route('https://shop.bullseyeglass.com/**',fulfill);context.route('https://cdn.shopify.com/**',fulfill)
     worker=context.service_workers[0] if context.service_workers else context.wait_for_event('serviceworker')
     worker.evaluate("()=>{globalThis.fetch=async()=>{throw new Error('No external worker requests in this isolated test.');};}")

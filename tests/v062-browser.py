@@ -4,12 +4,14 @@ Writes: a disposable browser profile and real-image screenshots/audit under test
 Constraints: no personal account or cart. Photo HTTP requests are NEVER replaced with
 blank images or synthetic replies. Every bundled frit-photo URL is fetched and decoded.
 """
-import concurrent.futures, hashlib, io, json, re, tempfile, time, traceback, urllib.request, zipfile
+import concurrent.futures, hashlib, io, json, os, re, tempfile, time, traceback, urllib.request, zipfile
 from pathlib import Path
 from PIL import Image
 from playwright.sync_api import sync_playwright, expect
 ROOT=Path(__file__).resolve().parents[1];EXT=ROOT/'extension';OUT=ROOT/'test-results';OUT.mkdir(exist_ok=True)
+VERSION=json.loads((EXT/'manifest.json').read_text())['version']
 photo_index=json.loads((EXT/'data/cart-photos.json').read_text())['products']
+form_samples=json.loads((EXT/'data/form-samples.json').read_text())['products']
 formats=json.loads((EXT/'data/product-formats.json').read_text())['products']
 catalog=json.loads((EXT/'data/catalog.json').read_text())['products']
 grades={'powder':'0008','fine':'0001','medium':'0002','coarse':'0003'}
@@ -38,6 +40,26 @@ def check_photo(locator,url):
     assert min(result['width'],result['height'])>50,result
     assert result['url']==url,result
 
+def check_marker(container,pid,form):
+    """The marker must identify one measured location in this exact photograph."""
+    guide=form_samples[pid][form]
+    assert guide['imageUrl']==source(pid,form)
+    marker=container.locator('.sample-marker')
+    expect(marker).to_have_count(1)
+    expect(marker).to_be_visible()
+    # Read one rendered marker/plane together; inventory refresh may replace
+    # the detail DOM between separate browser protocol evaluations.
+    snapshot=marker.evaluate('''n=>{
+      const plane=n.closest('.photo-sample-plane'),m=n.getBoundingClientRect(),p=plane.getBoundingClientRect();
+      return {x:parseFloat(n.style.left)/100,y:parseFloat(n.style.top)/100,imageUrl:plane.dataset.imageUrl,
+        error:Math.max(Math.abs(m.x+m.width/2-p.x-p.width*Number(n.dataset.x)),Math.abs(m.y+m.height/2-p.y-p.height*Number(n.dataset.y)))};
+    }''')
+    location={key:snapshot[key] for key in ['x','y']}
+    assert snapshot['imageUrl']==guide['imageUrl'], (pid,form,snapshot)
+    assert any(abs(s['x']-location['x'])<1e-6 and abs(s['y']-location['y'])<1e-6 for s in guide['samples']), (pid,form,location)
+    assert snapshot['error']<1, (pid,form,snapshot['error'])
+    return location
+
 def state(page):
     page.wait_for_timeout(400)
     return page.evaluate("async()=> (await chrome.storage.local.get('bullseyeProjectV1')).bullseyeProjectV1")
@@ -55,18 +77,25 @@ try:
     (OUT/'v062-live-photo-audit.json').write_text(json.dumps(audit,indent=2))
     assert len(audit)==564
     done('All 564 frit photographs fetched from actual Bullseye CDN URLs and decoded')
+    for record in audit:
+        guide=form_samples[record['color']][record['form']]
+        assert guide['imageUrl']==record['url']
+        assert guide['sourceSha256']==record['sha256'], (record['color'],record['form'])
+        assert guide['pixels']==record['pixels']
+    done('All 564 per-form sample records match the actual downloaded photo URL, dimensions and SHA-256')
     aqua=[record for record in audit if record['color']=='001108']
     assert len(set(record['sha256'] for record in aqua))==4
     done('Aquamarine Blue has four distinct actual image files for Powder/Fine/Medium/Coarse')
 
     with tempfile.TemporaryDirectory() as profile, sync_playwright() as p:
-        context=p.chromium.launch_persistent_context(profile,channel='chromium',headless=True,viewport={'width':1440,'height':1050},args=[f'--disable-extensions-except={EXT}',f'--load-extension={EXT}'])
+        proxy=os.environ.get('HTTPS_PROXY') or os.environ.get('HTTP_PROXY')
+        context=p.chromium.launch_persistent_context(profile,channel='chromium',headless=True,viewport={'width':1440,'height':1050},proxy={'server':proxy} if proxy else None,ignore_https_errors=bool(proxy),args=[f'--disable-extensions-except={EXT}',f'--load-extension={EXT}'])
         worker=context.service_workers[0] if context.service_workers else context.wait_for_event('serviceworker')
         worker.evaluate("() => { const real=globalThis.fetch; globalThis.fetch=(u,o)=>String(u).includes('/products/')?real(u,o):Promise.reject(new Error('Account/cart reads disabled in photo-only test')); }")
         base='chrome-extension://'+worker.url.split('/')[2]+'/picker.html'
         page=context.new_page();page.set_default_timeout(30000);page.on('pageerror',lambda e:errors.append(str(e)));page.goto(base+'?workspace=1')
         expect(page.locator('#form-fine')).to_be_enabled()
-        assert page.evaluate('chrome.runtime.getManifest().version')=='0.6.2'
+        assert page.evaluate('chrome.runtime.getManifest().version')==VERSION
         page.wait_for_timeout(700)  # Complete the empty workspace's debounced startup save.
         seed=page.evaluate('''async()=>{
           const c=document.createElement('canvas');c.width=1200;c.height=500;const ctx=c.getContext('2d');
@@ -89,18 +118,21 @@ try:
             for pid in ['001108','001247']:
                 row=page.locator(f'#product-grid [data-product-id="{pid}"]')
                 check_photo(row.locator('.glass-photo img'),source(pid,form))
-                assert row.locator('.glass-photo .sample-marker').count()==0
+                check_marker(row.locator('.glass-photo'),pid,form)
             no_overflow(page)
             page.screenshot(path=str(OUT/f'v062-main-{form}.png'),full_page=True)
             aqua_card.locator('.photo-button').click()
             check_photo(page.locator('#detail-photo img'),source('001108',form))
             expect(page.locator('#detail-photo-grade')).to_contain_text(form.capitalize()+' frit')
-            assert page.locator('#detail-photo .sample-marker').count()==0
-            assert page.locator('#detail-reference').get_attribute('open') is None
+            check_marker(page.locator('#detail-photo'),'001108',form)
+            assert page.locator('#detail-reference').count()==0
+            expect(page.locator('#detail-samples button')).to_have_count(len(form_samples['001108'][form]['samples']))
             page.locator('#detail-dialog').screenshot(path=str(OUT/f'v062-detail-{form}.png'))
-            page.locator('#detail-reference>summary').click()
-            assert page.locator('#detail-reference-photo img').get_attribute('src')=='assets/glass/001108.jpg'
+            page.locator('#detail-samples button').first.click()
+            first_marker=check_marker(page.locator('#detail-photo'),'001108',form)
             page.locator('#detail-samples button').last.click()
+            last_marker=check_marker(page.locator('#detail-photo'),'001108',form)
+            assert first_marker!=last_marker
             check_photo(page.locator('#detail-photo img'),source('001108',form))
             page.locator('#close-detail').click()
             done(f'Main cards and enlarged {form} photographs load the actual matching-grade pictures')
@@ -117,6 +149,7 @@ try:
             page.locator('#form-'+form).evaluate('b=>b.click()')
         expect(page.locator('#detail-dialog')).to_be_visible()
         check_photo(page.locator('#detail-photo img'),source('001108','fine'))
+        check_marker(page.locator('#detail-photo'),'001108','fine')
         page.wait_for_timeout(800)
         check_photo(page.locator('#detail-photo img'),source('001108','fine'))
         page.locator('#close-detail').click()
@@ -148,7 +181,7 @@ try:
         assert not errors,errors
         done('No uncaught browser errors during actual-photo interactions')
         context.close();context=None
-    with zipfile.ZipFile(ROOT/'dist/Bullseye-Palette-Picker-v0.6.2.zip') as archive:
+    with zipfile.ZipFile(ROOT/f'dist/Bullseye-Palette-Picker-v{VERSION}.zip') as archive:
         assert archive.testzip() is None
         for f in EXT.rglob('*'):
             if f.is_file():assert archive.read(f.relative_to(EXT).as_posix())==f.read_bytes(),f
