@@ -1,0 +1,5 @@
+Publish v0.6.2 after rerunning all code, live-photo, native UI/cart and package checks.
+Successful precursor run: https://github.com/Keyslah/Bullseye-Palette-Picker/actions/runs/39378507868
+All 564 actual frit photographs fetched and decoded; native photo suite 21 checks passed, prior layout/palette/cart suite 45 checks passed, cart-builder suite 9 checks passed.
+Main and large Fine/Powder photos were visually reviewed. No user account or live cart mutations were used.
+Non-forced main promotion only. Do not overwrite unrelated changes.
