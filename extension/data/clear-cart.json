@@ -1,0 +1,792 @@
+{
+  "version": 1,
+  "retrievedAt": "2026-10-20T04:59:58Z",
+  "products": [
+    {
+      "id": "001101",
+      "code": "001101",
+      "name": "Clear Transparent",
+      "fullName": "Clear Transparent",
+      "type": "Transparent",
+      "isClear": true,
+      "cartOnly": true,
+      "samples": [],
+      "form": "medium",
+      "grain": "Medium frit",
+      "variants": [
+        {
+          "id": 52850316607761,
+          "sku": "001101-0002-F-P001",
+          "sourceTitle": "1 lb. jar",
+          "title": "1 lb. jar",
+          "form": "medium",
+          "available": true,
+          "price": 2330,
+          "handle": "clear-transparent-medium-frit-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-medium-frit-fusible",
+          "shopifyProductId": 10721508032785
+        },
+        {
+          "id": 52850316640529,
+          "sku": "001101-0002-F-P005",
+          "sourceTitle": "5 lb. jar",
+          "title": "5 lb. jar",
+          "form": "medium",
+          "available": true,
+          "price": 8045,
+          "handle": "clear-transparent-medium-frit-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-medium-frit-fusible",
+          "shopifyProductId": 10721508032785
+        }
+      ],
+      "allVariants": [
+        {
+          "id": 52850316706065,
+          "sku": "001101-0003-F-P001",
+          "sourceTitle": "1 lb. jar",
+          "title": "1 lb. jar",
+          "form": "coarse",
+          "available": true,
+          "price": 2330,
+          "handle": "clear-transparent-coarse-frit-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-coarse-frit-fusible",
+          "shopifyProductId": 10721508065553
+        },
+        {
+          "id": 52850316738833,
+          "sku": "001101-0003-F-P005",
+          "sourceTitle": "5 lb. jar",
+          "title": "5 lb. jar",
+          "form": "coarse",
+          "available": true,
+          "price": 8045,
+          "handle": "clear-transparent-coarse-frit-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-coarse-frit-fusible",
+          "shopifyProductId": 10721508065553
+        },
+        {
+          "id": 52837594333457,
+          "sku": "001101-0030-F-1010",
+          "sourceTitle": "10x10 in.",
+          "title": "3 mm \u00b7 Double-rolled \u00b7 10x10 in.",
+          "form": "sheets",
+          "available": true,
+          "price": 1625,
+          "handle": "clear-transparent-double-rolled-3-mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-double-rolled-3-mm-fusible",
+          "shopifyProductId": 10719585698065,
+          "thicknessMm": 3.0,
+          "finish": "Double-rolled"
+        },
+        {
+          "id": 52837594366225,
+          "sku": "001101-0030-F-HALF",
+          "sourceTitle": "17x20 in., Half Sheet",
+          "title": "3 mm \u00b7 Double-rolled \u00b7 17x20 in., Half Sheet",
+          "form": "sheets",
+          "available": false,
+          "price": 4820,
+          "handle": "clear-transparent-double-rolled-3-mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-double-rolled-3-mm-fusible",
+          "shopifyProductId": 10719585698065,
+          "thicknessMm": 3.0,
+          "finish": "Double-rolled"
+        },
+        {
+          "id": 52837594398993,
+          "sku": "001101-0030-F-FULL",
+          "sourceTitle": "35x20 in., Full Sheet",
+          "title": "3 mm \u00b7 Double-rolled \u00b7 35x20 in., Full Sheet",
+          "form": "sheets",
+          "available": true,
+          "price": 9365,
+          "handle": "clear-transparent-double-rolled-3-mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-double-rolled-3-mm-fusible",
+          "shopifyProductId": 10719585698065,
+          "thicknessMm": 3.0,
+          "finish": "Double-rolled"
+        },
+        {
+          "id": 52850316509457,
+          "sku": "001101-0001-F-P001",
+          "sourceTitle": "1 lb. jar",
+          "title": "1 lb. jar",
+          "form": "fine",
+          "available": true,
+          "price": 2330,
+          "handle": "clear-transparent-fine-frit-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-fine-frit-fusible",
+          "shopifyProductId": 10721508000017
+        },
+        {
+          "id": 52850316542225,
+          "sku": "001101-0001-F-P005",
+          "sourceTitle": "5 lb. jar",
+          "title": "5 lb. jar",
+          "form": "fine",
+          "available": false,
+          "price": 8045,
+          "handle": "clear-transparent-fine-frit-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-fine-frit-fusible",
+          "shopifyProductId": 10721508000017
+        },
+        {
+          "id": 52850316607761,
+          "sku": "001101-0002-F-P001",
+          "sourceTitle": "1 lb. jar",
+          "title": "1 lb. jar",
+          "form": "medium",
+          "available": true,
+          "price": 2330,
+          "handle": "clear-transparent-medium-frit-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-medium-frit-fusible",
+          "shopifyProductId": 10721508032785
+        },
+        {
+          "id": 52850316640529,
+          "sku": "001101-0002-F-P005",
+          "sourceTitle": "5 lb. jar",
+          "title": "5 lb. jar",
+          "form": "medium",
+          "available": true,
+          "price": 8045,
+          "handle": "clear-transparent-medium-frit-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-medium-frit-fusible",
+          "shopifyProductId": 10721508032785
+        },
+        {
+          "id": 52850317033745,
+          "sku": "001101-0008-F-P001",
+          "sourceTitle": "1 lb. jar",
+          "title": "1 lb. jar",
+          "form": "powder",
+          "available": true,
+          "price": 2980,
+          "handle": "clear-transparent-powder-frit-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-powder-frit-fusible",
+          "shopifyProductId": 10721508196625
+        },
+        {
+          "id": 52850317066513,
+          "sku": "001101-0008-F-P005",
+          "sourceTitle": "5 lb. jar",
+          "title": "5 lb. jar",
+          "form": "powder",
+          "available": true,
+          "price": 11295,
+          "handle": "clear-transparent-powder-frit-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-powder-frit-fusible",
+          "shopifyProductId": 10721508196625
+        },
+        {
+          "id": 52890414711057,
+          "sku": "001101-0000-F-1010",
+          "sourceTitle": "10x10 in.",
+          "title": "3 mm \u00b7 Single-rolled \u00b7 10x10 in.",
+          "form": "sheets",
+          "available": true,
+          "price": 1625,
+          "handle": "clear-transparent-single-rolled-3-mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-single-rolled-3-mm-fusible",
+          "shopifyProductId": 10730573988113,
+          "thicknessMm": 3.0,
+          "finish": "Single-rolled"
+        },
+        {
+          "id": 52890414743825,
+          "sku": "001101-0000-F-HALF",
+          "sourceTitle": "17x20 in., Half Sheet",
+          "title": "3 mm \u00b7 Single-rolled \u00b7 17x20 in., Half Sheet",
+          "form": "sheets",
+          "available": true,
+          "price": 4820,
+          "handle": "clear-transparent-single-rolled-3-mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-single-rolled-3-mm-fusible",
+          "shopifyProductId": 10730573988113,
+          "thicknessMm": 3.0,
+          "finish": "Single-rolled"
+        },
+        {
+          "id": 52890414776593,
+          "sku": "001101-0000-F-FULL",
+          "sourceTitle": "35x20 in., Full Sheet",
+          "title": "3 mm \u00b7 Single-rolled \u00b7 35x20 in., Full Sheet",
+          "form": "sheets",
+          "available": true,
+          "price": 9365,
+          "handle": "clear-transparent-single-rolled-3-mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-single-rolled-3-mm-fusible",
+          "shopifyProductId": 10730573988113,
+          "thicknessMm": 3.0,
+          "finish": "Single-rolled"
+        },
+        {
+          "id": 52839218118929,
+          "sku": "001101-0050-F-1010",
+          "sourceTitle": "10x10 in.",
+          "title": "2 mm \u00b7 Thin-rolled \u00b7 10x10 in.",
+          "form": "sheets",
+          "available": true,
+          "price": 1900,
+          "handle": "clear-transparent-thin-rolled-2-mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-thin-rolled-2-mm-fusible",
+          "shopifyProductId": 10719710576913,
+          "thicknessMm": 2.0,
+          "finish": "Thin-rolled"
+        },
+        {
+          "id": 52839218151697,
+          "sku": "001101-0050-F-HALF",
+          "sourceTitle": "17x20 in., Half Sheet",
+          "title": "2 mm \u00b7 Thin-rolled \u00b7 17x20 in., Half Sheet",
+          "form": "sheets",
+          "available": true,
+          "price": 5480,
+          "handle": "clear-transparent-thin-rolled-2-mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-thin-rolled-2-mm-fusible",
+          "shopifyProductId": 10719710576913,
+          "thicknessMm": 2.0,
+          "finish": "Thin-rolled"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://shop.bullseyeglass.com/products/clear-transparent-coarse-frit-fusible.js",
+          "sha256": "f123e2e9a7aaeb4e58119eace2498d6facb40a82a6b652f594957238fea67c53",
+          "retrievedAt": "2026-10-20T04:56:30Z"
+        },
+        {
+          "url": "https://shop.bullseyeglass.com/products/clear-transparent-double-rolled-3-mm-fusible.js",
+          "sha256": "d13ccc886ed457ce1cbbec228c22f51da5a0326cd17e414792d9673d599ef23b",
+          "retrievedAt": "2026-10-20T04:56:30Z"
+        },
+        {
+          "url": "https://shop.bullseyeglass.com/products/clear-transparent-fine-frit-fusible.js",
+          "sha256": "643ae503a0383836679904efa4adac5f746f470185069898a3cfc182ee142cf1",
+          "retrievedAt": "2026-10-20T04:56:30Z"
+        },
+        {
+          "url": "https://shop.bullseyeglass.com/products/clear-transparent-medium-frit-fusible.js",
+          "sha256": "586fa00dd7e3926b50336ca36a3cade189902b41e12cb62e6e725f250f2ce105",
+          "retrievedAt": "2026-10-20T04:56:30Z"
+        },
+        {
+          "url": "https://shop.bullseyeglass.com/products/clear-transparent-powder-frit-fusible.js",
+          "sha256": "694ab256027765efb0a1149a12add2566816421d17db7fc2f88bb0b22bf9417f",
+          "retrievedAt": "2026-10-20T04:56:30Z"
+        },
+        {
+          "url": "https://shop.bullseyeglass.com/products/clear-transparent-single-rolled-3-mm-fusible.js",
+          "sha256": "6743594be237c5de22aa9a54a11165036b132564778f60fee103e2e02c30ccf5",
+          "retrievedAt": "2026-10-20T04:56:31Z"
+        },
+        {
+          "url": "https://shop.bullseyeglass.com/products/clear-transparent-thin-rolled-2-mm-fusible.js",
+          "sha256": "2e838b97b24a79ab50b924ada77d95b0f7868fa2b6519900782c38f6d0bee950",
+          "retrievedAt": "2026-10-20T04:56:31Z"
+        }
+      ],
+      "image": "https://cdn.shopify.com/s/files/1/0737/5237/9665/files/001101-0003_F_001.jpg?v=1782757079"
+    },
+    {
+      "id": "001100",
+      "code": "001100",
+      "name": "Clear Transparent Tekta",
+      "fullName": "Clear Transparent Tekta",
+      "type": "Transparent",
+      "isClear": true,
+      "cartOnly": true,
+      "samples": [],
+      "form": "medium",
+      "grain": "Medium frit",
+      "variants": [],
+      "allVariants": [
+        {
+          "id": 52880351789329,
+          "sku": "001100-0380-F-1010",
+          "sourceTitle": "10x10 in.",
+          "title": "3 mm \u00b7 Tekta \u00b7 10x10 in.",
+          "form": "sheets",
+          "available": true,
+          "price": 1390,
+          "handle": "clear-transparent-tekta-3mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-tekta-3mm-fusible",
+          "shopifyProductId": 10726826869009,
+          "thicknessMm": 3.0,
+          "finish": "Tekta"
+        },
+        {
+          "id": 52880351822097,
+          "sku": "001100-0380-F-1720",
+          "sourceTitle": "17x20 in., Tekta",
+          "title": "3 mm \u00b7 Tekta \u00b7 17x20 in., Tekta",
+          "form": "sheets",
+          "available": true,
+          "price": 3995,
+          "handle": "clear-transparent-tekta-3mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-tekta-3mm-fusible",
+          "shopifyProductId": 10726826869009,
+          "thicknessMm": 3.0,
+          "finish": "Tekta"
+        },
+        {
+          "id": 52880351297809,
+          "sku": "001100-0480-F-1010",
+          "sourceTitle": "10x10 in.",
+          "title": "4 mm \u00b7 Tekta \u00b7 10x10 in.",
+          "form": "sheets",
+          "available": true,
+          "price": 1840,
+          "handle": "clear-transparent-tekta-4mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-tekta-4mm-fusible",
+          "shopifyProductId": 10726826770705,
+          "thicknessMm": 4.0,
+          "finish": "Tekta"
+        },
+        {
+          "id": 52880351330577,
+          "sku": "001100-0480-F-1720",
+          "sourceTitle": "17x20 in., Tekta",
+          "title": "4 mm \u00b7 Tekta \u00b7 17x20 in., Tekta",
+          "form": "sheets",
+          "available": true,
+          "price": 5295,
+          "handle": "clear-transparent-tekta-4mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-tekta-4mm-fusible",
+          "shopifyProductId": 10726826770705,
+          "thicknessMm": 4.0,
+          "finish": "Tekta"
+        },
+        {
+          "id": 52880351363345,
+          "sku": "001100-0480-F-2035",
+          "sourceTitle": "20x35 in., Tekta",
+          "title": "4 mm \u00b7 Tekta \u00b7 20x35 in., Tekta",
+          "form": "sheets",
+          "available": false,
+          "price": 8570,
+          "handle": "clear-transparent-tekta-4mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-tekta-4mm-fusible",
+          "shopifyProductId": 10726826770705,
+          "thicknessMm": 4.0,
+          "finish": "Tekta"
+        },
+        {
+          "id": 52880371843345,
+          "sku": "001100-0680-F-1010",
+          "sourceTitle": "10x10 in.",
+          "title": "6 mm \u00b7 Tekta \u00b7 10x10 in.",
+          "form": "sheets",
+          "available": true,
+          "price": 2775,
+          "handle": "clear-transparent-tekta-6mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-tekta-6mm-fusible",
+          "shopifyProductId": 10726828671249,
+          "thicknessMm": 6.0,
+          "finish": "Tekta"
+        },
+        {
+          "id": 52880371876113,
+          "sku": "001100-0680-F-1720",
+          "sourceTitle": "17x20 in., Tekta",
+          "title": "6 mm \u00b7 Tekta \u00b7 17x20 in., Tekta",
+          "form": "sheets",
+          "available": true,
+          "price": 7995,
+          "handle": "clear-transparent-tekta-6mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-tekta-6mm-fusible",
+          "shopifyProductId": 10726828671249,
+          "thicknessMm": 6.0,
+          "finish": "Tekta"
+        },
+        {
+          "id": 52880371908881,
+          "sku": "001100-0680-F-2035",
+          "sourceTitle": "20x35 in., Tekta",
+          "title": "6 mm \u00b7 Tekta \u00b7 20x35 in., Tekta",
+          "form": "sheets",
+          "available": true,
+          "price": 18725,
+          "handle": "clear-transparent-tekta-6mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/clear-transparent-tekta-6mm-fusible",
+          "shopifyProductId": 10726828671249,
+          "thicknessMm": 6.0,
+          "finish": "Tekta"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://shop.bullseyeglass.com/products/clear-transparent-tekta-3mm-fusible.js",
+          "sha256": "5208a98c19bde389a424b893b8a144ba470f943642d4d80960a307844d7537a0",
+          "retrievedAt": "2026-10-20T04:56:31Z"
+        },
+        {
+          "url": "https://shop.bullseyeglass.com/products/clear-transparent-tekta-4mm-fusible.js",
+          "sha256": "e5940f9662a43d7da7cbedaa0501a010f54f359456d9845ac50f6b8269984524",
+          "retrievedAt": "2026-10-20T04:56:31Z"
+        },
+        {
+          "url": "https://shop.bullseyeglass.com/products/clear-transparent-tekta-6mm-fusible.js",
+          "sha256": "8d482caac4b0ea92494273dbc8b466f6ad3b46dc8e28e80656c5e1e9cf867829",
+          "retrievedAt": "2026-10-20T04:56:31Z"
+        }
+      ],
+      "image": "https://cdn.shopify.com/s/files/1/0737/5237/9665/files/001100-0380-F_01.jpg?v=1765591785"
+    },
+    {
+      "id": "001401",
+      "code": "001401",
+      "name": "Crystal Clear Transparent",
+      "fullName": "Crystal Clear Transparent",
+      "type": "Transparent",
+      "isClear": true,
+      "cartOnly": true,
+      "samples": [],
+      "form": "medium",
+      "grain": "Medium frit",
+      "variants": [
+        {
+          "id": 52850279219473,
+          "sku": "001401-0002-F-P001",
+          "sourceTitle": "1 lb. jar",
+          "title": "1 lb. jar",
+          "form": "medium",
+          "available": false,
+          "price": 2665,
+          "handle": "crystal-clear-transparent-medium-frit-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-medium-frit-fusible",
+          "shopifyProductId": 10721496924433
+        },
+        {
+          "id": 52850279252241,
+          "sku": "001401-0002-F-P005",
+          "sourceTitle": "5 lb. jar",
+          "title": "5 lb. jar",
+          "form": "medium",
+          "available": true,
+          "price": 9710,
+          "handle": "crystal-clear-transparent-medium-frit-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-medium-frit-fusible",
+          "shopifyProductId": 10721496924433
+        }
+      ],
+      "allVariants": [
+        {
+          "id": 52850279317777,
+          "sku": "001401-0003-F-P001",
+          "sourceTitle": "1 lb. jar",
+          "title": "1 lb. jar",
+          "form": "coarse",
+          "available": true,
+          "price": 2665,
+          "handle": "crystal-clear-transparent-coarse-frit-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-coarse-frit-fusible",
+          "shopifyProductId": 10721496957201
+        },
+        {
+          "id": 52850279350545,
+          "sku": "001401-0003-F-P005",
+          "sourceTitle": "5 lb. jar",
+          "title": "5 lb. jar",
+          "form": "coarse",
+          "available": true,
+          "price": 9710,
+          "handle": "crystal-clear-transparent-coarse-frit-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-coarse-frit-fusible",
+          "shopifyProductId": 10721496957201
+        },
+        {
+          "id": 52837547376913,
+          "sku": "001401-0030-F-1010",
+          "sourceTitle": "10x10 in.",
+          "title": "3 mm \u00b7 Double-rolled \u00b7 10x10 in.",
+          "form": "sheets",
+          "available": false,
+          "price": 2115,
+          "handle": "crystal-clear-transparent-double-rolled-3-mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-double-rolled-3-mm-fusible",
+          "shopifyProductId": 10719570919697,
+          "thicknessMm": 3.0,
+          "finish": "Double-rolled"
+        },
+        {
+          "id": 52837547409681,
+          "sku": "001401-0030-F-HALF",
+          "sourceTitle": "17x20 in., Half Sheet",
+          "title": "3 mm \u00b7 Double-rolled \u00b7 17x20 in., Half Sheet",
+          "form": "sheets",
+          "available": true,
+          "price": 6270,
+          "handle": "crystal-clear-transparent-double-rolled-3-mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-double-rolled-3-mm-fusible",
+          "shopifyProductId": 10719570919697,
+          "thicknessMm": 3.0,
+          "finish": "Double-rolled"
+        },
+        {
+          "id": 52837547442449,
+          "sku": "001401-0030-F-FULL",
+          "sourceTitle": "35x20 in., Full Sheet",
+          "title": "3 mm \u00b7 Double-rolled \u00b7 35x20 in., Full Sheet",
+          "form": "sheets",
+          "available": true,
+          "price": 12185,
+          "handle": "crystal-clear-transparent-double-rolled-3-mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-double-rolled-3-mm-fusible",
+          "shopifyProductId": 10719570919697,
+          "thicknessMm": 3.0,
+          "finish": "Double-rolled"
+        },
+        {
+          "id": 52850279121169,
+          "sku": "001401-0001-F-P001",
+          "sourceTitle": "1 lb. jar",
+          "title": "1 lb. jar",
+          "form": "fine",
+          "available": true,
+          "price": 2665,
+          "handle": "crystal-clear-transparent-fine-frit-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-fine-frit-fusible",
+          "shopifyProductId": 10721496891665
+        },
+        {
+          "id": 52850279153937,
+          "sku": "001401-0001-F-P005",
+          "sourceTitle": "5 lb. jar",
+          "title": "5 lb. jar",
+          "form": "fine",
+          "available": true,
+          "price": 9710,
+          "handle": "crystal-clear-transparent-fine-frit-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-fine-frit-fusible",
+          "shopifyProductId": 10721496891665
+        },
+        {
+          "id": 52850279219473,
+          "sku": "001401-0002-F-P001",
+          "sourceTitle": "1 lb. jar",
+          "title": "1 lb. jar",
+          "form": "medium",
+          "available": false,
+          "price": 2665,
+          "handle": "crystal-clear-transparent-medium-frit-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-medium-frit-fusible",
+          "shopifyProductId": 10721496924433
+        },
+        {
+          "id": 52850279252241,
+          "sku": "001401-0002-F-P005",
+          "sourceTitle": "5 lb. jar",
+          "title": "5 lb. jar",
+          "form": "medium",
+          "available": true,
+          "price": 9710,
+          "handle": "crystal-clear-transparent-medium-frit-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-medium-frit-fusible",
+          "shopifyProductId": 10721496924433
+        },
+        {
+          "id": 52850279416081,
+          "sku": "001401-0008-F-P001",
+          "sourceTitle": "1 lb. jar",
+          "title": "1 lb. jar",
+          "form": "powder",
+          "available": true,
+          "price": 3315,
+          "handle": "crystal-clear-transparent-powder-frit-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-powder-frit-fusible",
+          "shopifyProductId": 10721496989969
+        },
+        {
+          "id": 52850279448849,
+          "sku": "001401-0008-F-P005",
+          "sourceTitle": "5 lb. jar",
+          "title": "5 lb. jar",
+          "form": "powder",
+          "available": true,
+          "price": 12960,
+          "handle": "crystal-clear-transparent-powder-frit-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-powder-frit-fusible",
+          "shopifyProductId": 10721496989969
+        },
+        {
+          "id": 52880345465105,
+          "sku": "001401-0380-F-1010",
+          "sourceTitle": "10x10 in.",
+          "title": "3 mm \u00b7 Tekta \u00b7 10x10 in.",
+          "form": "sheets",
+          "available": true,
+          "price": 2220,
+          "handle": "crystal-clear-transparent-tekta-3mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-tekta-3mm-fusible",
+          "shopifyProductId": 10726825820433,
+          "thicknessMm": 3.0,
+          "finish": "Tekta"
+        },
+        {
+          "id": 52880345497873,
+          "sku": "001401-0380-F-1720",
+          "sourceTitle": "17x20 in., Tekta",
+          "title": "3 mm \u00b7 Tekta \u00b7 17x20 in., Tekta",
+          "form": "sheets",
+          "available": true,
+          "price": 6390,
+          "handle": "crystal-clear-transparent-tekta-3mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-tekta-3mm-fusible",
+          "shopifyProductId": 10726825820433,
+          "thicknessMm": 3.0,
+          "finish": "Tekta"
+        },
+        {
+          "id": 52880345530641,
+          "sku": "001401-0380-F-2035",
+          "sourceTitle": "20x35 in., Tekta",
+          "title": "3 mm \u00b7 Tekta \u00b7 20x35 in., Tekta",
+          "form": "sheets",
+          "available": false,
+          "price": 10340,
+          "handle": "crystal-clear-transparent-tekta-3mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-tekta-3mm-fusible",
+          "shopifyProductId": 10726825820433,
+          "thicknessMm": 3.0,
+          "finish": "Tekta"
+        },
+        {
+          "id": 52868053369105,
+          "sku": "001401-0680-F-1010",
+          "sourceTitle": "10x10 in.",
+          "title": "6 mm \u00b7 Tekta \u00b7 10x10 in.",
+          "form": "sheets",
+          "available": true,
+          "price": 4435,
+          "handle": "crystal-clear-transparent-tekta-6mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-tekta-6mm-fusible",
+          "shopifyProductId": 10725607014673,
+          "thicknessMm": 6.0,
+          "finish": "Tekta"
+        },
+        {
+          "id": 52868053401873,
+          "sku": "001401-0680-F-1720",
+          "sourceTitle": "17x20 in., Tekta",
+          "title": "6 mm \u00b7 Tekta \u00b7 17x20 in., Tekta",
+          "form": "sheets",
+          "available": true,
+          "price": 12770,
+          "handle": "crystal-clear-transparent-tekta-6mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-tekta-6mm-fusible",
+          "shopifyProductId": 10725607014673,
+          "thicknessMm": 6.0,
+          "finish": "Tekta"
+        },
+        {
+          "id": 52868053434641,
+          "sku": "001401-0680-F-2035",
+          "sourceTitle": "20x35 in., Tekta",
+          "title": "6 mm \u00b7 Tekta \u00b7 20x35 in., Tekta",
+          "form": "sheets",
+          "available": true,
+          "price": 20675,
+          "handle": "crystal-clear-transparent-tekta-6mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-tekta-6mm-fusible",
+          "shopifyProductId": 10725607014673,
+          "thicknessMm": 6.0,
+          "finish": "Tekta"
+        },
+        {
+          "id": 52839039533329,
+          "sku": "001401-0050-F-1010",
+          "sourceTitle": "10x10 in.",
+          "title": "2 mm \u00b7 Thin-rolled \u00b7 10x10 in.",
+          "form": "sheets",
+          "available": true,
+          "price": 2525,
+          "handle": "crystal-clear-transparent-thin-rolled-2-mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-thin-rolled-2-mm-fusible",
+          "shopifyProductId": 10719696650513,
+          "thicknessMm": 2.0,
+          "finish": "Thin-rolled"
+        },
+        {
+          "id": 52839039566097,
+          "sku": "001401-0050-F-HALF",
+          "sourceTitle": "17x20 in., Half Sheet",
+          "title": "2 mm \u00b7 Thin-rolled \u00b7 17x20 in., Half Sheet",
+          "form": "sheets",
+          "available": true,
+          "price": 7280,
+          "handle": "crystal-clear-transparent-thin-rolled-2-mm-fusible",
+          "productUrl": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-thin-rolled-2-mm-fusible",
+          "shopifyProductId": 10719696650513,
+          "thicknessMm": 2.0,
+          "finish": "Thin-rolled"
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-coarse-frit-fusible.js",
+          "sha256": "f3c165106246056cf91f161674c3354c81d2a68b718bce13e8049a5d4eaa4a71",
+          "retrievedAt": "2026-10-20T04:56:31Z"
+        },
+        {
+          "url": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-double-rolled-3-mm-fusible.js",
+          "sha256": "9442002c48b0e828a922ae12271e954d176dbc8b397c595c611390f092ebbe63",
+          "retrievedAt": "2026-10-20T04:56:31Z"
+        },
+        {
+          "url": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-fine-frit-fusible.js",
+          "sha256": "d4024a3974dd4d4bcce764a31de35aa6b43236226777563790952e7543f86714",
+          "retrievedAt": "2026-10-20T04:56:31Z"
+        },
+        {
+          "url": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-medium-frit-fusible.js",
+          "sha256": "5b50d257108af4e3ac3abb00111bf6bd0fd0973876537391e194858b15cd4fc5",
+          "retrievedAt": "2026-10-20T04:56:31Z"
+        },
+        {
+          "url": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-powder-frit-fusible.js",
+          "sha256": "d384ea9d02243cb797330b0b5bec8502023e2b1458e8684f7cb9438bd2083e44",
+          "retrievedAt": "2026-10-20T04:56:31Z"
+        },
+        {
+          "url": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-tekta-3mm-fusible.js",
+          "sha256": "a4dd530d64150d98277d2d3f5a1ab9bc0961a0319cccad105d9529c96d3087cc",
+          "retrievedAt": "2026-10-20T04:56:31Z"
+        },
+        {
+          "url": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-tekta-6mm-fusible.js",
+          "sha256": "24ef24a9670b61f8240f956f21d43ac9580e899ec8adc1b5db1a3bd8e8bb0c02",
+          "retrievedAt": "2026-10-20T04:56:31Z"
+        },
+        {
+          "url": "https://shop.bullseyeglass.com/products/crystal-clear-transparent-thin-rolled-2-mm-fusible.js",
+          "sha256": "334b11606ab49589e8fa01cd5be19b9190642eacd0d265d91250e1f2f5fff0dc",
+          "retrievedAt": "2026-10-20T04:56:31Z"
+        }
+      ],
+      "image": "https://cdn.shopify.com/s/files/1/0737/5237/9665/files/001401-0003_F_001.jpg?v=1782757209"
+    }
+  ],
+  "sources": [
+    {
+      "url": "https://shop.bullseyeglass.com/sitemap.xml",
+      "sha256": "ba76677301c19cd2a76252b743f3222ef10517f5365356ba7b9b6a87b4e3bc15",
+      "retrievedAt": "2026-10-20T04:56:27Z"
+    },
+    {
+      "url": "https://shop.bullseyeglass.com/sitemap_products_1.xml?from=8316401320209&to=10721506689297",
+      "sha256": "c17a83b0353ae1d40e79eab91e91343075fc8374b055a787fa5b890cadfca050",
+      "retrievedAt": "2026-10-20T04:56:28Z"
+    },
+    {
+      "url": "https://shop.bullseyeglass.com/sitemap_products_2.xml?from=10721506722065&to=10730627793169",
+      "sha256": "d99eff9cb3f1677c42478adfd0ca7cb98aa3172d317383336a0c6346d8f08abb",
+      "retrievedAt": "2026-10-20T04:56:28Z"
+    },
+    {
+      "url": "https://shop.bullseyeglass.com/sitemap_products_3.xml?from=10730628350225&to=11105220460817",
+      "sha256": "439af86edf8230996d7c1faf05b9d2cf7576067b8a0db44f0e2e1dedbb167504",
+      "retrievedAt": "2026-10-20T04:56:29Z"
+    }
+  ]
+}

@@ -185,3 +185,11 @@ The [verification record](docs/verification.md) covers color regression tests, n
 Images, palettes, saved carts, and settings stay in your Chrome profile. There are no analytics, advertising, or image-analysis uploads. See [PRIVACY.md](PRIVACY.md) for stored data and permissions.
 
 An independent project, not affiliated with or endorsed by Bullseye Glass Co. Product photography **© Bullseye Glass Co.** The software license excludes Bullseye photographs and trademarks. See [ATTRIBUTION.md](ATTRIBUTION.md).
+
+## Cart builder additions
+
+Beside Add a color, Grade and Size select the exact frit grade/package or sheet dimensions and thickness for new additions. Each existing row also has its own grade and size controls. Unavailable combinations remain unavailable instead of silently changing your requested size.
+
+Clear is a separate cart filter for Clear Transparent, Clear Transparent Tekta, and Crystal Clear Transparent. These are cart-only products and do not dilute the photo-matching palette.
+
+Click any photo in the cart editor, Add a color results or saved-cart preview for a large image. The image follows the selected frit grade or sheet product. Variant-assigned photos take priority when provided; otherwise the photo is shared by that product's package sizes. More images from that listing can be browsed in the preview. Remote photos require an internet connection. No photo-sampling data is changed.

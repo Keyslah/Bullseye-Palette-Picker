@@ -44,6 +44,7 @@ let captureBase = null, captureSelection = null, captureStart = null;
 let emptyAction = null, pendingReceivedThisSession = false;
 let draggingPoint = null, pointRenderFrame = 0, accountCheck = null, lastAccountCheck = 0;
 let cartLibrary = null, sendingFingerprint = '', alternativesTargetId = null;
+let clearCartProducts = [], cartPhotoIndex = {};
 let savedSettingsFingerprint = '', settingsSaving = false, settingsDialog = null;
 const isCartPage = new URLSearchParams(location.search).get('cart') === '1';
 document.body.classList.toggle('cart-page',isCartPage);
@@ -67,7 +68,7 @@ function targetNumber(target) { return state.targets.findIndex(entry => entry.id
 function sampleThickness(sample, product) { const value = measureSampleThickness(sample, product); return Number.isFinite(value) ? Math.round(value) : null; }
 function sampleLabel(product, sample) { const thickness = sampleThickness(sample, product); return thickness === null ? `${product.name} · Thickness unavailable` : `${product.name} at ${thickness}% thickness`; }
 function variantKey(product, variant) { return `${product.id}:${String(variant.id || variant.sku)}`; }
-function getProduct(id) { return state.products.find(product => product.id === id); }
+function getProduct(id) { return state.products.find(product => product.id === id) || clearCartProducts.find(product=>product.id===id); }
 function getVariant(product, id) { return product?.variants?.find(variant => String(variant.id) === String(id)) || product?.allVariants?.find(variant => String(variant.id) === String(id)); }
 function currentVariant(product) {
   return defaultFormatVariant(product,state.format,state.selectedVariants[product.id],state.preferredJarSize)
@@ -869,7 +870,7 @@ function bindEvents() {
   $('refresh-settings').addEventListener('click',refreshWorkingSettings);
   $('remix-palette').addEventListener('click',remixPalette);
   $('include-tints').addEventListener('click',()=>{state.includeTints=!state.includeTints;reconcilePaletteSelection();renderResults();persist();});
-  cartLibrary=initializeCartLibrary({getProducts:()=>state.products,getSelection:()=>state.cart,
+  cartLibrary=initializeCartLibrary({getProducts:()=>[...state.products,...clearCartProducts],getPhotoIndex:()=>cartPhotoIndex,getSelection:()=>state.cart,
     getSelectionName:()=>state.savedPaletteName||state.sourceName||'My cart',sendItems:sendCartItems,
     getSendState:cartSendState,getAccount:()=>state.account,getPreferredJarSize:()=>state.preferredJarSize,getFilters:()=>({glassTypes:{...state.glassTypes},includeTints:state.includeTints}),pageMode:isCartPage,openPage:async mode=>{await flushSave();await bridge.openCartPage(mode);},readWebsiteCart:()=>bridge.readBullseyeCart(),signIn,notify});
   for(const option of FORM_OPTIONS)$(`form-${option.id}`).addEventListener('click',()=>{if(state.format!==option.id)changePurchaseOptions(option.id);});
@@ -1011,7 +1012,7 @@ function bindEvents() {
 async function initialize() {
   bindEvents();
   try {
-    const [catalogResult, savedResult, formatsResult, settingsResult] = await Promise.allSettled([
+    const [catalogResult, savedResult, formatsResult, settingsResult, clearResult, photosResult] = await Promise.allSettled([
       fetch('./data/catalog.json').then((response) => {
         if (!response.ok) throw new Error(`Catalog could not be loaded (${response.status}).`);
         return response.json();
@@ -1019,10 +1020,14 @@ async function initialize() {
       bridge.loadState(),
       fetch('./data/product-formats.json').then(response=>{if(!response.ok)throw new Error('Product form options could not load.');return response.json();}),
       loadSettings(),
+      fetch('./data/clear-cart.json').then(response=>{if(!response.ok)throw new Error('Clear glass catalog could not load.');return response.json();}),
+      fetch('./data/cart-photos.json').then(response=>{if(!response.ok)throw new Error('Cart product photos could not load.');return response.json();}),
     ]);
     if (catalogResult.status !== 'fulfilled') throw catalogResult.reason;
     const catalog = catalogResult.value;
     state.baseProducts = Array.isArray(catalog.products) ? catalog.products : [];
+    clearCartProducts = clearResult.status==='fulfilled' && Array.isArray(clearResult.value.products)?clearResult.value.products:[];
+    cartPhotoIndex = photosResult.status==='fulfilled'?photosResult.value:{};
     state.formatIndex = formatsResult.status==='fulfilled'?formatsResult.value:null;
     const preferences=settingsResult.status==='fulfilled'?settingsResult.value:null;
     if(preferences){Object.assign(state,preferences);savedSettingsFingerprint=JSON.stringify(preferences);}
@@ -1036,6 +1041,8 @@ async function initialize() {
     renderAll();
     if(formatsResult.status==='rejected')notify('Product form options could not load. Medium frit is available; reload to use the other forms.',true);
     if(settingsResult.status==='rejected')notify('Saved defaults could not be read. Your current workspace is still available.',true);
+    if(clearResult.status==='rejected')notify('Clear glass options could not load. Reload the extension to restore them.',true);
+    if(photosResult.status==='rejected')notify('Cart product photos could not load. Reference photos are used where available.',true);
     checkAccount(true);
     if(isCartPage){document.title='Carts | Bullseye Palette Picker';await cartLibrary.openPage(new URLSearchParams(location.search).get('mode'));return;}
     bridge.subscribePendingImage((image) => handlePendingImage(image));

@@ -6,6 +6,7 @@
 import {listCarts, saveCart, loadCart, duplicateCart, deleteCart, copiedCartName, normalizeCartItems} from './saved-carts.js';
 import {FORM_OPTIONS} from './product-formats.js';
 import {includedGlass} from './material-filters.js';
+import {createCartPhotoViewer} from './cart-photos.js';
 import {sampleThickness} from './palette.js';
 import {cartVariants, cartSizeLabel, cartSizeChoices, preferredCartSize, exactCartVariant, switchedCartVariant, cartPurchasable} from './cart-options.js';
 
@@ -18,9 +19,11 @@ const node = (tag, className = '', text) => {
 };
 const money = cents => new Intl.NumberFormat('en-US', {style:'currency', currency:'USD'}).format(cents / 100);
 
-export function initializeCartLibrary({getProducts, getSelection, getSelectionName, sendItems, getSendState, getAccount, getPreferredJarSize = ()=>'5lb', getFilters = ()=>({}), pageMode=false, openPage, readWebsiteCart, signIn, notify}) {
+export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getSelection, getSelectionName, sendItems, getSendState, getAccount, getPreferredJarSize = ()=>'5lb', getFilters = ()=>({}), pageMode=false, openPage, readWebsiteCart, signIn, notify}) {
   let draft = null, records = [], saving = false, listRequest = 0, editorRequest = 0, filters = null, naming = false, addForm = null;
   const addSizes = new Map();
+  const photoViewer = createCartPhotoViewer(getPhotoIndex);
+  const includedInCart = product => product.isClear ? filters?.includeClear===true : includedGlass(product,filters);
   const listDialog = $('saved-carts-dialog'), editorDialog = $('cart-editor-dialog');
   const productFor = id => getProducts().find(product => product.id === id);
   const variantFor = (product, id) => product?.variants?.find(variant => String(variant.id) === String(id)) || product?.allVariants?.find(variant=>String(variant.id)===String(id));
@@ -42,12 +45,8 @@ export function initializeCartLibrary({getProducts, getSelection, getSelectionNa
       $(id).textContent = text; $(id).hidden = !text; $(id).classList.toggle('is-error', error);
     }
   }
-  function photo(productId, name) {
-    const wrap = node('div', 'saved-cart-photo'), product = productFor(productId);
-    if (product?.image) {
-      const image = node('img'); image.src = product.image; image.alt = name; image.loading = 'lazy'; wrap.append(image);
-    }
-    return wrap;
+  function photo(productId, name, variant=null) {
+    return photoViewer.thumbnail(productFor(productId) || {id:productId,name},variant);
   }
   function applySendState(button, items) {
     const status = getSendState(items);
@@ -101,7 +100,7 @@ export function initializeCartLibrary({getProducts, getSelection, getSelectionNa
       for (const record of records) {
         const items = hydrate(record.items), card = node('article', 'saved-cart-card'); card.dataset.cartId = record.id;
         const preview = node('div', 'saved-cart-preview');
-        for (const item of [...new Map(items.map(item => [item.productId,item])).values()].slice(0,5)) preview.append(photo(item.productId,item.name));
+        for (const item of [...new Map(items.map(item => [item.productId,item])).values()].slice(0,5)) preview.append(photo(item.productId,item.name,variantFor(productFor(item.productId),item.variantId)));
         const heading = node('div', 'saved-cart-card-heading'); heading.append(node('h3','',record.name),node('p','',summary(items)));
         const actions = node('div', 'saved-cart-card-actions');
         for (const [label, action] of [
@@ -198,6 +197,7 @@ export function initializeCartLibrary({getProducts, getSelection, getSelectionNa
     });
   }
   function thicknessGuide(product) {
+    if(product?.isClear)return 'Clear glass';
     const values=(product?.samples || []).map(sample=>sampleThickness(sample,product)).filter(Number.isFinite);
     if(!values.length)return 'Photo thickness guide unavailable';
     const low=Math.round(Math.min(...values)),high=Math.round(Math.max(...values));
@@ -262,7 +262,7 @@ export function initializeCartLibrary({getProducts, getSelection, getSelectionNa
       if (!knownVariant?.available) body.append(node('p','cart-unavailable',product?'Saved size is unavailable. Choose another size or remove it.':'Copied website item outside this glass catalog. Kept in this copy; remove it before sending with this tool.'));
       const remove = node('button','icon-button','×'); remove.type = 'button'; remove.setAttribute('aria-label',`Remove saved ${item.name}, ${item.title}`);
       remove.addEventListener('click', () => { draft.items = draft.items.filter(current => current !== item); markChanged(); renderEditor(); renderSearch(); });
-      row.append(photo(item.productId,item.name),body,remove); list.append(row);
+      row.append(photo(item.productId,item.name,knownVariant),body,remove); list.append(row);
     }
     refresh();
   }
@@ -271,7 +271,9 @@ export function initializeCartLibrary({getProducts, getSelection, getSelectionNa
     const query = $('saved-cart-search').value.trim().toLowerCase();
     addForm ||= getProducts()[0]?.form || 'medium';
     $('cart-add-form').value=addForm;
-    const sizes=cartSizeChoices(getProducts(),addForm);
+    filters ||= structuredClone(getFilters());
+    filters.glassTypes ||= {transparent:true,opalescent:true};
+    const sizes=cartSizeChoices(getProducts().filter(includedInCart),addForm);
     const sizeKey=preferredCartSize(sizes,addForm,addSizes.get(addForm) || getPreferredJarSize());
     addSizes.set(addForm,sizeKey);
     const sizeControl=$('cart-add-size'); sizeControl.replaceChildren();
@@ -288,7 +290,8 @@ export function initializeCartLibrary({getProducts, getSelection, getSelectionNa
     filters.glassTypes ||= {transparent:true,opalescent:true};
     for(const kind of ['transparent','opalescent'])$(`cart-include-${kind}`).setAttribute('aria-pressed',String(filters.glassTypes[kind] !== false));
     $('cart-include-tints').setAttribute('aria-pressed',String(filters.includeTints === true));
-    const products = getProducts().filter(product => includedGlass(product,filters) && `${product.name} ${product.id} ${product.code}`.toLowerCase().includes(query)).sort((a,b) => a.name.localeCompare(b.name));
+    $('cart-include-clear').setAttribute('aria-pressed',String(filters.includeClear === true));
+    const products = getProducts().filter(product => includedInCart(product) && `${product.name} ${product.id} ${product.code}`.toLowerCase().includes(query)).sort((a,b) => a.name.localeCompare(b.name));
     for (const product of products) {
       const variant = exactCartVariant(product,addForm,sizeKey), already = variant && draft.items.some(item => String(item.variantId) === String(variant.id));
       const row = node('div','saved-cart-search-result'), label = node('div');
@@ -299,7 +302,7 @@ export function initializeCartLibrary({getProducts, getSelection, getSelectionNa
       const add = node('button','button secondary-button',already ? 'Added' : 'Add'); add.type = 'button'; add.disabled = saving || !variant || already;
       add.setAttribute('aria-label',`Add ${product.name} to saved cart`);
       add.addEventListener('click', () => { if (saving || naming || !variant || draft.items.some(item => item.variantId === variant.id)) return; draft.items.push(itemFor(product,variant)); markChanged(); renderEditor(); renderSearch(); });
-      row.append(photo(product.id,product.name),label,add); list.append(row);
+      row.append(photo(product.id,product.name,variant || cartVariants(product,addForm)[0]),label,add); list.append(row);
     }
     if (!products.length) list.append(node('p','saved-empty','No glass by that name or code.'));
     refresh();
@@ -307,6 +310,7 @@ export function initializeCartLibrary({getProducts, getSelection, getSelectionNa
 
   $('open-saved-carts').addEventListener('click',()=>openList().catch(error=>notify(error.message,true)));
   $('copy-website-cart').addEventListener('click',copyWebsiteCart);
+  $('cart-include-clear').addEventListener('click',()=>{filters ||= structuredClone(getFilters());filters.includeClear=!filters.includeClear;renderSearch();});
   $('cart-add-form').addEventListener('change',()=>{addForm=$('cart-add-form').value;renderSearch();});
   $('cart-add-size').addEventListener('change',()=>{addSizes.set(addForm,$('cart-add-size').value);renderSearch();});
   for(const kind of ['transparent','opalescent','tints'])$(`cart-include-${kind}`).addEventListener('click',()=>{filters ||= structuredClone(getFilters());filters.glassTypes ||= {transparent:true,opalescent:true};if(kind==='tints')filters.includeTints=!filters.includeTints;else filters.glassTypes[kind]=filters.glassTypes[kind]===false;renderSearch();});
