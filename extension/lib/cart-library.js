@@ -4,9 +4,10 @@
  * Only a Send button invokes sendItems. Saving, editing, and duplicating are local.
  */
 import {listCarts, saveCart, loadCart, duplicateCart, deleteCart, copiedCartName, normalizeCartItems} from './saved-carts.js';
-import {FORM_OPTIONS, defaultFormatVariant} from './product-formats.js';
+import {FORM_OPTIONS} from './product-formats.js';
 import {includedGlass} from './material-filters.js';
 import {sampleThickness} from './palette.js';
+import {cartVariants, cartSizeLabel, cartSizeChoices, preferredCartSize, exactCartVariant, switchedCartVariant, cartPurchasable} from './cart-options.js';
 
 const $ = id => document.getElementById(id);
 const node = (tag, className = '', text) => {
@@ -18,7 +19,8 @@ const node = (tag, className = '', text) => {
 const money = cents => new Intl.NumberFormat('en-US', {style:'currency', currency:'USD'}).format(cents / 100);
 
 export function initializeCartLibrary({getProducts, getSelection, getSelectionName, sendItems, getSendState, getAccount, getPreferredJarSize = ()=>'5lb', getFilters = ()=>({}), pageMode=false, openPage, readWebsiteCart, signIn, notify}) {
-  let draft = null, records = [], saving = false, listRequest = 0, editorRequest = 0, filters = null, naming = false;
+  let draft = null, records = [], saving = false, listRequest = 0, editorRequest = 0, filters = null, naming = false, addForm = null;
+  const addSizes = new Map();
   const listDialog = $('saved-carts-dialog'), editorDialog = $('cart-editor-dialog');
   const productFor = id => getProducts().find(product => product.id === id);
   const variantFor = (product, id) => product?.variants?.find(variant => String(variant.id) === String(id)) || product?.allVariants?.find(variant=>String(variant.id)===String(id));
@@ -66,6 +68,9 @@ export function initializeCartLibrary({getProducts, getSelection, getSelectionNa
     $('saved-cart-name').disabled = saving;
     $('saved-cart-search').disabled = saving;
     for (const input of $('saved-cart-items').querySelectorAll('input')) input.disabled = saving;
+    for (const select of $('saved-cart-items').querySelectorAll('select')) select.disabled = saving || select.dataset.unavailable === 'true';
+    $('cart-add-form').disabled = saving;
+    $('cart-add-size').disabled = saving || !$('cart-add-size').options.length;
     for (const button of $('saved-cart-items').querySelectorAll('button')) button.disabled = saving;
     $('saved-cart-summary').textContent = summary(draft.items);
     $('saved-cart-draft-status').textContent = draft.dirty ? 'Unsaved changes' : draft.id ? 'Saved' : 'New cart';
@@ -211,34 +216,48 @@ export function initializeCartLibrary({getProducts, getSelection, getSelectionNa
     catch (error) { message(error.message, true); }
   }
 
+  function replaceDraftVariant(item, product, variant) {
+    if (saving || naming || !cartPurchasable(variant)) return;
+    try {
+      draft.items = normalizeCartItems(draft.items.map(current => current === item ? itemFor(product,variant,item.quantity) : current));
+      markChanged(); renderEditor(); renderSearch();
+    } catch (error) { renderEditor(); message(error.message,true); }
+  }
   function renderEditor() {
     const list = $('saved-cart-items'); list.replaceChildren();
     if (!draft.items.length) list.append(node('p','saved-empty','This cart is empty. Add glass below.'));
     for (const item of draft.items) {
       const product = productFor(item.productId), knownVariant = variantFor(product,item.variantId);
-      const sizeOptions=product?.allVariants || product?.variants || [];
+      const currentForm = knownVariant?.form || item.form || 'medium';
+      const sizeOptions = cartVariants(product,currentForm);
       const row = node('article','saved-cart-item'); row.dataset.variantId = String(item.variantId);
       const body = node('div','saved-cart-item-body'); body.append(node('h3','',product?.name || item.name || item.productId),node('p','product-code',`${FORM_OPTIONS.find(option=>option.id===item.form)?.grain || 'Glass'} · ${item.sku || item.productId}`));
-      const controls = node('div','saved-cart-item-controls'), size = node('select','variant-select');
-      size.setAttribute('aria-label',`Jar size for saved ${item.name}`);
+      const controls = node('div','saved-cart-item-controls');
+      const grade = node('select','variant-select cart-grade-select'), size = node('select','variant-select cart-size-select');
+      grade.setAttribute('aria-label',`Grade for saved ${item.name}`);
+      for (const form of FORM_OPTIONS) {
+        const available = cartVariants(product,form.id).some(cartPurchasable);
+        const option = node('option','',`${form.grain}${available ? '' : ' · unavailable'}`);
+        option.value=form.id; option.disabled=!available; grade.append(option);
+      }
+      grade.value=currentForm;
+      grade.dataset.unavailable=String(!FORM_OPTIONS.some(form=>cartVariants(product,form.id).some(cartPurchasable)));
+      grade.addEventListener('change',()=>replaceDraftVariant(item,product,switchedCartVariant(product,grade.value,knownVariant,getPreferredJarSize())));
+      size.setAttribute('aria-label',`${currentForm === 'sheets' ? 'Sheet size and thickness' : 'Jar size'} for saved ${item.name}`);
       if (!knownVariant) { const missing = node('option','',`${item.title || 'Saved size'} · unavailable`); missing.value = String(item.variantId); size.append(missing); }
       for (const variant of sizeOptions) {
-        const option = node('option','',`${FORM_OPTIONS.find(option=>option.id===variant.form)?.label || 'Medium'} · ${variant.title}${variant.available ? '' : ' · unavailable'}`);
-        option.value = String(variant.id); option.disabled = !variant.available; size.append(option);
+        const option = node('option','',`${cartSizeLabel(variant)}${cartPurchasable(variant) ? '' : ' · unavailable'}`);
+        option.value=String(variant.id); option.disabled=!cartPurchasable(variant); size.append(option);
       }
-      size.value = String(item.variantId); size.disabled = !sizeOptions.some(variant => variant.available);
-      size.addEventListener('change', () => {
-        const variant = variantFor(product,size.value); if (!variant?.available) return;
-        try { draft.items = normalizeCartItems(draft.items.map(current => current === item ? itemFor(product,variant,item.quantity) : current)); markChanged(); renderEditor(); renderSearch(); }
-        catch (error) { size.value = String(item.variantId); message(error.message,true); }
-      });
+      size.value=String(item.variantId); size.dataset.unavailable=String(!sizeOptions.some(cartPurchasable));
+      size.addEventListener('change',()=>replaceDraftVariant(item,product,variantFor(product,size.value)));
       const quantity = node('input','quantity-field'); quantity.type = 'number'; quantity.min = '1'; quantity.max = '999'; quantity.step = '1'; quantity.value = item.quantity;
       quantity.setAttribute('aria-label',`Quantity of saved ${item.name}`);
       quantity.addEventListener('change', () => {
         item.quantity = Math.min(999,Math.max(1,Math.round(Number(quantity.value) || 1))); quantity.value = item.quantity;
         price.textContent = money(item.price * item.quantity); markChanged();
       });
-      const price = node('span','cart-item-price',money(item.price * item.quantity)); controls.append(size,quantity,price); body.append(controls);
+      const price = node('span','cart-item-price',money(item.price * item.quantity)); controls.append(grade,size,quantity,price); body.append(controls);
       if(product)body.append(node('p','cart-thickness',thicknessGuide(product)));
       if (!knownVariant?.available) body.append(node('p','cart-unavailable',product?'Saved size is unavailable. Choose another size or remove it.':'Copied website item outside this glass catalog. Kept in this copy; remove it before sending with this tool.'));
       const remove = node('button','icon-button','×'); remove.type = 'button'; remove.setAttribute('aria-label',`Remove saved ${item.name}, ${item.title}`);
@@ -250,26 +269,46 @@ export function initializeCartLibrary({getProducts, getSelection, getSelectionNa
   function renderSearch() {
     const list = $('saved-cart-search-results'); list.replaceChildren(); if (!draft) return;
     const query = $('saved-cart-search').value.trim().toLowerCase();
+    addForm ||= getProducts()[0]?.form || 'medium';
+    $('cart-add-form').value=addForm;
+    const sizes=cartSizeChoices(getProducts(),addForm);
+    const sizeKey=preferredCartSize(sizes,addForm,addSizes.get(addForm) || getPreferredJarSize());
+    addSizes.set(addForm,sizeKey);
+    const sizeControl=$('cart-add-size'); sizeControl.replaceChildren();
+    for (const choice of sizes) {
+      const option=node('option','',`${choice.label}${choice.available ? '' : ' · unavailable'}`);
+      option.value=choice.key; option.disabled=!choice.available; sizeControl.append(option);
+    }
+    sizeControl.value=sizeKey;
+    $('cart-add-size-label').textContent=addForm==='sheets' ? 'Size / thickness' : 'Size';
+    sizeControl.setAttribute('aria-label',addForm==='sheets'?'Sheet size and thickness to add':'Jar size to add');
+    sizeControl.title=sizeControl.selectedOptions[0]?.textContent || '';
+    const gradeLabel=FORM_OPTIONS.find(option=>option.id===addForm)?.grain || 'Glass';
     filters ||= structuredClone(getFilters());
     filters.glassTypes ||= {transparent:true,opalescent:true};
     for(const kind of ['transparent','opalescent'])$(`cart-include-${kind}`).setAttribute('aria-pressed',String(filters.glassTypes[kind] !== false));
     $('cart-include-tints').setAttribute('aria-pressed',String(filters.includeTints === true));
     const products = getProducts().filter(product => includedGlass(product,filters) && `${product.name} ${product.id} ${product.code}`.toLowerCase().includes(query)).sort((a,b) => a.name.localeCompare(b.name));
     for (const product of products) {
-      const variant = defaultFormatVariant(product,product.form,undefined,getPreferredJarSize()), already = variant && draft.items.some(item => String(item.variantId) === String(variant.id));
+      const variant = exactCartVariant(product,addForm,sizeKey), already = variant && draft.items.some(item => String(item.variantId) === String(variant.id));
       const row = node('div','saved-cart-search-result'), label = node('div');
-      label.append(node('strong','',product.name),node('span','',`${product.grain || 'Medium frit'} · ${variant?.title || 'Unavailable'}`));
+      row.dataset.productId=product.id; row.dataset.variantId=variant ? String(variant.id) : '';
+      const requestedSize=sizes.find(choice=>choice.key===sizeKey)?.label || 'this size';
+      label.append(node('strong','',product.name),node('span','',`${gradeLabel} · ${variant ? cartSizeLabel(variant) : `${requestedSize} · unavailable`}`));
       label.append(node('span','cart-thickness',thicknessGuide(product)));
-      const add = node('button','button secondary-button',already ? 'Added' : 'Add'); add.type = 'button'; add.disabled = !variant || already;
+      const add = node('button','button secondary-button',already ? 'Added' : 'Add'); add.type = 'button'; add.disabled = saving || !variant || already;
       add.setAttribute('aria-label',`Add ${product.name} to saved cart`);
-      add.addEventListener('click', () => { if (!variant || draft.items.some(item => item.variantId === variant.id)) return; draft.items.push(itemFor(product,variant)); markChanged(); renderEditor(); renderSearch(); });
+      add.addEventListener('click', () => { if (saving || naming || !variant || draft.items.some(item => item.variantId === variant.id)) return; draft.items.push(itemFor(product,variant)); markChanged(); renderEditor(); renderSearch(); });
       row.append(photo(product.id,product.name),label,add); list.append(row);
     }
     if (!products.length) list.append(node('p','saved-empty','No glass by that name or code.'));
+    refresh();
   }
 
   $('open-saved-carts').addEventListener('click',()=>openList().catch(error=>notify(error.message,true)));
   $('copy-website-cart').addEventListener('click',copyWebsiteCart);
+  $('cart-add-form').addEventListener('change',()=>{addForm=$('cart-add-form').value;renderSearch();});
+  $('cart-add-size').addEventListener('change',()=>{addSizes.set(addForm,$('cart-add-size').value);renderSearch();});
   for(const kind of ['transparent','opalescent','tints'])$(`cart-include-${kind}`).addEventListener('click',()=>{filters ||= structuredClone(getFilters());filters.glassTypes ||= {transparent:true,opalescent:true};if(kind==='tints')filters.includeTints=!filters.includeTints;else filters.glassTypes[kind]=filters.glassTypes[kind]===false;renderSearch();});
   $('close-saved-carts').addEventListener('click',() => { editorRequest++; listDialog.close(); });
   $('new-saved-cart').addEventListener('click',() => {if(mayReplaceDraft())openEditor();});
@@ -287,7 +326,7 @@ export function initializeCartLibrary({getProducts, getSelection, getSelectionNa
   if(pageMode)window.addEventListener('beforeunload',event=>{if(draft?.dirty){event.preventDefault();event.returnValue='';}});
   return {
     refresh,
-    optionsChanged(){if(draft){renderEditor();renderSearch();}},
+    optionsChanged(){if(draft){addForm=getProducts()[0]?.form || 'medium';renderEditor();renderSearch();}},
     sendDraft(){if(draft && !saving)return runSend(draft.items);},
     async openPage(mode='selection'){
       if(mode==='list'){openEditor();await openList();}
