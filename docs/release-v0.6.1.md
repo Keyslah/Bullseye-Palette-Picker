@@ -6,7 +6,7 @@
 - Alternatives opens a separate searchable popup from a comparison card, the toolbar or the glass-detail window. It does not replace the full main palette. With Show full palette turned off, the main area shows the active color's match; Alternatives is still its own popup.
 - Light Orange Striker is preferred when the automatic choice would otherwise be Carnelian, provided Orange Striker is included and available in the selected form. Carnelian remains selectable as an alternative, and explicit saved choices are respected. Matching scores and catalog data are unchanged.
 
-The reported glitch investigation was dropped as requested. No unrelated cart, account, image-sampling or catalog behavior was changed.
+The reported glitch investigation was dropped as requested. Existing account integration, image sampling and the original color-matching catalog are unchanged.
 
 ## Update
 

@@ -63,3 +63,7 @@ An uncertain or partial addition is reported to the user instead of automaticall
 Optional host patterns let Chrome request a particular image origin when needed; they do not grant every website at installation. The extension does not request password, cookie, browsing-history, camera, or microphone APIs.
 
 Saved carts, saved settings, and the additional purchase formats introduce no new Chrome permissions. Store integration tests use isolated fixtures; they do not operate on a user's personal Bullseye account or complete a live purchase.
+
+## Cart product photographs
+
+Cart thumbnails and enlarged previews request public product photographs from shop.bullseyeglass.com or cdn.shopify.com, with referrer information omitted. These requests carry no photo-palette image or customer information. cart-photos.json records the public image sources. clear-cart.json contains additional clear-glass purchase variants for the cart only; they are not added to automatic photo matching.

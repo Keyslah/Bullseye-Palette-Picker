@@ -416,3 +416,7 @@ finally:
             'storeMode':'Isolated synthetic fixture. No real account or cart mutations.'}
     (OUT/'v061-report.json').write_text(json.dumps(report,indent=2))
     print(json.dumps(report,indent=2),flush=True)
+
+# The added cart-builder acceptance test is a separate isolated browser/profile.
+import subprocess
+subprocess.run(['python',str(ROOT/'tests/cart-builder-browser.py')],check=True)
