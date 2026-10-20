@@ -66,6 +66,11 @@
         <div class="access-note" id="image-access-note" hidden><p id="image-access-copy"></p><button class="button secondary-button" id="allow-image-access" type="button">Allow image access</button></div>
       </section>
     </main>
+    <dialog id="alternatives-dialog" aria-labelledby="alternatives-title">
+      <div class="dialog-heading"><h2 id="alternatives-title">Alternatives</h2><button id="close-alternatives" class="icon-button" type="button" aria-label="Close alternatives">×</button></div>
+      <div class="alternatives-tools"><span id="alternatives-target" aria-hidden="true"></span><input id="alternatives-search" type="search" placeholder="Glass name or code" aria-label="Search alternatives"><button id="alternatives-transparent" class="type-filter" type="button" aria-pressed="true">Transparent</button><button id="alternatives-opalescent" class="type-filter" type="button" aria-pressed="true">Opalescent</button><button id="alternatives-tints" class="type-filter" type="button" aria-pressed="false">Tints</button></div>
+      <div id="alternatives-grid" aria-label="Alternative glass colors"></div><p id="alternatives-empty" hidden>No alternatives match these filters.</p>
+    </dialog>
     <dialog id="color-editor-dialog" class="saved-dialog" aria-labelledby="editing-target"><div class="dialog-shell"><div class="dialog-heading"><h2 id="editing-target">Edit color</h2><button id="close-color-editor" class="icon-button" type="button" aria-label="Close color editor">×</button></div><div class="target-editor" id="target-editor"><input id="target-color" type="color" value="#537967" aria-label="Edit selected palette color"><input id="target-hex" type="text" value="#537967" maxlength="7" spellcheck="false" aria-label="Selected color hex code"><button class="text-button" id="remove-target" type="button">Remove</button></div></div></dialog>
     <div class="toast" id="status-message" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 

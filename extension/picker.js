@@ -18,6 +18,7 @@ import {normalizeCartItems} from './lib/saved-carts.js';
 import {FORM_OPTIONS, normalizeForm, productForForm, defaultFormatVariant} from './lib/product-formats.js';
 import {loadSettings, normalizeSettings, DEFAULT_SETTINGS} from './lib/settings.js';
 import {includedGlass} from './lib/material-filters.js';
+import {preferredAutomaticMatch} from './lib/match-preference.js';
 import {initializeSettingsDialog} from './lib/settings-dialog.js';
 
 const $ = id => document.getElementById(id);
@@ -42,7 +43,7 @@ let imageLoadId = 0, cancellingImageId = 0, manualTargetId = 0;
 let captureBase = null, captureSelection = null, captureStart = null;
 let emptyAction = null, pendingReceivedThisSession = false;
 let draggingPoint = null, pointRenderFrame = 0, accountCheck = null, lastAccountCheck = 0;
-let cartLibrary = null, sendingFingerprint = '';
+let cartLibrary = null, sendingFingerprint = '', alternativesTargetId = null;
 let savedSettingsFingerprint = '', settingsSaving = false, settingsDialog = null;
 const isCartPage = new URLSearchParams(location.search).get('cart') === '1';
 document.body.classList.toggle('cart-page',isCartPage);
@@ -250,16 +251,19 @@ function renderImageLayout() {
   main.dataset.imageSize = state.imageSize;
   main.dataset.view = state.view;
   for (const size of ['fit','larger','full']) $(`image-${size}`).setAttribute('aria-pressed',String(state.imageSize===size));
+  const grid=$('product-grid');
+  const columns=Math.max(1,Math.min(grid.children.length || 1,Math.floor((grid.clientWidth+6)/136)));
+  main.style.setProperty('--match-columns',String(columns));
   if (!state.imageData || $('image-loaded').hidden) return;
   const stage=$('image-stage');
   // Actual usable space, not a desktop-only 900px breakpoint or a 360px photo cap.
   const availableWidth=Math.max(1,stage.clientWidth);
   const top=document.querySelector('.app-header').offsetHeight+$('palette-panel').offsetHeight+12;
   const remaining=Math.max(240,window.innerHeight-top);
-  const horizontalRail=beside?0:Math.min(160,remaining*.25);
-  const fitHeight=Math.max(220,remaining-horizontalRail);
+  const horizontalRail=beside?0:document.querySelector('.workspace-results').getBoundingClientRect().height+8;
+  const fitHeight=Math.max(140,remaining-horizontalRail);
   // Larger portraits use the entire source column rather than leaving a wide gutter.
-  const limit=beside && state.imageSize!=='fit'?Infinity:state.imageSize==='fit'?fitHeight:state.imageSize==='larger'?fitHeight*1.25:Infinity;
+  const limit=beside && state.imageSize!=='fit'?Infinity:state.imageSize==='full'?Infinity:fitHeight;
   const scale=Math.min(availableWidth/sourceCanvas.width,limit/sourceCanvas.height);
   const width=sourceCanvas.width*scale,height=sourceCanvas.height*scale;
   const wrap=sourceCanvas.parentElement;
@@ -390,7 +394,7 @@ function matchesFor(target, alternatives = false) {
 function primaryMatch(target) {
   const matches=matchesFor(target), chosen=state.chosenMatches[target.id];
   return (chosen ? matchesFor(target,true).find(entry=>entry.product.id===chosen) : null)
-    || matches.find(entry=>defaultFormatVariant(entry.product,state.format,state.selectedVariants[entry.product.id],state.preferredJarSize)) || matches[0] || null;
+    || preferredAutomaticMatch(matches,entry=>Boolean(defaultFormatVariant(entry.product,state.format,state.selectedVariants[entry.product.id],state.preferredJarSize)));
 }
 function selectionSuggestions() {
   return state.targets.map(target => {
@@ -405,7 +409,7 @@ function reconcilePaletteSelection() {
 }
 function renderResults() {
   const focusedKey=document.activeElement?.dataset?.focusKey;
-  const openedPurchase=$('product-grid').querySelector('.purchase-popover:popover-open')?.dataset.purchaseKey;
+  const openedPurchase=document.querySelector('.purchase-popover:popover-open')?.dataset.purchaseKey;
   for (const view of ['palette','library']) {
     const active=state.view===view || (view==='palette' && state.view==='alternatives');
     $(`${view}-tab`).classList.toggle('is-active',active); $(`${view}-tab`).setAttribute('aria-selected',String(active));
@@ -429,7 +433,7 @@ function renderResults() {
   if (state.view==='alternatives') $('alternatives-label').textContent=`Color ${targetNumber(target)} · ${target?.hex || ''}`;
   let entries;
   if (state.view==='library') entries=products.map(product=>({product,sample:null}));
-  else if (state.view==='alternatives') entries=matchesFor(target,true).map(entry=>({...entry,target}));
+  else if (state.view==='alternatives') entries=target?[{...primaryMatch(target),target}]:[];
   else entries=state.targets.map(target=>({...primaryMatch(target),target}));
   if (!state.glassTypes.transparent && !state.glassTypes.opalescent) entries=[];
   const query=state.query.trim().toLowerCase();
@@ -444,7 +448,8 @@ function renderResults() {
     else setEmpty('The glass catalog could not load.','Reload the picker.','Reload',()=>location.reload());
   }
   for (const entry of entries) list.append(entry.product?renderProduct(entry):renderNoMatch(entry.target));
-  if(openedPurchase)for(const panel of list.querySelectorAll('.purchase-popover'))if(panel.dataset.purchaseKey===openedPurchase)showPurchasePopover(panel,panel.parentElement.querySelector('button'));
+  if($('alternatives-dialog').open)renderAlternatives();
+  if(openedPurchase)for(const panel of document.querySelectorAll('.purchase-popover'))if(panel.dataset.purchaseKey===openedPurchase)showPurchasePopover(panel,panel.parentElement.querySelector('button'));
   renderImageLayout();
   if (focusedKey) for (const node of document.querySelectorAll('[data-focus-key]')) if (node.dataset.focusKey===focusedKey) {node.focus({preventScroll:true});break;}
 }
@@ -460,10 +465,13 @@ function renderNoMatch(target) {
   const body=element('div');body.append(element('h3','product-name',`Color ${targetNumber(target)} · ${target.hex}`),element('p','','No matching glass in the included types.'));
   const edit=element('button','row-alternatives','Edit color');edit.type='button';edit.addEventListener('click',()=>{selectTarget(target.id);$('color-editor-dialog').showModal();$('target-hex').focus();});body.append(edit);row.append(swatch,body);return row;
 }
+function purchaseGrade(product,variant=currentVariant(product)) {
+  return FORM_OPTIONS.find(option=>option.id===(variant?.form || product.form))?.grain || product.grain || 'Medium frit';
+}
 function purchaseSummary(product) {
   const variant=currentVariant(product),item=variant&&selectedItem(product,variant);
   const size=variant?.title?.replace(/ jar$/i,'') || 'Unavailable';
-  return `${item?'✓ ':''}${size} · ${item?.quantity || 1}`;
+  return `${purchaseGrade(product,variant)} · ${size} · ${item?.quantity || state.quantities[variantKey(product,variant || {})] || 1}`;
 }
 function showPurchasePopover(panel,button) {
   if(!panel.matches(':popover-open'))panel.showPopover();
@@ -471,23 +479,26 @@ function showPurchasePopover(panel,button) {
   panel.style.left=`${Math.max(6,Math.min(rect.left,innerWidth-bounds.width-6))}px`;
   panel.style.top=`${Math.max(6,Math.min(rect.bottom+3,innerHeight-bounds.height-6))}px`;
 }
-function compactPurchase(product,targetId) {
+function compactPurchase(product,targetId,scope='row') {
   const wrap=element('div','compact-purchase'),button=element('button','purchase-toggle',purchaseSummary(product));
   button.type='button';button.dataset.productId=product.id;
   button.setAttribute('aria-label',`Purchase options for ${product.name}`);button.setAttribute('aria-haspopup','dialog');
   const panel=element('div','purchase-popover');panel.popover='auto';panel.setAttribute('role','dialog');panel.setAttribute('aria-label',`Purchase ${product.name}`);
-  panel.dataset.purchaseKey=`${targetId||'library'}:${product.id}`;
+  panel.dataset.purchaseKey=`${scope}:${targetId||'library'}:${product.id}`;
   const heading=element('div','dialog-heading');heading.append(element('strong','',product.name));
   const close=element('button','icon-button','×');close.type='button';close.setAttribute('aria-label','Close purchase options');close.addEventListener('click',()=>panel.hidePopover());heading.append(close);
-  panel.append(heading,purchaseControls(product,false,targetId));
+  panel.append(heading,element('p','purchase-grade',purchaseGrade(product)),purchaseControls(product,false,targetId,scope));
   button.addEventListener('click',()=>{if(panel.matches(':popover-open'))panel.hidePopover();else showPurchasePopover(panel,button);});
   wrap.append(button,panel);return wrap;
 }
-function renderProduct(entry) {
+function renderProduct(entry,alternative=false) {
   const {product,sample,target}=entry,variant=currentVariant(product);
-  const row=element('article',`product-card compact-card${selectedItem(product,variant)?' is-selected':''}`);
+  const row=element('article',`product-card compact-card${alternative?' alternative-card':''}${selectedItem(product,variant)?' is-selected':''}`);
   row.dataset.productId=product.id;if(target)row.dataset.targetId=target.id;
-  const body=element('div','product-card-content');body.append(element('h3','product-name',product.name));
+  const scope=alternative?'alternative':'row';
+  const body=element('div','product-card-content'),heading=element('div','glass-name-row');
+  heading.append(element('h3','product-name',product.name),selectionCheckbox(product,variant,`${scope}-${target?.id || ''}-${product.id}-selected`));
+  body.append(heading);
   if(sample){
     const label=element('p','match-label'),swatch=element('span','small-swatch'),thickness=sampleThickness(sample,product);
     swatch.style.backgroundColor=sample.hex||colorHex(sample.rgb);
@@ -498,10 +509,10 @@ function renderProduct(entry) {
     const strip=element('div','sample-strip');
     for(const sample of product.samples||[]){const swatch=element('span');swatch.style.backgroundColor=sample.hex||colorHex(sample.rgb);strip.append(swatch);}body.append(strip);
   }
-  const actions=element('div','compact-card-actions');actions.append(compactPurchase(product,target?.id));
+  const actions=element('div','compact-card-actions');actions.append(compactPurchase(product,target?.id,scope));
   if(target){
-    const action=element('button','row-alternatives',state.view==='alternatives'?'Use color':'Alternatives');action.type='button';
-    action.addEventListener('click',()=>{if(state.view==='alternatives'){state.chosenMatches[target.id]=product.id;reconcilePaletteSelection();setView('palette');}else showAlternatives(target.id);});actions.append(action);
+    const action=element('button','row-alternatives',alternative?'Use color':'Alternatives');action.type='button';
+    action.addEventListener('click',()=>{if(alternative)chooseAlternative(target.id,product.id);else showAlternatives(target.id);});actions.append(action);
   }
   body.append(actions);
   const photo=element('button','photo-button');photo.type='button';photo.setAttribute('aria-label',`Inspect ${product.name} color photograph`);
@@ -513,13 +524,21 @@ function renderProduct(entry) {
 
 function variantSelect(product,chosen,onChange,focusKey) {
   const select=element('select','variant-select');select.setAttribute('aria-label',`${product.form==='sheets'?'Sheet size':'Jar size'} for ${product.name}`);if(focusKey)select.dataset.focusKey=focusKey;
-  for(const variant of product.variants||[]){const option=element('option','',`${variant.title}${variant.available?'':' · unavailable'}`);option.value=String(variant.id);option.disabled=!variant.available;option.selected=String(variant.id)===String(chosen?.id);select.append(option);}
+  for(const variant of product.variants||[]){const option=element('option','',`${purchaseGrade(product,variant)} · ${variant.title}${variant.available?'':' · unavailable'}`);option.value=String(variant.id);option.disabled=!variant.available;option.selected=String(variant.id)===String(chosen?.id);select.append(option);}
   if(!product.variants?.length)select.append(element('option','','Unavailable in this form'));select.disabled=!product.variants?.some(variant=>variant.available);
   select.addEventListener('change',()=>onChange(select.value));return select;
 }
-function purchaseControls(product,inDetail=false,targetId='') {
+function selectionCheckbox(product,variant,focusKey) {
+  const input=element('input','glass-checkbox'),selected=selectedItem(product,variant);
+  input.type='checkbox';input.checked=Boolean(selected);input.dataset.focusKey=focusKey;
+  input.setAttribute('aria-label',`${selected?'Remove':'Select'} ${product.name}, ${variant?.title || 'glass'}`);
+  input.disabled=!selected && (!variant?.available || !variant?.sku);
+  input.addEventListener('change',()=>toggleGlass(product,variant));
+  return input;
+}
+function purchaseControls(product,inDetail=false,targetId='',scope='row') {
   const controls=element('div','product-purchase'),variant=currentVariant(product),selected=selectedItem(product,variant);
-  const focusPrefix=`${inDetail?'detail':'row'}-${targetId}-${product.id}`;
+  const focusPrefix=`${inDetail?'detail':scope}-${targetId}-${product.id}`;
   const select=variantSelect(product,variant,value=>{
     const old=selectedItem(product,currentVariant(product));
     state.selectedVariants[product.id]=value;
@@ -527,9 +546,10 @@ function purchaseControls(product,inDetail=false,targetId='') {
   },`${focusPrefix}-variant`);
   const quantity=element('input','quantity-field');quantity.type='number';quantity.min='1';quantity.max='999';quantity.step='1';quantity.value=selected?.quantity||state.quantities[variantKey(product,variant||{})]||1;quantity.title='Quantity';quantity.dataset.quantityKey=variantKey(product,variant||{});quantity.dataset.focusKey=`${focusPrefix}-quantity`;quantity.setAttribute('aria-label',`Quantity of ${product.name}`);quantity.disabled=!variant?.available;
   quantity.addEventListener('change',()=>{const amount=clamp(Math.round(Number(quantity.value)||1),1,999);state.quantities[variantKey(product,variant||{})]=amount;if(selected)changeQuantity(selected.key,amount);else{syncQuantityControls(variantKey(product,variant||{}),amount);persist();}});
-  const row=element('div','select-row'),label=element('label','select-glass'),checkbox=element('input');checkbox.type='checkbox';checkbox.checked=!!selected;checkbox.dataset.focusKey=`${focusPrefix}-selected`;checkbox.setAttribute('aria-label',`${selected?'Remove':'Select'} ${product.name}, ${variant?.title||'glass'}`);checkbox.disabled=!selected&&(!variant?.available||!variant?.sku);
-  checkbox.addEventListener('change',()=>toggleGlass(product,variant));label.append(checkbox,element('span','',selected?'Selected':'Select'));
-  row.append(element('span','product-price',variant?money(variant.price):'View item'),label);controls.append(select,quantity,row);return controls;
+  const row=element('div','select-row');
+  row.append(element('span','product-price',variant?money(variant.price):'View item'));
+  if(inDetail)row.append(selectionCheckbox(product,variant,`${focusPrefix}-selected`));
+  controls.append(select,quantity,row);return controls;
 }
 function makeCartItem(product,variant,quantity=1) {return {key:variantKey(product,variant),productId:product.id,variantId:variant.id,form:variant.form||product.form||'medium',sku:variant.sku,name:product.name,image:product.image,title:variant.title,price:Number(variant.price)||0,available:Boolean(variant.available),quantity:clamp(Math.round(Number(quantity)||1),1,999)};}
 function toggleGlass(product,variant) {
@@ -628,7 +648,34 @@ async function copyOrder(){try{await navigator.clipboard.writeText(orderLines())
 function renderAll(){renderSettings();renderImageLayout();renderPalette();renderResults();renderCart();renderAccount();}
 function setView(view){state.view=view;if(view==='palette'){state.query='';$('glass-search').value='';}renderResults();persist();}
 function selectTarget(id){state.activeTargetId=id;if(state.view==='library')state.view='palette';renderPalette();renderResults();persist();}
-function showAlternatives(id){state.query='';$('glass-search').value='';state.activeTargetId=id;state.view='alternatives';renderPalette();renderResults();persist();}
+function showAlternatives(id) {
+  const target=state.targets.find(value=>value.id===id);if(!target)return;
+  alternativesTargetId=id;state.activeTargetId=id;
+  $('alternatives-search').value='';closeToolbarMenus();renderPalette();renderAlternatives();
+  const dialog=$('alternatives-dialog');if(!dialog.open)dialog.showModal();
+  $('alternatives-search').focus({preventScroll:true});persist();
+}
+function renderAlternatives() {
+  const target=state.targets.find(value=>value.id===alternativesTargetId);
+  if(!target){$('alternatives-dialog').close();return;}
+  $('alternatives-title').textContent=`Alternatives for color ${targetNumber(target)}`;
+  $('alternatives-target').style.backgroundColor=target.hex;
+  $('alternatives-target').title=target.hex;
+  const query=$('alternatives-search').value.trim().toLowerCase();
+  const list=$('alternatives-grid'),scroll=list.scrollTop;
+  const matches=matchesFor(target,true).filter(entry=>`${entry.product.name} ${entry.product.code} ${entry.product.id}`.toLowerCase().includes(query));
+  list.replaceChildren(...matches.map(entry=>renderProduct({...entry,target},true)));
+  $('alternatives-empty').hidden=Boolean(matches.length);
+  list.scrollTop=scroll;
+  for(const type of ['transparent','opalescent'])$(`alternatives-${type}`).setAttribute('aria-pressed',String(state.glassTypes[type]));
+  $('alternatives-tints').setAttribute('aria-pressed',String(state.includeTints));
+}
+function chooseAlternative(targetId,productId) {
+  if(!state.targets.some(target=>target.id===targetId))return;
+  state.chosenMatches[targetId]=productId;
+  if($('alternatives-dialog').open)$('alternatives-dialog').close();
+  reconcilePaletteSelection();renderPalette();renderResults();persist();
+}
 function removeTarget(id){const index=state.targets.findIndex(target=>target.id===id);state.targets=state.targets.filter(target=>target.id!==id);delete state.chosenMatches[id];if(!activeTarget())state.activeTargetId=state.targets[Math.max(0,index-1)]?.id||null;reconcilePaletteSelection();renderPalette();renderResults();persist();}
 function addTarget(rgb,point=null){if(state.targets.length>=MAX_TARGETS){notify(`Remove a color before adding more than ${MAX_TARGETS}.`,true);return null;}const target=normalizeTarget({id:`manual-${Date.now()}-${++manualTargetId}`,rgb,manual:true,...point});state.targets.push(target);state.activeTargetId=target.id;state.view='palette';reconcilePaletteSelection();renderPalette();renderResults();persist();return target;}
 function createCustomTarget(){const rgb=activeTarget()?.rgb||[83,121,103],target=addTarget(rgb,nearestSourcePoint(rgb));if(target){target.custom=true;renderPalette();$('color-editor-dialog').showModal();$('target-hex').select();}}
@@ -813,6 +860,9 @@ function bindEvents() {
   document.addEventListener('keydown',event=>{if(event.key==='Escape')closeToolbarMenus();});
   $('open-color-editor').addEventListener('click',()=>{$('color-editor-dialog').showModal();$('target-hex').select();});
   $('close-color-editor').addEventListener('click',()=>$('color-editor-dialog').close());
+  $('close-alternatives').addEventListener('click',()=>$('alternatives-dialog').close());
+  $('alternatives-search').addEventListener('input',renderAlternatives);
+  for(const type of ['transparent','opalescent','tints'])$(`alternatives-${type}`).addEventListener('click',()=>{if(type==='tints')state.includeTints=!state.includeTints;else state.glassTypes[type]=!state.glassTypes[type];reconcilePaletteSelection();renderResults();persist();});
   settingsDialog=initializeSettingsDialog({getSettings:currentSettings,applySettings:applyWorkingSettings,onSaved:settings=>{savedSettingsFingerprint=JSON.stringify(settings);renderSettings();},notify});
   $('load-settings').addEventListener('click',()=>settingsDialog.open(false));
   $('refresh-settings').addEventListener('click',refreshWorkingSettings);
@@ -827,7 +877,7 @@ function bindEvents() {
   window.addEventListener('pagehide', flushSave);
   $('show-alternatives').addEventListener('click', () => { if (state.activeTargetId) showAlternatives(state.activeTargetId); });
   $('back-to-palette').addEventListener('click', () => setView('palette'));
-  $('show-full-palette').addEventListener('change', (event) => { if(event.target.checked)setView('palette');else if(state.activeTargetId)showAlternatives(state.activeTargetId); });
+  $('show-full-palette').addEventListener('change', (event) => { if(event.target.checked)setView('palette');else if(state.activeTargetId)setView('alternatives'); });
   $('save-palette').addEventListener('click', () => openSaved(true));
   $('open-saved').addEventListener('click', () => openSaved(false));
   $('close-saved').addEventListener('click', () => $('saved-dialog').close());
@@ -888,7 +938,7 @@ function bindEvents() {
   for (const id of ['close-cart', 'back-to-glass']) $(id).addEventListener('click', () => $('cart-dialog').close());
   $('close-detail').addEventListener('click', () => $('detail-dialog').close());
   $('detail-alternatives').addEventListener('click',()=>{const id=detailTargetId;$('detail-dialog').close();if(id)showAlternatives(id);});
-  $('detail-choose').addEventListener('click',()=>{const id=detailTargetId,product=detailProduct;if(id && product){state.chosenMatches[id]=product.id;$('detail-dialog').close();reconcilePaletteSelection();setView('palette');}});
+  $('detail-choose').addEventListener('click',()=>{const id=detailTargetId,product=detailProduct;if(id && product){$('detail-dialog').close();chooseAlternative(id,product.id);}});
   $('detail-photo').addEventListener('click', (event) => {
     const photo = $('detail-photo').querySelector('.glass-photo');
     if (!photo || !detailProduct?.samples?.length) return;
