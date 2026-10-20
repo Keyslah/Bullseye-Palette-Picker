@@ -139,7 +139,7 @@ try:
             cart.locator('#cart-add-form').select_option(form);cart.locator('#cart-add-size').select_option('1lb')
             check_photo(result.locator('.cart-photo-button img'),source('001108',form))
             result.locator('.cart-photo-button').click();check_photo(cart.locator('#cart-large-photo'),source('001108',form));cart.locator('#close-cart-photo').click()
-            item=cart.locator('#saved-cart-items [data-product-id="001108"]')
+            item=cart.locator('#saved-cart-items .saved-cart-item').filter(has=cart.get_by_role('heading',name='Aquamarine Blue',exact=True))
             item.locator('.cart-grade-select').select_option(form)
             check_photo(item.locator('.cart-photo-button img'),source('001108',form))
             item.locator('.cart-photo-button').click();check_photo(cart.locator('#cart-large-photo'),source('001108',form));cart.locator('#close-cart-photo').click()
