@@ -15,6 +15,8 @@ import {listPalettes, savePalette, loadPalette, deletePalette} from './lib/saved
 import {availableVariant, emptySelection, restoreSelection, reconcileSelection, setItemSelected, changeSelectedVariant} from './lib/selection.js';
 import {initializeCartLibrary} from './lib/cart-library.js';
 import {productPhotoSpec} from './lib/cart-photos.js';
+import {productWithFormSamples, samplesForPhoto, nearestPhotoSample} from './lib/form-samples.js';
+import {containedImageBounds, imagePointFromClient} from './lib/photo-geometry.js';
 import {normalizeCartItems} from './lib/saved-carts.js';
 import {FORM_OPTIONS, normalizeForm, productForForm, defaultFormatVariant} from './lib/product-formats.js';
 import {cartSizeLabel, switchedCartVariant} from './lib/cart-options.js';
@@ -47,7 +49,7 @@ let captureBase = null, captureSelection = null, captureStart = null;
 let emptyAction = null, pendingReceivedThisSession = false;
 let draggingPoint = null, pointRenderFrame = 0, accountCheck = null, lastAccountCheck = 0;
 let cartLibrary = null, sendingFingerprint = '', alternativesTargetId = null;
-let clearCartProducts = [], cartPhotoIndex = {};
+let clearCartProducts = [], cartPhotoIndex = {}, formSampleIndex = {};
 let savedSettingsFingerprint = '', settingsSaving = false, settingsDialog = null;
 const isCartPage = new URLSearchParams(location.search).get('cart') === '1';
 document.body.classList.toggle('cart-page',isCartPage);
@@ -68,7 +70,7 @@ function money(cents) { return new Intl.NumberFormat('en-US', {style:'currency',
 function colorHex(rgb) { return rgbToHex(rgb).toUpperCase(); }
 function activeTarget() { return state.targets.find(target => target.id === state.activeTargetId) || null; }
 function targetNumber(target) { return state.targets.findIndex(entry => entry.id === target?.id) + 1; }
-function sampleThickness(sample, product) { const value = measureSampleThickness(sample, product); return Number.isFinite(value) ? Math.round(value) : null; }
+function sampleThickness(sample, product) { if(!sample)return null;const value = measureSampleThickness(sample, product); return Number.isFinite(value) ? Math.round(value) : null; }
 function sampleLabel(product, sample) { const thickness = sampleThickness(sample, product); return thickness === null ? `${product.name} · Thickness unavailable` : `${product.name} at ${thickness}% thickness`; }
 function variantKey(product, variant) { return `${product.id}:${String(variant.id || variant.sku)}`; }
 function getProduct(id) { return state.products.find(product => product.id === id) || clearCartProducts.find(product=>product.id===id); }
@@ -100,7 +102,8 @@ function renderSettings() {
   $('settings-status').textContent=savedSettingsFingerprint?(unchanged?'Settings saved':'Settings changed'):'';
 }
 function productForCurrentForm(product, fallback=state.format, selectedForms=state.selectedForms) {
-  return productForForm(product,state.formatIndex,itemForm(product,selectedForms,fallback));
+  const form=itemForm(product,selectedForms,fallback);
+  return productWithFormSamples(productForForm(product,state.formatIndex,form),form,formSampleIndex);
 }
 function rebuildProducts() {
   state.products=state.baseProducts.map(product=>productForCurrentForm(product));
@@ -494,19 +497,33 @@ function setEmpty(title,copy,actionText,action) {$('empty-title').textContent=ti
 function photoElement(product,sample,eager=true,variant=currentVariant(product)) {
   const spec=productPhotoSpec(product,variant,cartPhotoIndex);
   const wrapper=element('div','glass-photo'),img=element('img');
-  // The selected grade is resolved synchronously from verified listing records.
-  // Each render owns its image node; an older download cannot replace a new grade.
+  // The photo, samples, and marker share one immutable form record. Load callbacks
+  // own only this image node, so detached older requests cannot change a new form.
   wrapper.dataset.photoForm=spec.form;wrapper.dataset.photoHandle=spec.handle || '';
   wrapper.dataset.photoKind=spec.kind;
   img.alt=spec.kind==='reference'?spec.note:spec.label;img.title=img.alt;
   img.loading=eager?'eager':'lazy';img.width=600;img.height=600;img.decoding='async';img.referrerPolicy='no-referrer';
+  const samples=samplesForPhoto(product,spec.images[0]),guide=samples.length?product.photoGuide:null;
+  let plane=null;
+  if(guide){
+    plane=element('div','photo-sample-plane');plane.hidden=true;
+    plane.dataset.imageUrl=guide.imageUrl;
+    if(sample && (samples.includes(sample) || guide.inspectionSamples?.includes(sample))){
+      const marker=element('span','sample-marker');
+      marker.style.left=`${sample.x*100}%`;marker.style.top=`${sample.y*100}%`;
+      marker.dataset.sampleId=sample.id || '';marker.dataset.x=sample.x;marker.dataset.y=sample.y;marker.dataset.hex=sample.hex || colorHex(sample.rgb);
+      marker.setAttribute('aria-hidden','true');plane.append(marker);
+    }
+    img.addEventListener('load',()=>{
+      const bounds=containedImageBounds(img.naturalWidth,img.naturalHeight);
+      if(!bounds)return;
+      for(const key of ['left','top','width','height'])plane.style[key]=`${bounds[key]*100}%`;
+      plane.hidden=false;
+    });
+    img.addEventListener('error',()=>{plane.hidden=true;});
+  }
   if(spec.kind!=='reference' && spec.images[0])img.src=spec.images[0];
-  wrapper.append(img);return wrapper;
-}
-function referencePhotoElement(product,sample,eager=true) {
-  const wrapper=element('div','glass-photo'),img=element('img');img.src=product.image;img.alt=`${product.name}, actual Bullseye medium-frit photograph`;img.loading=eager?'eager':'lazy';img.width=600;img.height=600;img.decoding='async';wrapper.append(img);
-  if (sample && Number.isFinite(sample.x) && Number.isFinite(sample.y)) {const marker=element('span','sample-marker');marker.style.left=`${clamp(sample.x,0,1)*100}%`;marker.style.top=`${clamp(sample.y,0,1)*100}%`;marker.setAttribute('aria-hidden','true');wrapper.append(marker);}
-  return wrapper;
+  wrapper.append(img);if(plane)wrapper.append(plane);return wrapper;
 }
 function renderNoMatch(target) {
   const row=element('article','product-card no-match-card');row.dataset.targetId=target.id;
@@ -552,7 +569,7 @@ function renderProduct(entry,alternative=false) {
     const label=element('p','match-label'),swatch=element('span','small-swatch'),thickness=sampleThickness(sample,product);
     swatch.style.backgroundColor=sample.hex||colorHex(sample.rgb);
     label.append(swatch,element('span','',thickness===null?'Photo guide unavailable':`${thickness}% thickness`));
-    label.title=`${target?`Color ${targetNumber(target)} · `:''}Estimate from the medium-frit color reference, not measured depth. The photograph shows the selected purchase grade.`;
+    label.title=`${target?`Color ${targetNumber(target)} · `:''}${product.photoGuide?`Sampled from this ${purchaseGrade(product).toLowerCase()} photograph on the shared color reference scale.`:'Estimate from the medium-frit color reference.'} Approximate photo guide, not measured depth.`;
     body.append(label);
   }else{
     const strip=element('div','sample-strip');
@@ -806,16 +823,33 @@ async function restoreSavedPalette(id){
   }catch(error){if(requestId===imageLoadId)notify(error.message||'This palette could not be loaded.',true);}
 }
 
-function openDetail(product,sample,target=null){detailTargetId=target?.id || state.activeTargetId;detailProduct=product;detailSample=sample||[...(product.samples||[])].sort((a,b)=>sampleThickness(b,product)-sampleThickness(a,product))[0]||null;$('detail-title').textContent=product.name;$('detail-reference').open=false;renderDetailSample();renderDetailPurchase();const targetInfo=state.targets.find(t=>t.id===detailTargetId);$('detail-match-info').textContent=targetInfo?`Palette color ${targetNumber(targetInfo)} · ${targetInfo.hex}`:'';$('detail-alternatives').hidden=!targetInfo;$('detail-choose').hidden=!targetInfo;closeToolbarMenus();$('detail-dialog').showModal();refreshProduct(product);}
+function openDetail(product,sample,target=null){detailTargetId=target?.id || state.activeTargetId;detailProduct=product;detailSample=sample||[...(product.samples||[])].sort((a,b)=>sampleThickness(b,product)-sampleThickness(a,product))[0]||null;$('detail-title').textContent=product.name;renderDetailPurchase();const targetInfo=state.targets.find(t=>t.id===detailTargetId);$('detail-match-info').textContent=targetInfo?`Palette color ${targetNumber(targetInfo)} · ${targetInfo.hex}`:'';$('detail-alternatives').hidden=!targetInfo;$('detail-choose').hidden=!targetInfo;closeToolbarMenus();$('detail-dialog').showModal();refreshProduct(product);}
+function synchronizeDetailSample(){
+  if(!detailProduct)return;
+  detailProduct=getProduct(detailProduct.id) || detailProduct;
+  const samples=detailProduct.samples || [],inspection=detailProduct.photoGuide?.inspectionSamples || [];
+  if(samples.includes(detailSample) || inspection.includes(detailSample))return;
+  const target=state.targets.find(entry=>entry.id===detailTargetId) || detailSample;
+  detailSample=(target?matchCatalog(target,[detailProduct],{includeOtherFamilies:true})[0]?.sample:null) || samples[0] || null;
+}
 function renderDetailSample(){
   if(!detailProduct)return;
-  $('detail-reference-photo').replaceChildren(referencePhotoElement(detailProduct,detailSample));
-  $('detail-sample-label').textContent=`${sampleLabel(detailProduct,detailSample)} · medium-frit sampling reference`;
+  synchronizeDetailSample();
+  const photo=productPhotoSpec(detailProduct,currentVariant(detailProduct),cartPhotoIndex);
+  const samples=samplesForPhoto(detailProduct,photo.images[0]),guide=samples.length?detailProduct.photoGuide:null;
+  $('detail-photo').replaceChildren(photoElement(detailProduct,detailSample,true));
+  $('detail-photo-grade').textContent=`${photo.grade} · ${guide?.kind || 'Bullseye photograph'}`;
+  $('detail-sample-label').textContent=guide?sampleLabel(detailProduct,detailSample):'No sampled color guide for this photograph.';
+  const percentages=samples.map(sample=>sampleThickness(sample,detailProduct)).filter(Number.isFinite);
+  $('detail-range').textContent=percentages.length?`Photo range: ${Math.min(...percentages)}–${Math.max(...percentages)}% · shared color reference`:'';
+  $('detail-range').hidden=!percentages.length;
+  $('detail-sampling-note').hidden=!guide;
   $('detail-samples').replaceChildren();
-  for(const sample of detailProduct.samples||[]){
+  for(const sample of samples){
     const button=element('button',`detail-sample${sample===detailSample?' is-active':''}`),thickness=sampleThickness(sample,detailProduct);
     button.type='button';button.setAttribute('aria-label',`Show ${sampleLabel(detailProduct,sample)}`);
     button.setAttribute('aria-pressed',String(sample===detailSample));button.title=sampleLabel(detailProduct,sample);
+    button.dataset.sampleId=sample.id || '';button.dataset.x=sample.x;button.dataset.y=sample.y;button.dataset.hex=sample.hex || colorHex(sample.rgb);
     const swatch=element('span');swatch.style.backgroundColor=sample.hex||colorHex(sample.rgb);
     button.append(swatch,element('small','',thickness===null?'—':`${thickness}%`));
     button.addEventListener('click',()=>{detailSample=sample;renderDetailSample();});$('detail-samples').append(button);
@@ -823,9 +857,7 @@ function renderDetailSample(){
 }
 function renderDetailPurchase(){
   if(!detailProduct)return;
-  $('detail-photo').replaceChildren(photoElement(detailProduct,null,true));
-  const photo=productPhotoSpec(detailProduct,currentVariant(detailProduct),cartPhotoIndex);
-  $('detail-photo-grade').textContent=`${photo.grade} · Bullseye photograph`;
+  renderDetailSample();
   $('detail-purchase').replaceChildren(purchaseControls(detailProduct,true));
   const variant=currentVariant(detailProduct),url=variant?.productUrl||detailProduct.productUrl;
   $('detail-code').textContent=`${purchaseCode(detailProduct,variant)} · ${detailProduct.type||'Glass'} · ${detailProduct.grain}`;
@@ -1001,15 +1033,16 @@ function bindEvents() {
   $('close-detail').addEventListener('click', () => $('detail-dialog').close());
   $('detail-alternatives').addEventListener('click',()=>{const id=detailTargetId;$('detail-dialog').close();if(id)showAlternatives(id);});
   $('detail-choose').addEventListener('click',()=>{const id=detailTargetId,product=detailProduct;if(id && product){$('detail-dialog').close();chooseAlternative(id,product.id);}});
-  $('detail-reference-photo').addEventListener('click', (event) => {
-    const photo = $('detail-reference-photo').querySelector('.glass-photo');
-    if (!photo || !detailProduct?.samples?.length) return;
-    const bounds = photo.getBoundingClientRect();
-    const x = clamp((event.clientX - bounds.left) / bounds.width, 0, 1);
-    const y = clamp((event.clientY - bounds.top) / bounds.height, 0, 1);
-    detailSample = detailProduct.samples.reduce((nearest, sample) => (
-      (sample.x - x) ** 2 + (sample.y - y) ** 2 < (nearest.x - x) ** 2 + (nearest.y - y) ** 2 ? sample : nearest
-    ));
+  $('detail-photo').addEventListener('click', (event) => {
+    const plane=$('detail-photo').querySelector('.photo-sample-plane');
+    const photo=productPhotoSpec(detailProduct,currentVariant(detailProduct),cartPhotoIndex);
+    const samples=samplesForPhoto(detailProduct,photo.images[0]);
+    if(!plane || plane.hidden || !samples.length)return;
+    const point=imagePointFromClient(event.clientX,event.clientY,plane.getBoundingClientRect());
+    if(!point)return;
+    const sample=nearestPhotoSample([...samples,...(detailProduct.photoGuide.inspectionSamples || [])],point.x,point.y);
+    if(!sample)return;
+    detailSample=sample;
     renderDetailSample();
   });
   $('detail-dialog').addEventListener('close', () => { detailProduct = null; detailSample = null; detailTargetId=null; });
@@ -1072,7 +1105,7 @@ function bindEvents() {
 async function initialize() {
   bindEvents();
   try {
-    const [catalogResult, savedResult, formatsResult, settingsResult, clearResult, photosResult] = await Promise.allSettled([
+    const [catalogResult, savedResult, formatsResult, settingsResult, clearResult, photosResult, samplesResult] = await Promise.allSettled([
       fetch('./data/catalog.json').then((response) => {
         if (!response.ok) throw new Error(`Catalog could not be loaded (${response.status}).`);
         return response.json();
@@ -1082,12 +1115,14 @@ async function initialize() {
       loadSettings(),
       fetch('./data/clear-cart.json').then(response=>{if(!response.ok)throw new Error('Clear glass catalog could not load.');return response.json();}),
       fetch('./data/cart-photos.json').then(response=>{if(!response.ok)throw new Error('Cart product photos could not load.');return response.json();}),
+      fetch('./data/form-samples.json').then(response=>{if(!response.ok)throw new Error('Frit photo samples could not load.');return response.json();}),
     ]);
     if (catalogResult.status !== 'fulfilled') throw catalogResult.reason;
     const catalog = catalogResult.value;
     state.baseProducts = Array.isArray(catalog.products) ? catalog.products : [];
     clearCartProducts = clearResult.status==='fulfilled' && Array.isArray(clearResult.value.products)?clearResult.value.products:[];
     cartPhotoIndex = photosResult.status==='fulfilled'?photosResult.value:{};
+    formSampleIndex = samplesResult.status==='fulfilled'?samplesResult.value:{};
     state.formatIndex = formatsResult.status==='fulfilled'?formatsResult.value:null;
     const preferences=settingsResult.status==='fulfilled'?settingsResult.value:null;
     if(preferences){Object.assign(state,preferences);savedSettingsFingerprint=JSON.stringify(preferences);}
@@ -1103,6 +1138,7 @@ async function initialize() {
     if(settingsResult.status==='rejected')notify('Saved defaults could not be read. Your current workspace is still available.',true);
     if(clearResult.status==='rejected')notify('Clear glass options could not load. Reload the extension to restore them.',true);
     if(photosResult.status==='rejected')notify('Cart product photos could not load. Reference photos are used where available.',true);
+    if(samplesResult.status==='rejected')notify('Frit photo samples could not load. Reload the extension to restore photo matching.',true);
     checkAccount(true);
     if(isCartPage){document.title='Carts | Bullseye Palette Picker';await cartLibrary.openPage(new URLSearchParams(location.search).get('mode'));return;}
     bridge.subscribePendingImage((image) => handlePendingImage(image));

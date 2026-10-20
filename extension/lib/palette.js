@@ -238,19 +238,23 @@ export function sampleDarkness(sample) {
 export function sampleThickness(sample, product) {
   const darkness = sampleDarkness(sample);
   const type = String(product?.type ?? '').trim().toLowerCase();
+  // A form's actual photographed appearance can be neutral even when the
+  // original shared reference is chromatic. Keep that reference's identity.
+  const referenceFamily = ['neutral', 'chromatic'].includes(product?.referenceColorFamily)
+    ? product.referenceColorFamily : null;
   // Neutral opaque black/white use their full-color reference. Chromatic opals
   // use the same photo-strength comparison as transparent glass, not a constant.
   if ((type === 'opalescent' || type === 'opaque')
-    && (product?.colorFamily || getColorFamily(sample)) === 'neutral') return 100;
+    && (referenceFamily || product?.colorFamily || getColorFamily(sample)) === 'neutral') return 100;
 
   const samples = Array.isArray(product?.samples) ? product.samples : [];
   const family = product?.colorFamily === 'neutral' || product?.colorFamily === 'chromatic'
     ? product.colorFamily
     : samples.length ? productColorFamily({ samples }) : null;
-  const eligibleDarkness = candidate => {
+  const eligibleDarkness = (candidate, candidateFamily = family) => {
     if (!candidate || candidate.eligible === false || candidate.background === true) return null;
     try {
-      if (family && getColorFamily(candidate) !== family) return null;
+      if (candidateFamily && getColorFamily(candidate) !== candidateFamily) return null;
       const value = sampleDarkness(candidate);
       return value > 1e-9 ? value : null;
     } catch {
@@ -260,7 +264,7 @@ export function sampleThickness(sample, product) {
 
   // The builder records an actual material sample from the reviewed dense area.
   // Older catalogs fall back to the darkest valid sample, regardless of order.
-  let reference = eligibleDarkness(product?.thicknessReference);
+  let reference = eligibleDarkness(product?.thicknessReference, referenceFamily || family);
   if (reference === null) {
     for (const candidate of samples) {
       const value = eligibleDarkness(candidate);
