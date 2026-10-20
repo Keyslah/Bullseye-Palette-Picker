@@ -149,6 +149,11 @@ try:
         for f in EXT.rglob('*'):
             if f.is_file():assert archive.read(f.relative_to(EXT).as_posix())==f.read_bytes(),f
     done('Released ZIP bytes match the tested extension source')
+    import subprocess, sys
+    subprocess.run([sys.executable,str(ROOT/'tests/v061-browser.py')],cwd=ROOT,check=True)
+    done('Prior native layout, palette, settings and cart regression suite passed')
+    subprocess.run([sys.executable,str(ROOT/'tests/cart-builder-browser.py')],cwd=ROOT,check=True)
+    done('Prior native cart grades, package sizes, clear glass and preview regression suite passed')
 except Exception as e:
     failure=str(e);traceback.print_exc()
     if context:

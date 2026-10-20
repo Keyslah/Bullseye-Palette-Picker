@@ -103,8 +103,8 @@ try:
         page=context.new_page();watch(page);page.goto(base+'?workspace=1')
         expect(page.locator('#form-medium')).to_be_enabled()
         expect(page.locator('#account-status')).to_have_text('Signed in to Bullseye')
-        assert page.evaluate('chrome.runtime.getManifest().version')=='0.6.1'
-        passed('Native MV3 extension starts at version 0.6.1')
+        assert page.evaluate('chrome.runtime.getManifest().version')=='0.6.2'
+        passed('Native MV3 extension starts at version 0.6.2')
 
         page.locator('#library-tab').click()
         expect(page.locator('#include-tints')).to_have_attribute('aria-pressed','false')
@@ -395,10 +395,10 @@ try:
         passed('No uncaught browser JavaScript errors')
         context.close();context=None
 
-    archive=ROOT/'dist/Bullseye-Palette-Picker-v0.6.1.zip'
+    archive=ROOT/'dist/Bullseye-Palette-Picker-v0.6.2.zip'
     with zipfile.ZipFile(archive) as packed:
         assert packed.testzip() is None
-        assert json.loads(packed.read('manifest.json'))['version']=='0.6.1'
+        assert json.loads(packed.read('manifest.json'))['version']=='0.6.2'
         for file in EXT.rglob('*'):
             if file.is_file():assert packed.read(str(file.relative_to(EXT)))==file.read_bytes(),str(file)
     passed('Packaged extension bytes match the tested source exactly')

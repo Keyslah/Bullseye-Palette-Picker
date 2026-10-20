@@ -1,5 +1,12 @@
 # Bullseye Palette Picker
 
+## v0.6.2: selected-grade photos throughout the app
+
+Powder, Fine, Medium and Coarse now control the actual Bullseye photograph in the main palette, All glass, alternatives, enlarged details and every cart view. These views use the same verified photo selector and the existing 838-listing photo index. Jar weight is independent of frit grain size. Switching grades while details are open refreshes the displayed photo without allowing an earlier image request to replace it.
+
+The selected-grade product photo no longer carries sample coordinates from another photograph. The existing medium-frit sampling image, swatches and thickness estimates remain together under **Thickness color reference · Medium frit** in the detail window. Your source image, colors, dots and chosen matches are unchanged.
+
+
 ## v0.6.1 update
 
 Landscape glass photographs now have their information below them. All match cards fit across the available width or wrap to another row without sideways scrolling. Each name has a plain selection checkbox. Purchase controls show the frit grade or actual sheet thickness as well as size. Alternatives opens in a separate searchable popup without replacing the main palette. Light Orange Striker is preferred over an automatic Carnelian choice; explicitly selected Carnelian remains available and saved.
@@ -50,7 +57,7 @@ Chrome documents these [unpacked-extension steps](https://developer.chrome.com/d
 
 **Updating an existing installation:** replace the files in the same extension folder with the new version, click **Reload** on its card at `chrome://extensions`, refresh Pinterest or any source page already open, and close/reopen the picker. Keep the same installed extension and folder to retain its saved palettes. An unpacked extension does not automatically update when this GitHub repository changes.
 
-The prepared **`Bullseye-Palette-Picker-v0.6.1.zip`** has `manifest.json` at its root. If you use that package instead of the repository ZIP, extract it and load the extracted root folder.
+The prepared **`Bullseye-Palette-Picker-v0.6.2.zip`** has `manifest.json` at its root. If you use that package instead of the repository ZIP, extract it and load the extracted root folder.
 
 ## Pick and edit colors
 
@@ -112,7 +119,7 @@ A result reads, for example, **“Spring Green at 75% thickness.”** At the top
 
 **100% thickness = 6 mm solid glass, 16 mm fine frit**
 
-This is an **estimated thickness guide based on photographed color strength**, not a measurement of the source glass or a Bullseye-certified firing recipe. Percentages remain visible for **every purchase format, including Sheets**. All formats reuse the reviewed medium-frit photographs and color samples; choosing sheets or another frit grain does not create a new physical calibration. A sheet's actual millimeter thickness is shown separately in its purchase-size label. The fine-frit value above is the project's requested reference text.
+This is an **estimated thickness guide based on photographed color strength**, not a measurement of the source glass or a Bullseye-certified firing recipe. Percentages remain visible for **every purchase format, including Sheets**. All formats retain the reviewed medium-frit color samples for matching and thickness estimates, separately from the actual selected-grade product photographs; choosing sheets or another frit grain does not create a new physical calibration. A sheet's actual millimeter thickness is shown separately in its purchase-size label. The fine-frit value above is the project's requested reference text.
 
 For transparent glass, the estimate compares the matched sample's lightness with that product's dense color reference, using white as the zero-color anchor. It does not reset the lightest retained material sample to zero. Chromatic opalescent glass also uses the photographed-strength comparison, so different shades no longer all display 100%. Neutral opalescent and opaque glass, including ordinary Black and White, retain their **100% full-color reference**. Neither model establishes physical depth from opaque grains. These labels do not affect the full-color match ranking. The photograph and exact sampled color remain visible for inspection.
 
@@ -140,7 +147,7 @@ npm run check
 npm run package
 ```
 
-Development requires Node 20 or later. Packaging also uses Python 3's standard library and creates `dist/Bullseye-Palette-Picker-v0.6.1.zip`, with the manifest at the ZIP root. Extract that packaged ZIP and load its root folder in Chrome. Version 0.6.0 retains the reviewed **0.3.0 color catalog byte for byte**, including its photographs, RGB/Lab samples, and source timestamps. Its additional purchase options live in a separate format index.
+Development requires Node 20 or later. Packaging also uses Python 3's standard library and creates `dist/Bullseye-Palette-Picker-v0.6.2.zip`, with the manifest at the ZIP root. Extract that packaged ZIP and load its root folder in Chrome. Version 0.6.0 retains the reviewed **0.3.0 color catalog byte for byte**, including its photographs, RGB/Lab samples, and source timestamps. Its additional purchase options live in a separate format index.
 
 To refresh public purchase-format records or reproduce them from an existing source cache:
 
