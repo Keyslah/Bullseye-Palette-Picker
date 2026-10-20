@@ -1,0 +1,5 @@
+Publish v0.6.1 after rerunning all required checks.
+Successful precursor: https://github.com/Keyslah/Bullseye-Palette-Picker/actions/runs/39373842172
+Includes the requested landscape cards, plain selection checkbox, separate Alternatives popup, Orange Striker preference, cart Grade/Size controls, clear-glass options and large grade-specific cart photos.
+Original color guide and photo sampling remain unchanged. Shopping tests use isolated synthetic fixtures only.
+Fast-forward main without force pushing and upload the tested extension ZIP as the v0.6.1 release.
