@@ -1,5 +1,19 @@
 # Verification record
 
+## Version 0.6.5
+
+Verified on 2026-10-20 in disposable native Chromium extension profiles, starting from the actual published v0.6.4 main commit `d2b9196`. The only production logic changes are the regular Black exception in the shared material filter and a target-aware automatic purple preference; no layout, photo data, source-image extraction, or percentage calculation changes are included.
+
+The **186 JavaScript regressions pass**. New cases cover the exact transparent-only eligible set, real Black variants across all five forms, and the screenshot's measured target `#6A12DE` across Powder/Fine/Medium/Coarse. Blue and blue-violet controls retain their original full-color choices. Tests retain availability, finite tolerance, actual sample identity, unchanged scores, neutral handling, and Orange Striker behavior.
+
+The reported Fine mismatch was reproduced exactly: Deep Royal Blue sample `#263AB5` scored 11.36 ΔE00 and 96% reference strength, while Gold Purple `#5D447B` scored 17.42 ΔE00 but had a hue much closer to the purple target. The automatic preference now selects the actual Gold Purple Fine sample at its recorded coordinates, showing approximately 78%. The correction is limited to clearly chromatic purple targets (RGB hue 260–330°, saturation at least 0.25) that would otherwise select a blue sample (180–255°). A replacement must be available, within 25 ΔE00 and no more than 10 ΔE00 worse than the original, with a purple hue within 25° of the target and at least 5° better. These are practical picker preferences; raw CIEDE2000 scores and all alternatives remain unchanged.
+
+The new `tests/v065-matching-browser.py` passes **7 focused checks**: transparent-only Black/purple/blue automatic choices; real Fine photos and marker coordinates; All glass/Alternatives filtering; all-form switching, Refresh, named palette and source/dot restoration; preserved explicit blue selection; independent cart filtering with real Black variants; and no page errors or shopping writes. Actual 1440 px and 650 px screenshots were inspected. Shop requests use fixtures in disposable profiles.
+
+The release gate also repeats the retained native workspace, cart-builder, and Alternatives/layout suites. The final ZIP inventory and every file byte are checked against the tested source before publication and against the downloaded release afterward. Existing pinned glass choices remain saved rather than being reset on upgrade.
+
+---
+
 ## Version 0.6.4
 
 Verified on 2026-10-20 in disposable native Chromium 156.0.8078.4 extension profiles. This presentation update moves the existing Settings menu between Sign in and Transparent and shows the requested thickness reference directly on the main palette bar, ending with `*Rough estimate`.

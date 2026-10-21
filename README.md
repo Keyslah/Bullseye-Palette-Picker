@@ -1,5 +1,11 @@
 # Bullseye Palette Picker
 
+## v0.6.5: regular Black and purple matching
+
+**Regular Black remains available with Transparent selected**, including when Opalescent is off, in matching, All glass, Alternatives, and the cart builder. Other opalescent colors still follow their filter.
+
+Clearly purple targets now favor a nearby purple hue from the selected form's actual photograph when the full-color calculation would otherwise choose a more saturated blue. The reported Fine target `#6A12DE` now selects **Gold Purple**. Blue targets, explicit saved glass choices, the Orange Striker preference, photo samples, and thickness calculations retain their behavior. See the [v0.6.5 release notes](docs/release-v0.6.5.md).
+
 ## v0.6.4: visible thickness reference and Settings placement
 
 The main palette bar immediately shows **100% thickness = 6 mm solid glass, 16 mm fine frit \*Rough estimate**. It stays visible without opening a popup and wraps within narrower panels. **Settings** is directly between **Sign in** and **Transparent** in the compact toolbar. The same settings controls, per-form photographs, matching, and saved-work behavior remain. See the [v0.6.4 release notes](docs/release-v0.6.4.md).
@@ -64,7 +70,7 @@ Chrome documents these [unpacked-extension steps](https://developer.chrome.com/d
 
 **Updating an existing installation:** replace the files in the same extension folder with the new version, click **Reload** on its card at `chrome://extensions`, refresh Pinterest or any source page already open, and close/reopen the picker. Keep the same installed extension and folder to retain its saved palettes. An unpacked extension does not automatically update when this GitHub repository changes.
 
-The prepared [**Bullseye-Palette-Picker-v0.6.4.zip**](https://github.com/Keyslah/Bullseye-Palette-Picker/releases/download/v0.6.4/Bullseye-Palette-Picker-v0.6.4.zip) has `manifest.json` at its root. If you use that package instead of the repository ZIP, extract it and load the extracted root folder.
+The prepared [**Bullseye-Palette-Picker-v0.6.5.zip**](https://github.com/Keyslah/Bullseye-Palette-Picker/releases/download/v0.6.5/Bullseye-Palette-Picker-v0.6.5.zip) has `manifest.json` at its root. If you use that package instead of the repository ZIP, extract it and load the extracted root folder.
 
 ## Pick and edit colors
 
@@ -112,13 +118,15 @@ Saved carts keep exact variant IDs and quantities, including their purchase form
 
 Matching compares the **full color** using CIEDE2000: hue, chroma, and lightness all matter. A green and red with the same grayscale value do not become matches.
 
+Automatic choices also respect the requested Orange Striker preference and a bounded purple-hue preference. The latter applies only when a clearly purple target would automatically select a blue photo sample: it can choose an available, nearby full-color purple candidate whose actual sampled hue is substantially closer. Raw color-difference scores and all Alternatives remain unchanged. An explicitly chosen glass is retained.
+
 The photograph library measures **visible glass material**, excluding nearly colorless gaps from colored frit samples. Every retained sample has an RGB color and a representative location in the reference photo. The library includes all **20 transparent tints**, colored opals, and gray/black/white choices. Translucent White remains labeled with its storefront name and is grouped under Opalescent as in Bullseye’s catalog. White, gray, and black targets are matched only to the neutral products; colored targets use visibly colored samples from chromatic products.
 
 The explicit library policy uses CIELAB chroma **C* = 10** as the dividing line between neutral and chromatic colors. This is a practical eligibility rule for this catalog, not a universal claim about human color perception. Automatic matching ranks every eligible product by its actual color difference; it does not claim that a catalog contains an exact match for every image color. White, gray, or black cannot match the nearly colorless gaps in a colored glass photograph.
 
 This fixes the earlier case where a gray `#E3E3E3` swatch matched the nearly white end of Light Sky Blue. Opalescent White, transparent grays, and Black provide actual neutral choices.
 
-For a near-identical dark neutral match, the picker prefers **ordinary Black (000100)** over a specialty black in the color guide. This applies only when the target has `L* <= 20` and ordinary Black is within **0.25 ΔE00** of the best eligible match. The displayed color-difference scores remain unchanged, and the rule respects material filters and any explicit match tolerance. A materially closer dark green or blue stays first.
+For a near-identical dark neutral match, the picker prefers **ordinary Black (000100)** over a specialty black in the color guide. This applies only when the target has `L* <= 20` and ordinary Black is within **0.25 ΔE00** of the best eligible match. The displayed color-difference scores remain unchanged, and the rule respects any explicit match tolerance. Regular Black is included when either Transparent or Opalescent is enabled; turning both off excludes it. Its actual Opalescent catalog classification remains intact. A materially closer dark green or blue stays first.
 
 ### Thickness guide
 

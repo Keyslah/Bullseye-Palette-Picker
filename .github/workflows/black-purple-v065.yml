@@ -1,0 +1,63 @@
+# Purpose: verify transparent-only Black and purple photo matching, then release v0.6.5.
+# Setup: runs only on the v0.6.5 development branch; native tests use disposable profiles.
+# Writes: test artifacts; main/tag/release only after the publish marker and successful checks.
+# Constraints: no personal browser/account/cart; photo data and manual choices are retained.
+name: Black and purple matching verification
+on:
+  push:
+    branches: [fix/black-purple-v0.6.5]
+permissions:
+  contents: write
+concurrency:
+  group: black-purple-v065
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install verification tools
+        run: |
+          python -m pip install -r requirements-dev.txt playwright
+          python -m playwright install --with-deps chromium
+      - name: Regression and package checks
+        run: |
+          npm test
+          npm run check
+          npm run package
+          python scripts/verify-package.py
+      - name: Native workspace, layout and matching verification
+        run: |
+          python tests/v061-browser.py
+          python tests/v063-layout-browser.py
+          python tests/v065-matching-browser.py
+          python scripts/verify-package.py
+      - name: Preserve screenshots and installable ZIP
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: black-purple-v065
+          path: |
+            dist/
+            test-results/
+      - name: Publish verified v0.6.5
+        if: hashFiles('.github/v065/PUBLISH') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(node -p "require('./extension/manifest.json').version")" = 0.6.5
+          python scripts/verify-package.py
+          git diff --exit-code
+          git fetch origin main
+          git merge-base --is-ancestor origin/main HEAD
+          git push origin HEAD:main
+          gh release create v0.6.5 dist/Bullseye-Palette-Picker-v0.6.5.zip --target "$(git rev-parse HEAD)" --title 'Bullseye Palette Picker v0.6.5' --notes-file docs/release-v0.6.5.md
