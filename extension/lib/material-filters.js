@@ -8,6 +8,8 @@ export function isTint(product) {
 }
 export function includedGlass(product, {glassTypes = {}, includeTints = false} = {}) {
   if (!includeTints && isTint(product)) return false;
+  // Keep regular Black available with Transparent without reclassifying its glass.
+  if (product?.id === '000100' && glassTypes.transparent !== false) return true;
   const type = String(product?.type || '').toLowerCase();
   return type === 'transparent' ? glassTypes.transparent !== false
     : ['opalescent','opaque'].includes(type) && glassTypes.opalescent !== false;

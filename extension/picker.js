@@ -435,7 +435,7 @@ function matchesFor(target, alternatives = false) {
 function primaryMatch(target) {
   const matches=matchesFor(target), chosen=state.chosenMatches[target.id];
   return (chosen ? matchesFor(target,true).find(entry=>entry.product.id===chosen) : null)
-    || preferredAutomaticMatch(matches,entry=>Boolean(currentVariant(entry.product)?.available));
+    || preferredAutomaticMatch(matches,entry=>Boolean(currentVariant(entry.product)?.available),target);
 }
 function selectionSuggestions() {
   return state.targets.map(target => {
