@@ -16,6 +16,12 @@
       <div class="compact-toolbar" id="main-toolbar" aria-label="Picker controls">
         <button class="button secondary-button" id="refresh-settings" type="button" title="Reset settings only; keep the image, colors and points">Refresh</button>
         <button class="text-button" id="sign-in" type="button" hidden>Sign in</button>
+        <details class="toolbar-menu" id="settings-menu"><summary>Settings</summary><section class="global-settings menu-content" aria-label="Glass form and saved settings">
+          <div class="form-setting"><span>Glass</span><div class="form-options" role="group" aria-label="Purchase glass form"><button id="form-sheets" type="button" aria-pressed="false">Sheets</button><button id="form-powder" type="button" aria-pressed="false">Powder</button><button id="form-fine" type="button" aria-pressed="false">Fine</button><button id="form-medium" type="button" aria-pressed="true">Medium</button><button id="form-coarse" type="button" aria-pressed="false">Coarse</button></div></div>
+          <label class="jar-setting" for="preferred-jar-size">Default jar <select id="preferred-jar-size"><option value="5lb">5 lb.</option><option value="1lb">1 lb.</option><option value="5oz">5 oz.</option></select></label>
+          <div class="palette-tools auto-count-setting"><label for="palette-count">Auto</label><div class="stepper"><button id="palette-fewer" type="button" aria-label="Extract one fewer color">−</button><input id="palette-count" type="number" min="2" max="12" value="6" aria-label="Number of automatic colors"><button id="palette-more" type="button" aria-label="Extract one more color">+</button></div></div>
+          <button class="button secondary-button" id="save-settings" type="button">Save settings</button><button class="button secondary-button" id="load-settings" type="button">Load settings</button><span id="settings-status" role="status"></span>
+        </section></details>
         <button class="type-filter" id="include-transparent" type="button" aria-pressed="true">Transparent</button>
         <button class="type-filter" id="include-opalescent" type="button" aria-pressed="true">Opalescent</button>
         <button class="type-filter" id="include-tints" type="button" aria-pressed="false">Tints</button>
@@ -24,12 +30,6 @@
         <button class="button secondary-button" id="open-saved" type="button">Load palettes</button>
         <button class="button secondary-button" id="save-palette" type="button" disabled>Save palette</button>
         <button class="button secondary-button" id="save-cart" type="button" disabled>Save cart</button>
-        <details class="toolbar-menu" id="settings-menu"><summary>Settings</summary><section class="global-settings menu-content" aria-label="Glass form and saved settings">
-          <div class="form-setting"><span>Glass</span><div class="form-options" role="group" aria-label="Purchase glass form"><button id="form-sheets" type="button" aria-pressed="false">Sheets</button><button id="form-powder" type="button" aria-pressed="false">Powder</button><button id="form-fine" type="button" aria-pressed="false">Fine</button><button id="form-medium" type="button" aria-pressed="true">Medium</button><button id="form-coarse" type="button" aria-pressed="false">Coarse</button></div></div>
-          <label class="jar-setting" for="preferred-jar-size">Default jar <select id="preferred-jar-size"><option value="5lb">5 lb.</option><option value="1lb">1 lb.</option><option value="5oz">5 oz.</option></select></label>
-          <div class="palette-tools auto-count-setting"><label for="palette-count">Auto</label><div class="stepper"><button id="palette-fewer" type="button" aria-label="Extract one fewer color">−</button><input id="palette-count" type="number" min="2" max="12" value="6" aria-label="Number of automatic colors"><button id="palette-more" type="button" aria-label="Extract one more color">+</button></div></div>
-          <button class="button secondary-button" id="save-settings" type="button">Save settings</button><button class="button secondary-button" id="load-settings" type="button">Load settings</button><span id="settings-status" role="status"></span>
-        </section></details>
         <details class="toolbar-menu" id="image-menu"><summary>Image</summary><div class="menu-content">
           <span id="source-name">Your image</span><button class="text-button" id="replace-image" type="button">Choose image</button><button class="text-button" id="paste-image" type="button">Paste</button><button class="text-button" id="capture-image" type="button">Capture</button><button class="icon-button" id="clear-image" type="button" aria-label="Remove image" hidden>×</button>
           <div class="image-size-controls" role="group" aria-label="Image size"><button id="image-fit" type="button" aria-pressed="false">Fit</button><button id="image-larger" type="button" aria-pressed="true">Larger</button><button id="image-full" type="button" aria-pressed="false">Full width</button></div><p class="image-tip">Drag a dot to resample. Click the source image to add a color.</p>
@@ -38,7 +38,7 @@
         <details class="toolbar-menu" id="account-menu"><summary>Account</summary><div class="menu-content account-row"><span class="account-status" id="account-status">Checking Bullseye sign-in…</span><button class="text-button" id="check-account" type="button" hidden>Check again</button><a class="text-button" id="view-bullseye-cart" href="https://shop.bullseyeglass.com/cart" target="_blank" rel="noopener noreferrer" hidden>View cart ↗</a></div></details>
         <div class="view-tabs" role="tablist" aria-label="Glass views"><button class="view-tab" id="palette-tab" type="button" role="tab" aria-selected="true" aria-controls="glass-results">Matches</button><button class="view-tab" id="library-tab" type="button" role="tab" aria-selected="false" aria-controls="glass-results">All glass <span id="library-count" class="visually-hidden"></span></button></div>
         <input id="glass-search" type="search" placeholder="Find glass…" aria-label="Search glass by name or code">
-        <details class="toolbar-menu" id="about-menu"><summary aria-label="About this picker and thickness guide">ⓘ</summary><div class="menu-content"><h2>Bullseye Palette Picker</h2><button class="text-button selected-summary" id="open-cart" type="button"><span id="cart-count">0</span> selected<span id="selection-total" class="visually-hidden"></span></button><p class="thickness-reference">100% thickness = 6 mm solid glass, 16 mm fine frit</p><p class="photo-note">A photo-based color-strength estimate, not measured depth. Neutral opaque glass uses a full-color reference. All formats use the medium-frit color guide.</p><p>Independent tool · Product photos © Bullseye Glass Co.</p><a href="https://shop.bullseyeglass.com/" target="_blank" rel="noopener noreferrer">Bullseye store ↗</a></div></details>
+        <details class="toolbar-menu" id="about-menu"><summary aria-label="About this picker">ⓘ</summary><div class="menu-content"><h2>Bullseye Palette Picker</h2><button class="text-button selected-summary" id="open-cart" type="button"><span id="cart-count">0</span> selected<span id="selection-total" class="visually-hidden"></span></button><p class="photo-note">A photo-based color-strength estimate, not measured depth. Each frit form uses its own photograph and the shared reference for that glass color.</p><p>Independent tool · Product photos © Bullseye Glass Co.</p><a href="https://shop.bullseyeglass.com/" target="_blank" rel="noopener noreferrer">Bullseye store ↗</a></div></details>
       </div>
     </header>
     <section class="palette-panel" id="palette-panel" aria-label="Editable palette">
@@ -48,10 +48,8 @@
         <span id="target-count" class="visually-hidden"></span>
         <div class="palette-tools"><button class="text-button" id="remix-palette" type="button">Remix</button><button class="text-button" id="add-custom-color" type="button">+ Color</button></div>
         <button class="text-button" id="open-color-editor" type="button">Edit color</button><button class="text-button" id="show-alternatives" type="button">Alternatives</button>
-        
-        
-        
         <div class="alternatives-heading" id="alternatives-heading" hidden><span id="alternatives-label" class="visually-hidden"></span><button class="text-button" id="back-to-palette" type="button">Back to matches</button></div>
+        <p class="thickness-reference" id="thickness-reference">100% thickness = 6 mm solid glass, 16 mm fine frit *Rough estimate</p>
       </div>
     </section>
     <main class="app-main">

@@ -14,6 +14,7 @@
 #source-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--muted)}
 .palette-panel{padding:5px 8px;margin:0;border-bottom:1px solid var(--line)}
 .palette-flow{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:4px}
+.palette-flow>.thickness-reference{flex:1 1 300px;min-width:0;max-width:100%;margin:0;font-size:11px;line-height:1.35;text-align:right}
 .palette-flow>.full-palette-control{order:0;margin:0 4px 0 0;padding:0;white-space:nowrap;font-size:11px}
 .palette-chips{display:flex;align-items:center;flex-wrap:wrap;gap:3px;margin:0;padding:0}
 .palette-chip{min-width:0;width:28px;height:28px;padding:2px;gap:0;border-radius:5px}.palette-chip-color{width:22px;height:22px;font-size:10px;border-radius:3px}.palette-chip-hex{display:none}
