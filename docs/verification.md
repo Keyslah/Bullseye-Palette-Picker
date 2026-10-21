@@ -1,5 +1,17 @@
 # Verification record
 
+## Version 0.6.4
+
+Verified on 2026-10-20 in disposable native Chromium 156.0.8078.4 extension profiles. This presentation update moves the existing Settings menu between Sign in and Transparent and shows the requested thickness reference directly on the main palette bar, ending with `*Rough estimate`.
+
+The **175 JavaScript regressions**, structural checks, and exact-source ZIP checks pass. The updated existing layout suite verifies **19 checks**: immediate reference visibility with no menu open; exact toolbar order and complete text containment at 1440, 1000, 650, 380, and 320 px; usable Settings form/package controls at 1000 and 320 px; and retained Alternatives card bounds and purchase popovers at five widths. Actual 1000 px and 320 px main screenshots were visually inspected, along with desktop/narrow Alternatives views. No uncaught browser errors were reported.
+
+The retained native workspace suite covers source-image orientation, compact layout, edited colors and dots, named saves, settings, alternatives, and cart controls. Its compactness check allows the newly visible reference row when it wraps below the palette controls while keeping the prior limit for the controls themselves. Shopping remains isolated from personal accounts and carts.
+
+The release workflow repeats `npm test`, `npm run check`, packaging, `tests/v061-browser.py`, and `tests/v063-layout-browser.py` before publication. The ZIP inventory and every byte are checked against source, then the public release download is checked again. Photograph data and matching calculations are unchanged from v0.6.3; their existing audit is recorded below.
+
+---
+
 ## Version 0.6.3
 
 Verified on 2026-10-20 with Node 24.19.0, Python/Pillow/NumPy, and disposable native Chromium 156.0.8078.4 extension profiles. This release continues from the published v0.6.2 source. The earlier records below are historical and describe their respective versions.

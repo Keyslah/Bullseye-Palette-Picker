@@ -159,7 +159,15 @@ try:
                 expect(page.locator('#product-grid .product-price').first).not_to_be_visible()
                 header=page.locator('.app-header').bounding_box()
                 flow=page.locator('#palette-panel').bounding_box()
-                if width>=650:assert header['height']+flow['height']<155,(header,flow)
+                # v0.6.4 makes the reference visible. If it wraps below the
+                # controls, allow that text row while retaining their density gate.
+                reference_row=page.locator('#thickness-reference').evaluate('''n=>{
+                    const r=n.getBoundingClientRect(),f=n.parentElement;
+                    const controls=[...f.children].filter(c=>c!==n&&c.offsetHeight>1);
+                    const bottom=Math.max(...controls.map(c=>c.getBoundingClientRect().bottom));
+                    return r.top>=bottom-1?r.height+parseFloat(getComputedStyle(f).rowGap):0;
+                }''')
+                if width>=650:assert header['height']+flow['height']-reference_row<155,(header,flow,reference_row)
                 if width>=1440:assert header['height']<44,('Orphan toolbar row',width,header)
                 assert page.locator('#open-cart').evaluate("n=>n.closest('#about-menu .menu-content')!==null")
                 row=page.locator('#refresh-settings').bounding_box()

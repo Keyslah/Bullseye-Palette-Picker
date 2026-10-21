@@ -1,4 +1,4 @@
-"""Purpose: verify Alternatives card bounds and compact sign-in placement in Chromium.
+"""Purpose: verify the main toolbar/reference and Alternatives card bounds in Chromium.
 Setup: Python Playwright/Pillow and an installed Playwright Chromium; run from the repo.
 Writes: disposable profile, synthetic source image, screenshots and DOM metrics in test-results.
 Constraints: account/store responses are isolated fixtures; no live cart actions. Product
@@ -21,12 +21,51 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--audit-only', action='store_true')
 args = parser.parse_args()
 prefix = 'v063-layout-before' if args.audit_only else 'v063-layout'
-checks, errors, audits = [], [], []
+REFERENCE = '100% thickness = 6 mm solid glass, 16 mm fine frit *Rough estimate'
+checks, errors, audits, main_audits = [], [], [], []
 
 
 def passed(message):
     checks.append(message)
     print('PASS:', message, flush=True)
+
+
+def assert_main_controls(page):
+    reference = page.locator('#thickness-reference')
+    expect(reference).to_have_count(1)
+    expect(reference).to_be_visible()
+    expect(reference).to_have_text(REFERENCE)
+    assert reference.evaluate("n => n.parentElement.matches('.palette-flow') && n.parentElement.lastElementChild===n && !n.closest('details,dialog')")
+    assert page.locator('#about-menu .thickness-reference').count() == 0
+    assert REFERENCE.split(' *')[0] not in page.locator('#about-menu').text_content()
+    expect(page.locator('#sign-in')).to_be_visible()
+    audit = page.evaluate('''() => {
+      const rect=n=>{const r=n.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};
+      const reference=document.querySelector('#thickness-reference'),range=document.createRange();range.selectNodeContents(reference);
+      return {width:innerWidth,height:innerHeight,header:rect(document.querySelector('.app-header')),
+        order:[...document.querySelector('#main-toolbar').children].slice(0,4).map(n=>n.id),
+        controls:['#refresh-settings','#sign-in','#settings-menu>summary','#include-transparent'].map(s=>rect(document.querySelector(s))),
+        openMenus:document.querySelectorAll('.toolbar-menu[open]').length,
+        reference:rect(reference),lines:[...range.getClientRects()].map(r=>({x:r.x,y:r.y,right:r.right,bottom:r.bottom})),
+        referenceScrollWidth:reference.scrollWidth,referenceClientWidth:reference.clientWidth,
+        documentWidth:document.documentElement.scrollWidth};
+    }''')
+    assert audit['order'] == ['refresh-settings','sign-in','settings-menu','include-transparent'], audit
+    assert audit['openMenus'] == 0, audit
+    for first, second in zip(audit['controls'], audit['controls'][1:]):
+        assert abs(first['y'] - second['y']) <= 2, audit
+        assert 0 <= second['x'] - first['right'] < 8, audit
+    if audit['width'] == 1440:
+        assert audit['header']['height'] < 44, audit
+    r = audit['reference']
+    assert r['x'] >= 0 and r['right'] <= audit['width']+1 and r['y'] >= 0 and r['bottom'] <= audit['height'], audit
+    assert audit['referenceScrollWidth'] <= audit['referenceClientWidth']+1, audit
+    assert audit['lines'], audit
+    for line in audit['lines']:
+        assert line['x'] >= r['x']-1 and line['right'] <= r['right']+1, audit
+        assert line['y'] >= r['y']-1 and line['bottom'] <= r['bottom']+1, audit
+    assert audit['documentWidth'] <= audit['width']+1, audit
+    return audit
 
 
 def metrics(page):
@@ -80,18 +119,41 @@ try:
         page.set_default_timeout(15000)
         page.goto(base + '?workspace=1')
         expect(page.locator('#form-medium')).to_be_enabled()
+        if not args.audit_only:
+            expect(page.locator('#thickness-reference')).to_be_visible()
+            expect(page.locator('#thickness-reference')).to_have_text(REFERENCE)
+            assert page.locator('.toolbar-menu[open]').count() == 0
+            passed('Exact thickness reference is visible on the initial picker without opening a menu')
         page.locator('#image-file').set_input_files(temp / 'source.png')
         expect(page.locator('#palette-chips .palette-chip')).to_have_count(6)
         expect(page.locator('#account-status')).to_contain_text('Sign in to Bullseye')
-        if not args.audit_only:
-            expect(page.locator('#sign-in')).to_be_visible()
-            assert page.locator('#sign-in').evaluate("n => n.parentElement.id==='main-toolbar' && n.previousElementSibling.id==='refresh-settings'")
-            a, b = page.locator('#refresh-settings').bounding_box(), page.locator('#sign-in').bounding_box()
-            assert abs(a['y'] - b['y']) <= 2
-            assert b['x'] >= a['x'] + a['width'] and b['x'] - a['x'] - a['width'] < 8
-            toolbar = page.locator('#main-toolbar').evaluate("n=>({width:n.clientWidth,children:[...n.children].map(c=>({id:c.id,width:c.getBoundingClientRect().width,y:c.getBoundingClientRect().y}))})")
-            assert page.locator('.app-header').bounding_box()['height'] < 44, toolbar
-            passed('Existing sign-in control sits immediately beside Refresh in the same toolbar')
+        for width, height in [(1440, 900), (1000, 800), (650, 900), (380, 800), (320, 700)]:
+            page.set_viewport_size({'width':width,'height':height})
+            if not args.audit_only:
+                main_audits.append(assert_main_controls(page))
+                passed(f'Settings follows Sign in before Transparent; the complete main reference is visible and fits at {width}px')
+            page.screenshot(path=str(OUT / f'{prefix}-main-{width}.png'), full_page=True)
+            if not args.audit_only and width in [1000, 320]:
+                page.locator('#settings-menu > summary').click()
+                menu = page.locator('#settings-menu .menu-content')
+                expect(menu).to_be_visible()
+                box = menu.bounding_box()
+                assert box['x'] >= 0 and box['y'] >= 0 and box['x']+box['width'] <= width+1 and box['y']+box['height'] <= height+1, box
+                page.locator('#form-fine').click()
+                expect(page.locator('#form-fine')).to_have_attribute('aria-pressed','true')
+                page.locator('#preferred-jar-size').select_option('1lb')
+                expect(page.locator('#preferred-jar-size')).to_have_value('1lb')
+                expect(page.locator('#save-settings')).to_be_visible()
+                expect(page.locator('#load-settings')).to_be_visible()
+                page.screenshot(path=str(OUT / f'{prefix}-settings-{width}.png'), full_page=True)
+                page.locator('#preferred-jar-size').select_option('5lb')
+                page.locator('#form-medium').click()
+                expect(page.locator('#form-medium')).to_have_attribute('aria-pressed','true')
+                page.locator('#settings-menu > summary').click()
+                expect(menu).not_to_be_visible()
+                expect(page.locator('#palette-chips .palette-chip')).to_have_count(6)
+                passed(f'Relocated Settings opens on-screen and its form/package controls remain usable at {width}px')
+        page.set_viewport_size({'width':1440,'height':900})
         page.screenshot(path=str(OUT / (prefix + '-toolbar.png')), full_page=True)
         page.locator('#product-grid .row-alternatives').first.click()
         expect(page.locator('#alternatives-dialog')).to_be_visible()
@@ -134,4 +196,4 @@ try:
         passed('No browser page errors')
         context.close()
 finally:
-    (OUT / (prefix + '-report.json')).write_text(json.dumps({'checks':checks,'errors':errors,'audits':audits}, indent=2))
+    (OUT / (prefix + '-report.json')).write_text(json.dumps({'checks':checks,'errors':errors,'mainAudits':main_audits,'audits':audits}, indent=2))

@@ -1,5 +1,9 @@
 # Bullseye Palette Picker
 
+## v0.6.4: visible thickness reference and Settings placement
+
+The main palette bar immediately shows **100% thickness = 6 mm solid glass, 16 mm fine frit \*Rough estimate**. It stays visible without opening a popup and wraps within narrower panels. **Settings** is directly between **Sign in** and **Transparent** in the compact toolbar. The same settings controls, per-form photographs, matching, and saved-work behavior remain. See the [v0.6.4 release notes](docs/release-v0.6.4.md).
+
 ## v0.6.3: sample the selected frit photograph
 
 Powder, Fine, Medium and Coarse each use their own actual Bullseye photograph for full-color matching, percentage estimates, clickable sample swatches, and the small sample-location circle. Click the enlarged photograph to inspect a nearby valid glass sample. The photo, swatches, circle and percentage update together when the form changes; no Medium coordinates are placed on another photograph. Jar weights share the same frit-form photograph.
@@ -31,7 +35,7 @@ Product reference photography © Bullseye Glass Co.
 
 The workspace puts the source photo and glass comparison first. Buttons share one compact, left-to-right wrapping toolbar rather than separate rows for settings, image controls, cart actions, and filters.
 
-**Top controls.** Refresh, Sign in, Transparent, Opalescent, and Tints start the toolbar together. Load palettes, Save palette, Save cart, Saved Carts, Send, search, and navigation share its remaining space. Settings contains the glass form, default jar size, named Save settings, and Load settings. Image contains import/capture controls and Fit / Larger / Full width. Account and the information menu hold status and reference text.
+**Top controls.** Refresh, Sign in, Settings, Transparent, Opalescent, and Tints start the toolbar together. Load palettes, Save palette, Save cart, Saved Carts, Send, search, and navigation share its remaining space. Settings contains the glass form, default jar size, named Save settings, and Load settings. Image contains import/capture controls and Fit / Larger / Full width. Account and the information menu hold account status and application information. The thickness reference is always visible on the palette bar.
 
 **Palette strip.** Show full palette is first at the far left, followed by an uninterrupted sequence of swatches. Color hex values and the editor live behind Edit color rather than occupying every swatch and another full row. Numbered dots still identify sampled image locations.
 
@@ -60,7 +64,7 @@ Chrome documents these [unpacked-extension steps](https://developer.chrome.com/d
 
 **Updating an existing installation:** replace the files in the same extension folder with the new version, click **Reload** on its card at `chrome://extensions`, refresh Pinterest or any source page already open, and close/reopen the picker. Keep the same installed extension and folder to retain its saved palettes. An unpacked extension does not automatically update when this GitHub repository changes.
 
-The prepared [**Bullseye-Palette-Picker-v0.6.3.zip**](https://github.com/Keyslah/Bullseye-Palette-Picker/releases/download/v0.6.3/Bullseye-Palette-Picker-v0.6.3.zip) has `manifest.json` at its root. If you use that package instead of the repository ZIP, extract it and load the extracted root folder.
+The prepared [**Bullseye-Palette-Picker-v0.6.4.zip**](https://github.com/Keyslah/Bullseye-Palette-Picker/releases/download/v0.6.4/Bullseye-Palette-Picker-v0.6.4.zip) has `manifest.json` at its root. If you use that package instead of the repository ZIP, extract it and load the extracted root folder.
 
 ## Pick and edit colors
 
@@ -118,9 +122,9 @@ For a near-identical dark neutral match, the picker prefers **ordinary Black (00
 
 ### Thickness guide
 
-A result reads, for example, **“Spring Green at 75% thickness.”** At the top right, the picker displays the project's requested reference:
+A result reads, for example, **“Spring Green at 75% thickness.”** On the main palette bar, above the source image, the picker displays the project's requested reference without opening a menu:
 
-**100% thickness = 6 mm solid glass, 16 mm fine frit**
+**100% thickness = 6 mm solid glass, 16 mm fine frit \*Rough estimate**
 
 This is an **estimated thickness guide based on photographed color strength**, not a measurement of the source glass or a Bullseye-certified firing recipe. Percentages remain visible for **every purchase format, including Sheets**. Each frit form uses samples from its own photograph while retaining the glass color's original shared reference. Sheets retain the original Medium matching reference; their sheet photographs do not show unrelated sample coordinates or swatches. Choosing a form does not create a physical calibration. A sheet's actual millimeter thickness is shown separately in its purchase-size label. The fine-frit value above is the project's requested reference text.
 
