@@ -137,6 +137,9 @@ try:
                 page.locator('#settings-menu > summary').click()
                 menu = page.locator('#settings-menu .menu-content')
                 expect(menu).to_be_visible()
+                # Native details dispatches toggle after opening; wait for its
+                # existing viewport-positioning handler before measuring bounds.
+                expect(menu).to_be_in_viewport(ratio=1)
                 box = menu.bounding_box()
                 assert box['x'] >= 0 and box['y'] >= 0 and box['x']+box['width'] <= width+1 and box['y']+box['height'] <= height+1, box
                 page.locator('#form-fine').click()
