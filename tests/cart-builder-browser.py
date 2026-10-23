@@ -1,4 +1,4 @@
-"""Purpose: test per-item cart grades/sizes, clear glass and actual photo selection.
+"""Purpose: test the separate Add Color window, exact cart variants and explicit Send.
 Setup: npm run package; Playwright Chromium and Pillow. Downloaded public image fixtures.
 Writes: disposable Chromium profile and test-results screenshots/report only.
 Constraints: shopping is entirely mocked; no real account or live cart mutation.
@@ -37,6 +37,23 @@ def name_cart(page,name):
     expect(page.locator('#saved-cart-draft-status')).to_have_text('Saved')
 def no_overflow(page):
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+2')
+def open_add(page):
+    page.locator('#open-cart-add').click()
+    expect(page.locator('#cart-add-dialog')).to_be_visible()
+    expect(page.locator('#saved-cart-search')).to_be_focused()
+def close_add(page,control='#done-cart-add'):
+    if control=='Escape':page.keyboard.press('Escape')
+    else:page.locator(control).click()
+    expect(page.locator('#cart-add-dialog')).not_to_be_visible()
+    expect(page.locator('#saved-cart-search-results')).not_to_be_visible()
+    expect(page.locator('#open-cart-add')).to_be_focused()
+def prominent_send(page):
+    page.evaluate('window.scrollTo(0,0)')
+    button=page.locator('#send-to-cart')
+    expect(button).to_have_text('Send to Bullseye Website Cart')
+    box=button.bounding_box();width=page.viewport_size['width']
+    assert box['y']<24 and box['height']>=60 and box['width']>=width-32,box
+    assert box['y']+box['height']<=page.locator('#cart-editor-dialog').bounding_box()['y'],box
 def exact(page,pid,form,size):
     return page.evaluate('''async([pid,form,size])=>{
       const {productForForm}=await import('./lib/product-formats.js');
@@ -81,28 +98,46 @@ try:
     store=context.new_page();store.goto('https://shop.bullseyeglass.com/cart')
     page=context.new_page();page.set_default_timeout(15000);page.on('pageerror',lambda e:errors.append(str(e)));page.on('dialog',lambda d:d.accept())
     page.goto(f'chrome-extension://{worker.url.split("/")[2]}/picker.html?workspace=1&cart=1&mode=selection')
+    expect(page.locator('#open-cart-add')).to_be_visible()
+    expect(page.locator('#cart-add-dialog')).not_to_be_visible()
+    expect(page.locator('#saved-cart-search-results')).not_to_be_visible()
+    expect(page.locator('.saved-cart-search-result:visible')).to_have_count(0)
+    expect(page.locator('#cart-add-form')).not_to_be_visible()
+    expect(page.locator('#send-to-cart')).to_be_disabled()
+    prominent_send(page)
+    page.screenshot(path=str(OUT/'cart-empty-1440.png'),full_page=True)
+    open_add(page);close_add(page,'Escape')
+    expect(page.locator('#saved-cart-items .saved-cart-item')).to_have_count(0)
+    done('Only cart colors appear on the main page; the large top Send is disabled for an empty cart, and Escape returns focus from Add Color')
+    open_add(page)
     expect(page.locator('#cart-add-form')).to_be_visible();expect(page.locator('#cart-add-size')).to_be_visible()
     assert page.locator('#cart-add-form').evaluate("n=>n.closest('.cart-add-controls')!==null")
     expect(page.locator('#cart-include-clear')).to_be_visible()
     assert page.locator('#cart-add-form option').evaluate_all('(ns)=>ns.map(n=>n.value)')==['powder','fine','medium','coarse','sheets']
-    done('Grade, Size and Clear are alongside the Add a color material filters')
+    done('Grade, Size, Clear and material filters are available inside the separate Add Color window')
     page.locator('#saved-cart-search').fill('French Vanilla');page.locator('#cart-add-form').select_option('fine');page.locator('#cart-add-size').select_option('1lb')
     fine=exact(page,'000137','fine','1lb');assert fine
     result=page.locator('#saved-cart-search-results [data-product-id="000137"]')
     expect(result).to_have_attribute('data-variant-id',str(fine['id']))
     fine_photo=check_preview(page,result,fine,'Fine frit')
     result.get_by_role('button',name='Add French Vanilla to saved cart',exact=True).click()
+    expect(page.locator('#cart-add-dialog')).to_be_visible()
+    expect(result.get_by_role('button',name='Add French Vanilla to saved cart',exact=True)).to_be_disabled()
+    close_add(page)
     first=page.locator(f'#saved-cart-items [data-variant-id="{fine["id"]}"]');expect(first.locator('.cart-grade-select')).to_have_value('fine')
     first.locator('.quantity-field').fill('3');first.locator('.quantity-field').press('Tab')
+    open_add(page)
     page.locator('#cart-add-form').select_option('coarse');page.locator('#cart-add-size').select_option('1lb')
     coarse=exact(page,'000137','coarse','1lb');assert coarse
     coarse_photo=check_preview(page,result,coarse,'Coarse frit');assert coarse_photo!=fine_photo
     result.get_by_role('button',name='Add French Vanilla to saved cart',exact=True).click()
+    close_add(page,'#close-cart-add')
     expect(page.locator('#saved-cart-items .saved-cart-item')).to_have_count(2)
     first.locator('.cart-grade-select').select_option('medium');medium=exact(page,'000137','medium','1lb')
     expect(page.locator(f'#saved-cart-items [data-variant-id="{medium["id"]}"] .quantity-field')).to_have_value('3')
     expect(page.locator(f'#saved-cart-items [data-variant-id="{coarse["id"]}"] .cart-grade-select')).to_have_value('coarse')
     done('The cart holds different grades/sizes independently and row changes retain quantity')
+    open_add(page)
     page.locator('#cart-add-size').select_option('5lb')
     if not exact(page,'000137','coarse','5lb'):expect(result.get_by_role('button',name='Add French Vanilla to saved cart',exact=True)).to_be_disabled()
     expect(page.locator('#saved-cart-items .saved-cart-item')).to_have_count(2)
@@ -111,10 +146,12 @@ try:
     sheet=exact(page,'000137','sheets',key);assert sheet
     check_preview(page,result,sheet,'Sheets')
     result.get_by_role('button',name='Add French Vanilla to saved cart',exact=True).click()
+    close_add(page)
     sheetrow=page.locator(f'#saved-cart-items [data-variant-id="{sheet["id"]}"]')
     expect(sheetrow.locator('.cart-size-select')).to_have_value(str(sheet['id']))
     assert all('mm' in t for t in sheetrow.locator('.cart-size-select option').all_text_contents())
     done('Sheets expose real dimensions and millimeter thicknesses for both Add and existing rows')
+    open_add(page)
     page.locator('#saved-cart-search').fill('clear');expect(page.locator('#saved-cart-search-results .saved-cart-search-result')).to_have_count(0)
     page.locator('#cart-include-clear').click();page.locator('#cart-include-transparent').click();page.locator('#cart-include-opalescent').click()
     expect(page.locator('#saved-cart-search-results .saved-cart-search-result')).to_have_count(3)
@@ -124,6 +161,7 @@ try:
     clearrow.get_by_role('button',name='Add Clear Transparent Tekta to saved cart',exact=True).click()
     page.locator('#cart-add-form').select_option('fine');page.locator('#cart-add-size').select_option('1lb');clearfine=exact(page,'001101','fine','1lb');assert clearfine
     page.locator('#saved-cart-search-results [data-product-id="001101"]').get_by_role('button',name='Add Clear Transparent to saved cart',exact=True).click()
+    close_add(page)
     expect(page.locator('#saved-cart-items .saved-cart-item')).to_have_count(5)
     done('Clear frit and Tekta sheets can be added with exact requested variants without affecting photo matching')
     check_preview(page,page.locator(f'#saved-cart-items [data-variant-id="{clearfine["id"]}"]'),clearfine,'Clear Transparent')
@@ -139,10 +177,19 @@ try:
     done('Mixed clear/colored grades save and reopen exactly; saved-cart previews also enlarge')
     for width,height in [(1440,900),(800,900),(380,800)]:
         page.set_viewport_size({'width':width,'height':height});page.wait_for_timeout(100);no_overflow(page)
-        if width>=1400:assert abs(page.locator('#cart-add-form').bounding_box()['y']-page.locator('#cart-add-size').bounding_box()['y'])<3
+        prominent_send(page)
+        expect(page.locator('.saved-cart-search-result:visible')).to_have_count(0)
         page.screenshot(path=str(OUT/f'cart-builder-{width}.png'),full_page=True)
-    done('Cart grade/size controls and photo viewer fit desktop and narrow panels')
+        open_add(page);no_overflow(page)
+        bounds=page.locator('#cart-add-dialog').bounding_box()
+        assert bounds['x']>=0 and bounds['y']>=0 and bounds['x']+bounds['width']<=width+1 and bounds['y']+bounds['height']<=height+1,bounds
+        if width>=1400:assert abs(page.locator('#cart-add-form').bounding_box()['y']-page.locator('#cart-add-size').bounding_box()['y'])<3
+        page.screenshot(path=str(OUT/f'cart-add-window-{width}.png'),full_page=True)
+        close_add(page,'Escape')
+    done('Main cart and separate Add Color window fit desktop and narrow panels; the full-width Send remains first')
+    assert not writes,writes
     page.set_viewport_size({'width':1440,'height':900});page.locator('#send-to-cart').click();expect(page.locator('#send-to-cart')).to_contain_text('Added to cart')
+    expect(page.locator('#send-to-cart')).to_be_disabled()
     assert len(writes)==1;assert {(v['id'],v['quantity']) for v in writes[0]['items']}==expected
     done('Explicit Send forwards exactly the selected clear and colored variants once in the isolated store')
     assert not errors,errors;context.close()

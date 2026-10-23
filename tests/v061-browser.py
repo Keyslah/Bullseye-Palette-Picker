@@ -372,6 +372,9 @@ try:
         cart.locator('#settings-menu > summary').click()
         assert cart.locator('#saved-cart-items .saved-cart-item').evaluate_all('(nodes)=>nodes.map(node=>node.dataset.variantId)')==ids_before
         passed('Saved carts load and retain exact variants when the global purchase form changes')
+        expect(cart.locator('#saved-cart-search-results')).not_to_be_visible()
+        cart.locator('#open-cart-add').click()
+        expect(cart.locator('#cart-add-dialog')).to_be_visible()
         if cart.locator('#cart-include-tints').get_attribute('aria-pressed')=='true':cart.locator('#cart-include-tints').click()
         cart.locator('#saved-cart-search').fill('tint')
         expect(cart.locator('#saved-cart-search-results .saved-cart-search-result')).to_have_count(0)
@@ -379,7 +382,9 @@ try:
         assert cart.locator('#saved-cart-search-results .saved-cart-search-result').count()>0
         expect(cart.locator('#saved-cart-search-results .cart-thickness').first).to_contain_text('% thickness')
         cart.locator('#saved-cart-search').fill('')
-        passed('Cart color browser has material/tint filters and thickness information')
+        cart.locator('#done-cart-add').click()
+        expect(cart.locator('#saved-cart-search-results')).not_to_be_visible()
+        passed('Separate Add Color window has material/tint filters and thickness information; closing restores the cart-only workspace')
         for width,height in [(1440,900),(800,900),(380,800)]:
             cart.set_viewport_size({'width':width,'height':height});cart.wait_for_timeout(200)
             no_overflow(cart,f'cart {width}x{height}')

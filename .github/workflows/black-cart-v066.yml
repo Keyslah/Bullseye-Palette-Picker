@@ -1,0 +1,65 @@
+# Purpose: verify ordinary Black matching and the focused cart workspace, then release v0.6.6.
+# Setup: runs on the v0.6.6 development branch; native tests use disposable profiles.
+# Writes: test artifacts; main/tag/release only after the publish marker and successful checks.
+# Constraints: no personal browser/account/cart; source photos and manual choices are retained.
+name: Black matching and cart workspace verification
+on:
+  push:
+    branches: [fix/black-cart-v0.6.6]
+permissions:
+  contents: write
+concurrency:
+  group: black-cart-v066
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install verification tools
+        run: |
+          python -m pip install -r requirements-dev.txt playwright
+          python -m playwright install --with-deps chromium
+      - name: Regression and package checks
+        run: |
+          npm test
+          npm run check
+          npm run package
+          python scripts/verify-package.py
+      - name: Native workspace, cart, layout and matching verification
+        run: |
+          python tests/v061-browser.py
+          python tests/v063-layout-browser.py
+          python tests/v065-matching-browser.py
+          python scripts/verify-package.py
+      - name: Preserve screenshots and installable ZIP
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: black-cart-v066
+          path: |
+            dist/
+            test-results/
+      - name: Publish verified v0.6.6
+        if: hashFiles('.github/v066/PUBLISH') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(node -p "require('./extension/manifest.json').version")" = 0.6.6
+          python scripts/verify-package.py
+          git diff --exit-code
+          git fetch origin main
+          git merge-base --is-ancestor origin/main HEAD
+          git push origin HEAD:main
+          gh release create v0.6.6 dist/Bullseye-Palette-Picker-v0.6.6.zip --target "$(git rev-parse HEAD)" --title 'Bullseye Palette Picker v0.6.6' --notes-file docs/release-v0.6.6.md
+          gh release download v0.6.6 --pattern Bullseye-Palette-Picker-v0.6.6.zip --dir test-results/published
+          python scripts/verify-package.py test-results/published/Bullseye-Palette-Picker-v0.6.6.zip

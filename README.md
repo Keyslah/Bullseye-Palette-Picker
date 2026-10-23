@@ -1,5 +1,11 @@
 # Bullseye Palette Picker
 
+## v0.6.6: Black matching and a focused cart workspace
+
+**Black and near-black neutral colors select regular Black**, including with only Transparent enabled. This fixes dark neutral targets that could still choose Aventurine Blue despite Black being available. Visibly colored dark targets, explicit glass choices, and the selected form's real photo samples retain their behavior.
+
+The cart workspace shows your cart items. **Add Color** opens a separate window containing the color catalog, search, material filters, grade, and package or sheet options. A large **Send to Bullseye Website Cart** button sits at the very top and sends the current cart through the existing transfer flow. See the [v0.6.6 release notes](docs/release-v0.6.6.md).
+
 ## v0.6.5: regular Black and purple matching
 
 **Regular Black remains available with Transparent selected**, including when Opalescent is off, in matching, All glass, Alternatives, and the cart builder. Other opalescent colors still follow their filter.

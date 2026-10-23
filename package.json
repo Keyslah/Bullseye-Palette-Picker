@@ -1,6 +1,6 @@
 {
   "name": "bullseye-palette-picker",
-  "version": "0.6.5",
+  "version": "0.6.6",
   "private": true,
   "type": "module",
   "description": "Editable Bullseye photo palettes with real sheet and frit options, saved palettes, saved carts, saved settings, and direct cart additions.",

@@ -1,10 +1,18 @@
 /**
- * Purpose: keep automatic glass choices faithful to purple hues and the Orange Striker preference.
+ * Purpose: choose ordinary Black for near-black targets and keep purple/Orange Striker preferences.
  * Setup: receives eligible, color-ranked photo matches, the active-form stock check and target color.
  * Writes: none. Constraints: never changes scores, removes alternatives or overrides
  * an explicit user choice. Hue checks use the selected form's actual sample RGB.
  */
 import {hexToRgb, labToRgb, rgbToLab} from './color.js';
+import {getColorFamily, sampleDarkness} from './palette.js';
+
+function isNearBlackTarget(target) {
+  try {
+    // Same neutral, L* <= 20 band as the catalog's existing Black tie-break.
+    return getColorFamily(target) === 'neutral' && sampleDarkness(target) >= 80;
+  } catch { return false; }
+}
 
 function visibleHue(color) {
   try {
@@ -29,6 +37,12 @@ function hueDistance(first, second) {
 
 export function preferredAutomaticMatch(matches, isAvailable = () => true, target = null) {
   const automatic = matches.find(isAvailable) || matches[0] || null;
+  // Photo lighting and a small color cast can make blue/gray glass score closer
+  // than Black for an effectively black target. Select ordinary Black in this
+  // existing near-black band without changing raw scores, samples or filters.
+  if (isNearBlackTarget(target)) {
+    return matches.find(match => match.product.id === '000100' && isAvailable(match)) || automatic;
+  }
   if (automatic?.product.id === '001321') {
     return matches.find(match => match.product.id === '001025' && isAvailable(match)) || automatic;
   }

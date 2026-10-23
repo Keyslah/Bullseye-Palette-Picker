@@ -1,4 +1,4 @@
-"""Purpose: verify transparent-only Black and hue-faithful purple automatic matches.
+"""Purpose: verify transparent-only near-black, purple and manual match behavior.
 Setup: Python Playwright and Playwright Chromium; BULLSEYE_TEST_ROOT may select
 the checkout under test. Uses real bundled samples and public Bullseye CDN photos.
 Writes: disposable Chrome profile, synthetic source, screenshots and test-results report.
@@ -21,6 +21,8 @@ OUT.mkdir(exist_ok=True)
 CATALOG = {p['id']: p for p in json.loads((EXT / 'data/catalog.json').read_text())['products']}
 PHOTOS = json.loads((EXT / 'data/form-samples.json').read_text())['products']
 ROYAL_BLUE = next(pid for pid, p in CATALOG.items() if p['name'] == 'Deep Royal Blue')
+AVENTURINE_BLUE = next(pid for pid, p in CATALOG.items() if p['name'] == 'Aventurine Blue')
+BLACK_TARGETS = ['black', 'black-cool', 'black-warm', 'charcoal']
 checks, errors, shop_requests, audit = [], [], [], []
 failure = None
 context = page = None
@@ -109,11 +111,11 @@ try:
         expect(page.locator('#form-fine')).to_be_enabled()
         seed = page.evaluate('''() => {
           const canvas=document.createElement('canvas');canvas.width=1200;canvas.height=600;
-          const ctx=canvas.getContext('2d'),colors=['#000000','#6A12DE','#263AB5'];
-          colors.forEach((color,i)=>{ctx.fillStyle=color;ctx.fillRect(i*400,0,400,600);});
-          return {version:6,photoGuideVersion:1,sourceName:'Black, screenshot purple and blue controls',sourceDataUrl:canvas.toDataURL(),
-            targets:colors.map((hex,i)=>({id:['black','purple','blue'][i],hex,rgb:hex.match(/[0-9a-f]{2}/gi).map(v=>parseInt(v,16)),
-              x:(i+.5)/3,y:.5,manual:true,custom:true})),activeTargetId:'purple',format:'fine',preferredJarSize:'5lb',
+          const ctx=canvas.getContext('2d'),colors=['#000000','#202729','#1C1721','#202020','#6A12DE','#263AB5'];
+          colors.forEach((color,i)=>{ctx.fillStyle=color;ctx.fillRect(i*200,0,200,600);});
+          return {version:6,photoGuideVersion:1,sourceName:'Black and near-black, screenshot purple and blue controls',sourceDataUrl:canvas.toDataURL(),
+            targets:colors.map((hex,i)=>({id:['black','black-cool','black-warm','charcoal','purple','blue'][i],hex,rgb:hex.match(/[0-9a-f]{2}/gi).map(v=>parseInt(v,16)),
+              x:(i+.5)/colors.length,y:.5,manual:true,custom:true})),activeTargetId:'purple',format:'fine',preferredJarSize:'5lb',
             glassTypes:{transparent:true,opalescent:false},includeTints:false,chosenMatches:{},view:'palette',imageSize:'larger'};
         }''')
         page.close()
@@ -124,14 +126,15 @@ try:
         expect(page.locator('#image-loaded')).to_be_visible()
         expect(page.locator('#include-transparent')).to_have_attribute('aria-pressed', 'true')
         expect(page.locator('#include-opalescent')).to_have_attribute('aria-pressed', 'false')
-        expect(card('black')).to_have_attribute('data-product-id', '000100')
+        for target in BLACK_TARGETS:
+            expect(card(target)).to_have_attribute('data-product-id', '000100')
         expect(card('purple')).to_have_attribute('data-product-id', '001334')
         expect(card('blue')).to_have_attribute('data-product-id', ROYAL_BLUE)
         baseline = saved(page)
         protected = source_work(baseline)
         assert baseline['chosenMatches'] == {}, baseline['chosenMatches']
-        passed('Transparent-only Fine automatically matches regular Black, Gold Purple for screenshot #6A12DE, and Deep Royal Blue for actual blue')
-        audit.extend(photo_audit(target, 'fine') for target in ['black', 'purple', 'blue'])
+        passed('Transparent-only Fine matches #000000, #202729, #1C1721 and #202020 to ordinary Black; purple and blue retain their correct colors')
+        audit.extend(photo_audit(target, 'fine') for target in BLACK_TARGETS + ['purple', 'blue'])
         page.screenshot(path=str(OUT / 'v065-matching-fine-1440.png'), full_page=True)
         passed('Each initial match displays its real Fine photograph and a marker at that photograph’s recorded sample')
 
@@ -156,10 +159,14 @@ try:
         named = page.evaluate("async () => { const lib=await import('./lib/saved-palettes.js'); const list=await lib.listPalettes(); return lib.loadPalette(list.find(p=>p.name==='Black and purple regression').id); }")
         assert source_work(named['workspace']) == protected
 
-        for form in ['powder', 'medium', 'coarse', 'fine']:
+        for form in ['powder', 'medium', 'coarse', 'sheets', 'fine']:
             set_form(form)
-            expect(card('purple')).not_to_have_attribute('data-product-id', ROYAL_BLUE)
+            for target in BLACK_TARGETS:
+                expect(card(target)).to_have_attribute('data-product-id', '000100')
+            if form != 'sheets':
+                expect(card('purple')).not_to_have_attribute('data-product-id', ROYAL_BLUE)
             assert source_work(saved(page)) == protected
+        passed('Pure and slightly tinted near-black targets choose ordinary Black across Powder, Fine, Medium, Coarse and Sheets')
         expect(card('purple')).to_have_attribute('data-product-id', '001334')
         page.locator('#refresh-settings').click()
         assert source_work(saved(page)) == protected
@@ -191,10 +198,26 @@ try:
         assert source_work(saved(page)) == protected
         passed('An explicit Deep Royal Blue alternative still overrides the automatic purple recommendation and survives reload')
 
+        card('black-cool').locator('.row-alternatives').click()
+        page.locator('#alternatives-search').fill('Aventurine Blue')
+        page.locator(f'#alternatives-grid .compact-card[data-product-id="{AVENTURINE_BLUE}"] .row-alternatives').click()
+        expect(card('black-cool')).to_have_attribute('data-product-id', AVENTURINE_BLUE)
+        chosen = saved(page)
+        assert chosen['chosenMatches']['black-cool'] == AVENTURINE_BLUE
+        assert source_work(chosen) == protected
+        page.reload()
+        expect(card('black-cool')).to_have_attribute('data-product-id', AVENTURINE_BLUE)
+        for target in ['black', 'black-warm', 'charcoal']:
+            expect(card(target)).to_have_attribute('data-product-id', '000100')
+        assert source_work(saved(page)) == protected
+        passed('Explicitly choosing a colored alternative for near-black overrides the Black recommendation and survives reopening')
+
         before_cart = saved(page)
         cart = context.new_page()
         watch(cart)
         cart.goto(base + '?workspace=1&cart=1&mode=selection')
+        expect(cart.locator('#cart-add-dialog')).not_to_be_visible()
+        cart.locator('#open-cart-add').click()
         expect(cart.locator('#cart-add-form')).to_be_visible()
         if cart.locator('#cart-include-opalescent').get_attribute('aria-pressed') == 'true':
             cart.locator('#cart-include-opalescent').click()
@@ -208,6 +231,8 @@ try:
         expect(cart.get_by_role('button', name='Add Black to saved cart', exact=True)).to_be_enabled()
         cart.locator('#cart-include-transparent').click()
         expect(cart.locator('#saved-cart-search-results .saved-cart-search-result')).to_have_count(0)
+        cart.locator('#done-cart-add').click()
+        expect(cart.locator('#cart-add-dialog')).not_to_be_visible()
         assert saved(page) == before_cart
         passed('The cart’s independent transparent-only filter exposes real Black variants while excluding other opals and leaves the picker workspace untouched')
         assert not errors, errors

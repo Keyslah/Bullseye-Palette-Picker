@@ -24,7 +24,7 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
   const addSizes = new Map();
   const photoViewer = createCartPhotoViewer(getPhotoIndex);
   const includedInCart = product => product.isClear ? filters?.includeClear===true : includedGlass(product,filters);
-  const listDialog = $('saved-carts-dialog'), editorDialog = $('cart-editor-dialog');
+  const listDialog = $('saved-carts-dialog'), editorDialog = $('cart-editor-dialog'), addDialog = $('cart-add-dialog');
   const productFor = id => getProducts().find(product => product.id === id);
   const variantFor = (product, id) => product?.variants?.find(variant => String(variant.id) === String(id)) || product?.allVariants?.find(variant=>String(variant.id)===String(id));
   const itemFor = (product, variant, quantity = 1) => ({
@@ -51,7 +51,8 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
   function applySendState(button, items) {
     const status = getSendState(items);
     button.disabled = saving || !items.length || status.busy || status.sent || status.uncertain;
-    button.textContent = status.sending ? 'Adding to cart…' : status.sent ? 'Added to cart ✓' : status.uncertain ? 'Check your cart' : 'Send to my cart';
+    const label = button.id === 'send-saved-cart' || (pageMode && button.id === 'send-to-cart') ? 'Send to Bullseye Website Cart' : 'Send to my cart';
+    button.textContent = status.sending ? 'Adding to cart…' : status.sent ? 'Added to cart ✓' : status.uncertain ? 'Check your cart' : label;
   }
   function refresh() {
     for (const id of ['save-cart','save-cart-selection']) $(id).disabled = !getSelection().length || saving;
@@ -82,7 +83,7 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
   function markChanged() { draft.dirty = true; message(); refresh(); }
   async function storageAction(action) {
     if (saving) return;
-    const frozen = [...listDialog.querySelectorAll('button,input,select'), ...editorDialog.querySelectorAll('button,input,select')].map(control => [control,control.disabled]);
+    const frozen = [...listDialog.querySelectorAll('button,input,select'), ...editorDialog.querySelectorAll('button,input,select'), ...addDialog.querySelectorAll('button,input,select')].map(control => [control,control.disabled]);
     for (const [control] of frozen) control.disabled = true;
     saving = true; message(); refresh();
     try { await action(); }
@@ -123,7 +124,7 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
   function openEditor(record = null) {
     editorRequest++;
     draft = {id:record?.id || null, name:record?.name || 'My cart', items:hydrate(record?.items || []), dirty:false};
-    listDialog.close(); $('cart-dialog').close();
+    addDialog.close(); listDialog.close(); $('cart-dialog').close();
     $('saved-cart-name').value = draft.name; $('saved-cart-search').value = ''; message(); renderEditor(); renderSearch();
     if (!editorDialog.open) {if(pageMode)editorDialog.show();else editorDialog.showModal();} $('saved-cart-name').focus();
   }
@@ -225,7 +226,7 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
   }
   function renderEditor() {
     const list = $('saved-cart-items'); list.replaceChildren();
-    if (!draft.items.length) list.append(node('p','saved-empty','This cart is empty. Add glass below.'));
+    if (!draft.items.length) list.append(node('p','saved-empty','This cart is empty. Use Add Color to choose glass.'));
     for (const item of draft.items) {
       const product = productFor(item.productId), knownVariant = variantFor(product,item.variantId);
       const currentForm = knownVariant?.form || item.form || 'medium';
@@ -267,7 +268,8 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
     refresh();
   }
   function renderSearch() {
-    const list = $('saved-cart-search-results'); list.replaceChildren(); if (!draft) return;
+    if (!draft || !addDialog.open) return;
+    const list = $('saved-cart-search-results'); list.replaceChildren();
     const query = $('saved-cart-search').value.trim().toLowerCase();
     addForm ||= getProducts()[0]?.form || 'medium';
     $('cart-add-form').value=addForm;
@@ -310,6 +312,14 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
   }
 
   $('open-saved-carts').addEventListener('click',()=>openList().catch(error=>notify(error.message,true)));
+  $('open-cart-add').addEventListener('click',()=>{
+    if (!draft || saving || naming) return;
+    if (!addDialog.open) addDialog.showModal();
+    renderSearch(); $('saved-cart-search').focus({preventScroll:true});
+  });
+  for (const id of ['close-cart-add','done-cart-add']) $(id).addEventListener('click',()=>{if(!saving)addDialog.close();});
+  addDialog.addEventListener('cancel',event=>{if(saving)event.preventDefault();});
+  addDialog.addEventListener('close',()=>{if(editorDialog.open)$('open-cart-add').focus({preventScroll:true});});
   $('copy-website-cart').addEventListener('click',copyWebsiteCart);
   $('cart-include-clear').addEventListener('click',()=>{filters ||= structuredClone(getFilters());filters.includeClear=!filters.includeClear;renderSearch();});
   $('cart-add-form').addEventListener('change',()=>{addForm=$('cart-add-form').value;renderSearch();});

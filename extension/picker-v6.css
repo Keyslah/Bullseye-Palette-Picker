@@ -88,6 +88,27 @@
 @media(max-width:560px){.image-landscape #product-grid>.compact-card{padding:5px;min-height:0}.image-landscape #product-grid>.compact-card>.photo-button{max-width:85px}}
 
 /* Cart controls: independent add defaults and per-item grade/package selection. */
+.cart-send-primary,.cart-page #main-toolbar>#send-to-cart{width:100%;min-height:64px;padding:16px;font-size:21px;line-height:1.25;font-weight:750;white-space:normal;text-align:center}
+.cart-send-primary{flex:none;margin-bottom:14px}
+.cart-page #main-toolbar>#send-to-cart{order:-1;flex:1 0 100%;margin-bottom:5px}
+.cart-page #send-saved-cart{display:none}
+.cart-page .saved-cart-editor-scroll{display:block}
+.saved-cart-draft-heading{flex-wrap:wrap;gap:10px}
+.saved-cart-draft-actions{display:flex;align-items:center;gap:12px;margin-left:auto}
+.saved-cart-draft-actions>span{font-size:11px;color:var(--muted)}
+#open-cart-add{min-height:36px;font-size:13px;padding:7px 16px}
+#cart-add-dialog{width:min(880px,calc(100vw - 24px));max-height:calc(100vh - 32px);padding:16px;overflow:hidden}
+#cart-add-dialog[open]{display:flex;flex-direction:column;gap:10px}
+#cart-add-dialog>.dialog-heading{margin:0;flex:none}
+#cart-add-dialog .saved-cart-add{display:flex;flex-direction:column;min-height:0;border:0;margin:0;padding:0}
+#cart-add-dialog .cart-add-controls,#cart-add-dialog #saved-cart-search{flex:none}
+#cart-add-dialog .saved-cart-search-results{max-height:none;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
+#cart-add-dialog .saved-cart-search-result{grid-template-columns:60px minmax(0,1fr) auto;padding:8px 0}
+#cart-add-dialog .saved-cart-search-result>.saved-cart-photo{width:56px;height:56px}
+#cart-add-dialog .saved-cart-search-result strong{font-size:13px}
+#cart-add-dialog .saved-cart-search-result span{font-size:11px}
+#cart-add-dialog .saved-cart-search-result .button{min-height:32px}
+.cart-add-footer{display:flex;justify-content:flex-end;flex:none;border-top:1px solid var(--line);padding-top:10px}
 .cart-add-controls{display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin-bottom:6px;min-width:0}
 .cart-add-controls>label:first-child{font-size:12px;font-weight:650}
 .cart-add-controls .glass-type-filters{gap:3px;margin:0;flex-wrap:wrap}
