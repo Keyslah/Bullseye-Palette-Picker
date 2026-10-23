@@ -10,8 +10,10 @@ Per-item grades, sizes, thickness choices, quantities, enlarged product photos, 
 
 ## Verification
 
-The release gate runs the JavaScript regressions, manifest/catalog/module checks, native extension workspace and cart checks, layout and photo-matching checks, and exact-source ZIP verification. Native shopping tests use disposable fixtures. The published archive is downloaded and checked against the tested source after release.
+All 190 JavaScript tests pass, along with manifest/catalog/module checks, 45 native workspace checks, 10 cart checks, 19 layout checks, 9 photo-matching checks, and exact-source ZIP verification. Desktop and narrow cart screenshots were inspected. Native shopping tests use disposable fixtures. The release gate repeats these checks, then downloads the published archive and checks it against the tested source.
 
 ## Update
 
 Extract `Bullseye-Palette-Picker-v0.6.6.zip` into the **same installed extension folder**, replacing its files. Open `chrome://extensions`, click **Reload**, and confirm version **0.6.6**. Close and reopen existing picker and cart tabs. Refresh any source pages that were already open before using the image context menu. Keep the same extension installation and folder to retain local saved palettes, carts, and settings.
+
+Previously saved glass choices stay saved. If an old palette still has a pinned blue choice for a black target, select **Black** once in **Alternatives**; new automatic matches use the corrected rule.

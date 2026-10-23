@@ -180,13 +180,29 @@ try:
         prominent_send(page)
         expect(page.locator('.saved-cart-search-result:visible')).to_have_count(0)
         page.screenshot(path=str(OUT/f'cart-builder-{width}.png'),full_page=True)
-        open_add(page);no_overflow(page)
+        open_add(page)
+        page.locator('#saved-cart-search').fill('')
+        for kind,pressed in [('transparent','true'),('opalescent','true'),('clear','false')]:
+            control=page.locator('#cart-include-'+kind)
+            if control.get_attribute('aria-pressed')!=pressed:control.click()
+        no_overflow(page)
         bounds=page.locator('#cart-add-dialog').bounding_box()
         assert bounds['x']>=0 and bounds['y']>=0 and bounds['x']+bounds['width']<=width+1 and bounds['y']+bounds['height']<=height+1,bounds
         if width>=1400:assert abs(page.locator('#cart-add-form').bounding_box()['y']-page.locator('#cart-add-size').bounding_box()['y'])<3
+        results=page.locator('#saved-cart-search-results')
+        metrics=results.evaluate('n=>({height:n.getBoundingClientRect().height,clientHeight:n.clientHeight,scrollHeight:n.scrollHeight,overflow:getComputedStyle(n).overflowY})')
+        assert metrics['height']>0 and metrics['clientHeight']>0 and metrics['scrollHeight']>metrics['clientHeight'] and metrics['overflow'] in ['auto','scroll'],metrics
+        last=results.locator('.saved-cart-search-result').last
+        last.scroll_into_view_if_needed()
+        assert results.evaluate('n=>n.scrollTop')>0
+        pane=results.bounding_box();row=last.bounding_box()
+        assert row['y']>=pane['y']-1 and row['y']+row['height']<=pane['y']+pane['height']+1,(pane,row)
+        after_scroll=page.locator('#cart-add-dialog').bounding_box()
+        assert all(abs(after_scroll[key]-bounds[key])<=1 for key in bounds),(bounds,after_scroll)
+        results.evaluate('n=>{n.scrollTop=0;}')
         page.screenshot(path=str(OUT/f'cart-add-window-{width}.png'),full_page=True)
         close_add(page,'Escape')
-    done('Main cart and separate Add Color window fit desktop and narrow panels; the full-width Send remains first')
+    done('Main cart and full Add Color catalog fit desktop and narrow panels; results scroll to the last color inside the window and the full-width Send remains first')
     assert not writes,writes
     page.set_viewport_size({'width':1440,'height':900});page.locator('#send-to-cart').click();expect(page.locator('#send-to-cart')).to_contain_text('Added to cart')
     expect(page.locator('#send-to-cart')).to_be_disabled()

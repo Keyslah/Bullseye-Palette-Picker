@@ -1,5 +1,29 @@
 # Verification record
 
+## Version 0.6.6
+
+Continues from the verified current main and published v0.6.5 commit `5a5607a`. The [initial v0.6.6 verification run](https://github.com/Keyslah/Bullseye-Palette-Picker/actions/runs/40028748573) passed on 2026-10-23 with **190 JavaScript tests**, manifest/catalog/module checks, and exact-source ZIP checks.
+
+### Black matching
+
+The failure was reproduced using real catalog photographs. Fine targets `#202729` and `#1C1721`, Coarse `#202020`, and Sheets `#101010` chose Aventurine Blue before the fix. Fine `#202729` gave Aventurine Blue 6.25 ΔE00 and ordinary Black 7.50 ΔE00, exceeding the old 0.25 near-tie preference. All four now automatically choose regular Black (`000100`). The automatic policy uses the existing near-black neutral range: L* ≤ 20 and C* < 10. It selects only an eligible, available Black match; the underlying color scores, photo samples, coordinates, and alternative ordering are unchanged.
+
+The updated native matching suite passed **9 checks**, covering four black/near-black targets across all five forms, actual Fine photographs and marker coordinates, purple and blue controls, independent cart filters, reload and named palette preservation, and explicit colored alternatives overriding the automatic recommendation. The unit tests also cover image-extracted near-black targets, dark chromatic and lighter gray controls, unavailable Black, material exclusions, and strict distance limits.
+
+### Focused cart workspace
+
+The main workspace shows the current cart's items with a full-width **Send to Bullseye Website Cart** button in the first toolbar row, at least 64 px high. **Add Color** opens a native modal containing the catalog, filters, search, grade, and size controls. The catalog is rendered when opened and remains hidden on the main page.
+
+The cart suite passed **10 checks**: empty-cart state; modal open/close/Escape and focus return; real frit and sheet options; mixed grades, quantities and saved carts; unavailable sizes; nested enlarged photos; desktop and narrow bounds; and one explicit send containing exactly the displayed cart's variants and quantities. The retained workspace suite passed **45 checks**, and the toolbar/Alternatives layout suite passed **19 checks**. Successful native runs reported no uncaught browser errors. Store traffic used disposable fixtures.
+
+Actual main-cart and Add Color screenshots were inspected at 1440 px and 380 px. The catalog is separate, the send action stays prominent, and narrow layouts wrap within the viewport. Existing explicit or previously preserved glass choices remain saved; an old pinned choice can be changed through Alternatives.
+
+### Release integrity
+
+The installable ZIP contains exactly **182 files** with a root-level manifest, matching the tested extension and included documentation byte for byte. The publication gate repeats the tests and verifies the downloaded published archive against the same source. Upgrade requires replacing files in the existing extension folder, clicking **Reload** at `chrome://extensions`, and reopening picker/cart tabs.
+
+---
+
 ## Version 0.6.5
 
 Verified on 2026-10-20 in disposable native Chromium extension profiles, starting from the actual published v0.6.4 main commit `d2b9196`. The only production logic changes are the regular Black exception in the shared material filter and a target-aware automatic purple preference; no layout, photo data, source-image extraction, or percentage calculation changes are included.

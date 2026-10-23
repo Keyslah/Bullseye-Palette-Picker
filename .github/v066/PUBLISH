@@ -1,0 +1,3 @@
+Publish v0.6.6 after the regression, native-browser and exact-source package checks pass.
+The implementation passed checkpoint run 40028748573 and desktop/narrow visual review.
+Delivery continues the user's authorized GitHub push and installable release workflow.
