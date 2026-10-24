@@ -107,8 +107,9 @@ try:
         store.goto('https://shop.bullseyeglass.com/cart')
         page = context.new_page()
         watch(page)
-        page.goto(base + '?workspace=1')
-        expect(page.locator('#form-fine')).to_be_enabled()
+        # Generate the fixture before any picker can queue a pagehide autosave.
+        # Closing a live empty picker would legitimately replace this raw seed.
+        page.goto('about:blank')
         seed = page.evaluate('''() => {
           const canvas=document.createElement('canvas');canvas.width=1200;canvas.height=600;
           const ctx=canvas.getContext('2d'),colors=['#000000','#202729','#1C1721','#202020','#6A12DE','#263AB5'];

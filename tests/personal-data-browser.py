@@ -118,7 +118,11 @@ try:
         assert moved_id != original_id
         empty = snapshot(page)
         assert empty['local'] == {} and empty['palettes'] == [] and empty['carts'] == []
-        page.evaluate("async data => (await import('./lib/personal-data.js')).restorePersonalDataBackup(data)", original)
+        page.evaluate("""async data => {
+          const session=await import('./lib/personal-data-session.js');
+          const personal=await import('./lib/personal-data.js');
+          return session.runPersonalDataRestore(()=>personal.restorePersonalDataBackup(data));
+        }""", original)
         page.reload()
         moved_snapshot = snapshot(page)
         for key in ['local', 'palettes', 'carts']:
@@ -168,7 +172,11 @@ try:
         worker = context.service_workers[0]
         worker.evaluate("() => { globalThis.fetch=async()=>{throw new Error('No external requests in persistence QA.');}; }")
         expect(page.locator('#form-medium')).to_be_enabled()
-        page.evaluate("async data => (await import('./lib/personal-data.js')).restorePersonalDataBackup(data)", original)
+        page.evaluate("""async data => {
+          const session=await import('./lib/personal-data-session.js');
+          const personal=await import('./lib/personal-data.js');
+          return session.runPersonalDataRestore(()=>personal.restorePersonalDataBackup(data));
+        }""", original)
         page.reload()
         expect(page.locator('#include-opalescent')).to_have_attribute('aria-pressed','false')
         expect(page.locator('#image-fit')).to_have_attribute('aria-pressed','true')
@@ -203,6 +211,35 @@ try:
         page.wait_for_timeout(350)
         assert page.evaluate("async()=> (await chrome.storage.local.get('bullseyeProjectV1')).bullseyeProjectV1.glassTypes.opalescent") is False
         passed('Actual Restore my data flow reloads every open picker and preserves restored settings and cart count')
+
+        # Delay the worker's guard itself, then destroy the sending picker before
+        # its save can run. The next page must wait for that queued final snapshot.
+        worker.evaluate("""() => {
+          const read=chrome.storage.local.get.bind(chrome.storage.local);
+          globalThis.originalWorkspaceRead=read;
+          globalThis.workspaceWriteBlocked=false;
+          let delay=true;
+          chrome.storage.local.get=async key=>{
+            if(key==='bullseyePersonalDataGenerationV1' && delay){
+              delay=false;globalThis.workspaceWriteBlocked=true;
+              await new Promise(resolve=>{globalThis.releaseWorkspaceWrite=resolve;});
+            }
+            return read(key);
+          };
+        }""")
+        with page.expect_navigation(wait_until='domcontentloaded'):
+            page.evaluate("() => {document.getElementById('form-powder').click();location.reload();}")
+        for attempt in range(40):
+            if worker.evaluate('globalThis.workspaceWriteBlocked === true'):
+                break
+            page.wait_for_timeout(25)
+        assert worker.evaluate('globalThis.workspaceWriteBlocked === true'), 'The old picker did not hand off its pagehide save.'
+        assert worker.evaluate("async()=> (await originalWorkspaceRead('bullseyeProjectV1')).bullseyeProjectV1.format") == 'fine'
+        worker.evaluate('globalThis.releaseWorkspaceWrite()')
+        expect(page.locator('#form-powder')).to_have_attribute('aria-pressed','true')
+        assert page.evaluate("async()=> (await chrome.storage.local.get('bullseyeProjectV1')).bullseyeProjectV1.format") == 'powder'
+        expect(page.locator('#include-opalescent')).to_have_attribute('aria-pressed','false')
+        passed('Immediate reload keeps the final form selection while the old page’s worker save is deliberately blocked')
         context.close()
         assert not errors, errors
 except Exception as error:

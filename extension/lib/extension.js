@@ -5,7 +5,7 @@
  * Constraints: photos stay in this browser; host access is requested per image origin.
  */
 import {BULLSEYE_LOGIN_URL, validateCartItems} from './commerce.js';
-import {guardPersonalDataWrite} from './personal-data-session.js';
+import {guardPersonalDataWrite, personalDataGeneration} from './personal-data-session.js';
 
 export {validateCartItems} from './commerce.js';
 
@@ -109,13 +109,25 @@ export async function openCartPage(mode = 'working') {
   window.open(new URL(destination, location.href).href,'_blank','noopener');
 }
 export async function loadState() {
-  if (hasExtension()) return (await chrome.storage.local.get(PROJECT_KEY))[PROJECT_KEY] ?? null;
+  if (hasExtension()) {
+    const result = await message('BULLSEYE_LOAD_WORKSPACE');
+    if (result?.error) throw new Error(result.error);
+    if (result?.loaded !== true || !Object.hasOwn(result,'workspace')) throw new Error('Your saved workspace could not be read. Reload the extension.');
+    return result.workspace;
+  }
   return JSON.parse(localStorage.getItem(PROJECT_KEY) || 'null');
 }
 
 export async function saveState(value) {
+  if (hasExtension()) {
+    // No await before sendMessage: the worker retains the queued write if this
+    // picker is destroyed immediately after a pagehide-triggered save.
+    const result = await message('BULLSEYE_SAVE_WORKSPACE',{workspace:value,generation:personalDataGeneration()});
+    if (result?.error) throw new Error(result.error);
+    if (result?.saved !== true) throw new Error('The workspace save was not confirmed. Reload the extension.');
+    return;
+  }
   return guardPersonalDataWrite(async () => {
-    if (hasExtension()) return chrome.storage.local.set({[PROJECT_KEY]: value});
     localStorage.setItem(PROJECT_KEY, JSON.stringify(value));
   });
 }

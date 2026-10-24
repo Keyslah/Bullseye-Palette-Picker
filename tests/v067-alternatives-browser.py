@@ -55,8 +55,9 @@ try:
         base = f'chrome-extension://{worker.url.split("/")[2]}/picker.html?workspace=1'
         page = context.new_page()
         page.on('pageerror', lambda error: errors.append(str(error)))
-        page.goto(base)
-        expect(page.locator('#form-fine')).to_be_enabled()
+        # Build and seed fixtures before any picker exists; a live picker correctly
+        # hands its own snapshot to the worker when it closes or reloads.
+        page.goto(f'chrome-extension://{worker.url.split("/")[2]}/manifest.json')
         seed = page.evaluate('''() => {
           const canvas=document.createElement('canvas');canvas.width=600;canvas.height=300;
           const ctx=canvas.getContext('2d'),colors=['#F7F4E3','#6A12DE'];

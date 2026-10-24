@@ -6,7 +6,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {cancelPendingImage, emptyBullseyeCart, getBullseyeAccount, loadState, openWorkspace, sendToCart, signInToBullseye, validateOrderLines} from '../extension/lib/extension.js';
+import {cancelPendingImage, emptyBullseyeCart, getBullseyeAccount, loadState, saveState, openWorkspace, sendToCart, signInToBullseye, validateOrderLines} from '../extension/lib/extension.js';
 
 test('Copied SKU order preserves distinct real package SKUs and whole jar quantities', () => {
   assert.equal(validateOrderLines('001426-0002-F-P001 2\n001120-0002-F-OZ05\t1'), '001426-0002-F-P001 2\n001120-0002-F-OZ05 1');
@@ -193,11 +193,32 @@ test('empty-cart bridge rejects malformed confirmation and propagates sign-in fa
 });
 
 test('workspace load errors propagate so startup cannot replace unread personal data with defaults', async t => {
-  replaceGlobal(t,'chrome',{runtime:{id:'bridge-test'},storage:{local:{get:async()=>{throw new Error('Storage unavailable');}}}});
+  replaceGlobal(t,'chrome',{runtime:{id:'bridge-test',sendMessage:async()=>({error:'Storage unavailable'})}});
   await assert.rejects(loadState(),/Storage unavailable/);
   globalThis.chrome = undefined;
   replaceGlobal(t,'localStorage',{getItem:()=>'{broken'});
   await assert.rejects(loadState(),SyntaxError);
   globalThis.localStorage = {getItem:()=>null};
   assert.equal(await loadState(),null,'A genuinely missing project is still a new workspace.');
+});
+
+test('workspace saves hand off synchronously so immediate page unload cannot cancel the guard', async t => {
+  const calls=[];let acknowledge;
+  replaceGlobal(t,'chrome',{runtime:{id:'bridge-test',sendMessage:request=>{
+    calls.push(request);return new Promise(resolve=>{acknowledge=resolve;});
+  }},storage:{local:{set(){throw new Error('The page must hand off to the worker.');}}}});
+  const workspace={version:6,format:'fine',glassTypes:{transparent:true,opalescent:false},targets:[]};
+  const saving=saveState(workspace);
+  assert.deepEqual(calls,[{type:'BULLSEYE_SAVE_WORKSPACE',workspace,generation:''}]);
+  acknowledge({saved:true});await saving;
+});
+
+test('workspace load uses the worker save barrier and rejects missing acknowledgements', async t=>{
+  const calls=[];let result={loaded:true,workspace:{format:'fine'}};
+  replaceGlobal(t,'chrome',{runtime:{id:'bridge-test',sendMessage:async request=>{calls.push(request);return result;}}});
+  assert.deepEqual(await loadState(),{format:'fine'});
+  assert.deepEqual(calls,[{type:'BULLSEYE_LOAD_WORKSPACE'}]);
+  result={};await assert.rejects(loadState(),/could not be read/);
+  await assert.rejects(saveState({targets:[]}),/not confirmed/);
+  result={error:'Storage quota reached'};await assert.rejects(saveState({targets:[]}),/Storage quota/);
 });

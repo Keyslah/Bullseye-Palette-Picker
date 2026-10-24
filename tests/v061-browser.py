@@ -243,7 +243,12 @@ try:
         assert restored['targets']==remixed['targets']
         passed('Existing saved-photo and workspace restoration survive v6 reload')
         older=copy.deepcopy(restored);older['version']=5;older['imageSize']='fit'
-        page.evaluate("async value=>chrome.storage.local.set({bullseyeProjectV1:value})",older)
+        # Treat fixture replacement as a restore so the current picker's pagehide
+        # snapshot cannot overwrite the deliberately seeded legacy workspace.
+        page.evaluate('''async value => {
+          const session=await import('./lib/personal-data-session.js');
+          return session.runPersonalDataRestore(()=>chrome.storage.local.set({bullseyeProjectV1:value}));
+        }''',older)
         page.reload();expect(page.locator('#image-loaded')).to_be_visible()
         upgraded=saved(page)
         assert upgraded['version']==6 and upgraded['imageSize']=='fit'

@@ -200,6 +200,54 @@ test('MV3 worker imports without DOM globals and registers/configures its entry 
   assert.deepEqual(harness.panelBehavior, { openPanelOnActionClick: true });
 });
 
+test('workspace saves survive page handoff and a new load waits for them in receive order', async t=>{
+  const harness=await workerHarness(t),gate=deferred(),started=deferred();
+  const originalGet=chrome.storage.local.get,writes=[];
+  let delay=true;
+  chrome.storage.local.get=async key=>{
+    if(key==='bullseyePersonalDataGenerationV1' && delay){delay=false;started.resolve();await gate.promise;}
+    return originalGet(key);
+  };
+  chrome.storage.local.set=async values=>{writes.push(structuredClone(values));Object.assign(harness.local,structuredClone(values));};
+  harness.local.bullseyeProjectV1={format:'medium'};
+  const fine={version:6,format:'fine',targets:[]};
+  const powder={version:6,format:'powder',targets:[]};
+  const first=harness.send({type:'BULLSEYE_SAVE_WORKSPACE',workspace:fine,generation:''});
+  const second=harness.send({type:'BULLSEYE_SAVE_WORKSPACE',workspace:powder,generation:''});
+  let loaded=false;
+  const reading=harness.send({type:'BULLSEYE_LOAD_WORKSPACE'}).then(value=>{loaded=true;return value;});
+  await started.promise;await flushTasks();
+  assert.equal(loaded,false,'The next picker must not restore the old Medium setting while the final save is pending.');
+  assert.deepEqual(writes,[]);
+  gate.resolve();
+  assert.deepEqual(await first,{saved:true});assert.deepEqual(await second,{saved:true});
+  assert.deepEqual(await reading,{loaded:true,workspace:powder});
+  assert.deepEqual(writes.map(value=>value.bullseyeProjectV1.format),['fine','powder']);
+});
+
+test('workspace worker rejects a stale restored-data generation without blocking fresh loads or saves', async t=>{
+  const harness=await workerHarness(t);
+  harness.local.bullseyePersonalDataGenerationV1={generation:'restored-generation',restoring:false};
+  harness.local.bullseyeProjectV1={format:'fine'};
+  const rejected=await harness.send({type:'BULLSEYE_SAVE_WORKSPACE',workspace:{format:'medium'},generation:''});
+  assert.match(rejected.error,/changed in another picker tab/);
+  assert.deepEqual(await harness.send({type:'BULLSEYE_LOAD_WORKSPACE'}),{loaded:true,workspace:{format:'fine'}});
+  assert.deepEqual(await harness.send({type:'BULLSEYE_SAVE_WORKSPACE',workspace:{format:'coarse'},generation:'restored-generation'}),{saved:true});
+  assert.equal(harness.local.bullseyeProjectV1.format,'coarse');
+});
+
+test('workspace worker reports read/write failures and rejects malformed handoffs', async t=>{
+  const harness=await workerHarness(t);
+  const originalSet=chrome.storage.local.set;
+  chrome.storage.local.set=async()=>{throw new Error('Workspace quota exceeded');};
+  assert.match((await harness.send({type:'BULLSEYE_SAVE_WORKSPACE',workspace:{targets:[]},generation:''})).error,/quota exceeded/);
+  chrome.storage.local.set=originalSet;
+  assert.match((await harness.send({type:'BULLSEYE_SAVE_WORKSPACE',workspace:[],generation:''})).error,/not valid/);
+  assert.match((await harness.send({type:'BULLSEYE_SAVE_WORKSPACE',workspace:{targets:[]}})).error,/session is not valid/);
+  chrome.storage.local.get=async()=>{throw new Error('Workspace read denied');};
+  assert.match((await harness.send({type:'BULLSEYE_LOAD_WORKSPACE'})).error,/read denied/);
+});
+
 test('Pinterest link-only clicks resolve the linked image in the clicked frame', async (t) => {
   const harness = await workerHarness(t);
   for (const frameId of [undefined, 9]) {

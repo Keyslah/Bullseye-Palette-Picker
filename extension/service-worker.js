@@ -6,6 +6,7 @@
  */
 import {BULLSEYE_ORIGIN, BULLSEYE_CART_URL, BULLSEYE_LOGIN_URL, validateCartItems, runBullseyeStoreAction} from './lib/commerce.js';
 import {findLinkedImage} from './lib/page-image.js';
+import {guardPersonalDataGeneration} from './lib/personal-data-session.js';
 
 const IMAGE_MENU = 'bullseye-palette-from-image';
 const CAPTURE_MENU = 'bullseye-palette-from-page';
@@ -13,6 +14,25 @@ const MAX_DOWNLOAD = 20 * 1024 * 1024;
 let currentImageRequest = 0;
 const CART_JOURNAL_KEY = 'bullseyeCartRequestsV1';
 let cartFlight = null;
+const WORKSPACE_KEY = 'bullseyeProjectV1';
+let workspaceSaves = Promise.resolve();
+
+function saveWorkspace(workspace, generation) {
+  if (!workspace || typeof workspace !== 'object' || Array.isArray(workspace)) throw new Error('The palette workspace is not valid.');
+  const snapshot = structuredClone(workspace);
+  const save = workspaceSaves.then(() => guardPersonalDataGeneration(generation,async () => {
+    await chrome.storage.local.set({[WORKSPACE_KEY]:snapshot});
+    return {saved:true};
+  }));
+  workspaceSaves = save.catch(() => {});
+  return save;
+}
+
+async function loadWorkspace() {
+  // A freshly reloaded picker must wait for its old page's final queued save.
+  await workspaceSaves;
+  return {loaded:true,workspace:(await chrome.storage.local.get(WORKSPACE_KEY))[WORKSPACE_KEY] ?? null};
+}
 
 async function configure() {
   await chrome.contextMenus.removeAll();
@@ -318,6 +338,14 @@ async function productVariants(handle) {
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL(''))) return false;
+  if (request.type === 'BULLSEYE_SAVE_WORKSPACE' || request.type === 'BULLSEYE_LOAD_WORKSPACE') {
+    // Queue these synchronously in receive order, before the sending page exits.
+    try {
+      const action = request.type === 'BULLSEYE_SAVE_WORKSPACE' ? saveWorkspace(request.workspace,request.generation) : loadWorkspace();
+      Promise.resolve(action).then(sendResponse).catch(error => sendResponse({error:readableError(error)}));
+    } catch (error) { sendResponse({error:readableError(error)}); }
+    return true;
+  }
   const actions = {
     FETCH_SELECTED_IMAGE: () => fetchSelectedImage(request.sourceUrl),
     CAPTURE_VISIBLE: captureSource,

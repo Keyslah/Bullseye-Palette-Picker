@@ -84,14 +84,31 @@ function requireCurrent(current) {
   }
 }
 
+/** Synchronous capture lets pagehide hand a save to the worker before unloading. */
+export function personalDataGeneration() {
+  if (!inPage()) return '';
+  if (generation === null) throw new Error('Personal data is still loading. Wait before saving.');
+  return generation;
+}
+
+/** Worker-side guard: the originating page's generation travels with its write. */
+export async function guardPersonalDataGeneration(expectedGeneration, action) {
+  if (typeof expectedGeneration !== 'string' || expectedGeneration.length > 160) throw new Error('The personal-data session is not valid. Reload the picker.');
+  return locked('shared',async () => {
+    const current = await readMarker();
+    if (current.restoring || current.generation !== expectedGeneration) {
+      if (inPage()) receive(current);
+      throw new Error('Personal data changed in another picker tab. Reload this page before saving changes.');
+    }
+    return action();
+  });
+}
+
 /** The stored generation is checked inside the same lock as the actual write. */
 export async function guardPersonalDataWrite(action) {
   if (!inPage()) return action();
   await initPersonalDataSession();
-  return locked('shared',async () => {
-    requireCurrent(await readMarker());
-    return action();
-  });
+  return guardPersonalDataGeneration(generation,action);
 }
 
 /** Freeze other pages and finish every in-flight normal write before restoration. */

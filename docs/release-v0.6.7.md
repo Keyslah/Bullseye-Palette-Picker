@@ -15,7 +15,7 @@ Transparent, Opalescent and Tints in Alternatives now filter only that dialog. C
 
 ## Keep your personal data
 
-The extension keeps its existing identity, storage keys and database names. Updates do not reset preferred settings, image layout, saved palettes, source photos or carts. A failed workspace read prevents defaults from overwriting unread data.
+The extension keeps its existing identity, storage keys and database names. Updates do not reset preferred settings, image layout, saved palettes, source photos or carts. Background saves survive closing or immediately reloading the picker, and startup waits for the pending save. A failed workspace read prevents defaults from overwriting unread data.
 
 **Settings → Back up my data** exports current settings, named settings, palettes with photos, named carts and the working cart. **Restore my data** validates the file, merges named records and restores its current workspace/settings/cart. Account/session information and website request journals are not included. This supports moving to another extension folder or computer.
 
@@ -30,4 +30,4 @@ Keep the same installation for ordinary updates. Removing it or loading each ver
 
 ## Verification
 
-All **224 JavaScript tests** pass, alongside manifest/catalog/module checks. Native Chromium checks cover the retained workspace and cart builder, desktop/narrow layout, black/purple matching, independent Alternatives, repeated sending/emptying, autosave failure recovery, in-place updates and backup/restore across installations and open tabs. The installable ZIP contains **185 exact-source files**. Shopping tests use disposable storefront fixtures, with no live account or cart changes. The release gate repeats verification and checks the downloaded published ZIP against the tested source.
+All **229 JavaScript tests** pass, alongside manifest/catalog/module checks. Native Chromium checks cover the retained workspace and cart builder, desktop/narrow layout, black/purple matching, independent Alternatives, repeated sending/emptying, autosave failure recovery, in-place updates and backup/restore across installations and open tabs. The installable ZIP contains **185 exact-source files**. Shopping tests use disposable storefront fixtures, with no live account or cart changes. The release gate repeats verification and checks the downloaded published ZIP against the tested source.
