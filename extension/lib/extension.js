@@ -1,10 +1,11 @@
 /**
  * Purpose: browser bridge for photos, saved palettes, and the signed-in Bullseye cart.
  * Setup: imported by picker.js in a Manifest V3 extension or a local preview tab.
- * Destructive behavior: sendToCart adds selected jars after an explicit user click.
+ * Destructive behavior: explicit send/empty clicks change the native website cart.
  * Constraints: photos stay in this browser; host access is requested per image origin.
  */
 import {BULLSEYE_LOGIN_URL, validateCartItems} from './commerce.js';
+import {guardPersonalDataWrite} from './personal-data-session.js';
 
 export {validateCartItems} from './commerce.js';
 
@@ -47,8 +48,8 @@ export async function sendToCart(items) {
   if (!hasExtension()) throw new Error('Install the Chrome extension to send colors to your Bullseye cart.');
   const signature = JSON.stringify(cleaned);
   if (cartFlight) {
-    if (cartFlight.signature === signature) return cartFlight.promise;
-    throw new Error('Your previous selection is still being sent to Bullseye.');
+    if (cartFlight.kind === 'add' && cartFlight.signature === signature) return cartFlight.promise;
+    throw new Error('Your Bullseye cart is still being updated.');
   }
   const requestId = cartRequests.get(signature) || crypto.randomUUID();
   cartRequests.set(signature, requestId);
@@ -67,7 +68,29 @@ export async function sendToCart(items) {
     cartRequests.delete(signature);
     return result;
   })();
-  cartFlight = {signature, promise};
+  cartFlight = {kind:'add', signature, promise};
+  try { return await promise; }
+  finally { if (cartFlight?.promise === promise) cartFlight = null; }
+}
+
+/** Explicit website-cart empty only. Local carts and saved palettes are retained. */
+export async function emptyBullseyeCart() {
+  if (!hasExtension()) throw new Error('Install the extension and sign in to Bullseye to empty your website cart.');
+  if (cartFlight) {
+    if (cartFlight.kind === 'clear') return cartFlight.promise;
+    throw new Error('Wait for your current Bullseye cart addition to finish before emptying it.');
+  }
+  const promise = (async () => {
+    const result = await message('BULLSEYE_EMPTY_CART');
+    if (result?.error) throw bridgeError(result);
+    if (result?.cleared !== true || result.itemCount !== 0) throw bridgeError({
+      error:'Bullseye did not confirm an empty cart. Check your website cart before trying again.',
+      code:'CART_CLEAR_UNCONFIRMED', uncertain:true, cartUrl:'https://shop.bullseyeglass.com/cart',
+    });
+    cartRequests.clear();
+    return result;
+  })();
+  cartFlight = {kind:'clear', promise};
   try { return await promise; }
   finally { if (cartFlight?.promise === promise) cartFlight = null; }
 }
@@ -80,21 +103,21 @@ export async function readBullseyeCart() {
   if (result?.read !== true || !Array.isArray(result.items)) throw new Error('Bullseye did not return a readable cart.');
   return result;
 }
-export async function openCartPage(mode = 'selection') {
-  const destination = `picker.html?workspace=1&cart=1&mode=${mode === 'list' ? 'list' : 'selection'}`;
+export async function openCartPage(mode = 'working') {
+  const destination = `picker.html?workspace=1&cart=1&mode=${mode === 'list' ? 'list' : 'working'}`;
   if (hasExtension()) return chrome.tabs.create({url:chrome.runtime.getURL(destination)});
   window.open(new URL(destination, location.href).href,'_blank','noopener');
 }
 export async function loadState() {
-  try {
-    if (hasExtension()) return (await chrome.storage.local.get(PROJECT_KEY))[PROJECT_KEY] ?? null;
-    return JSON.parse(localStorage.getItem(PROJECT_KEY) || 'null');
-  } catch { return null; }
+  if (hasExtension()) return (await chrome.storage.local.get(PROJECT_KEY))[PROJECT_KEY] ?? null;
+  return JSON.parse(localStorage.getItem(PROJECT_KEY) || 'null');
 }
 
 export async function saveState(value) {
-  if (hasExtension()) return chrome.storage.local.set({[PROJECT_KEY]: value});
-  localStorage.setItem(PROJECT_KEY, JSON.stringify(value));
+  return guardPersonalDataWrite(async () => {
+    if (hasExtension()) return chrome.storage.local.set({[PROJECT_KEY]: value});
+    localStorage.setItem(PROJECT_KEY, JSON.stringify(value));
+  });
 }
 
 export async function getPendingImage() {

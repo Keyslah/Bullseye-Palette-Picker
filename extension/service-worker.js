@@ -1,8 +1,8 @@
 /**
  * Purpose: receive image context-menu clicks and hand photos to the palette picker.
  * Setup: Manifest V3 service worker; uses the user's current Chrome window/session.
- * Destructive behavior: an explicit cart request adds chosen jars to the native cart.
- * Constraints: photos stay local; never clears carts, checks out, or reads credentials.
+ * Destructive behavior: explicit send/empty requests change the native website cart.
+ * Constraints: photos stay local; never checks out or reads credentials.
  */
 import {BULLSEYE_ORIGIN, BULLSEYE_CART_URL, BULLSEYE_LOGIN_URL, validateCartItems, runBullseyeStoreAction} from './lib/commerce.js';
 import {findLinkedImage} from './lib/page-image.js';
@@ -219,11 +219,11 @@ async function sendCart(items, requestId) {
   if (typeof requestId !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(requestId)) throw new Error('The cart request is not valid.');
   const signature = JSON.stringify(cleaned);
   if (cartFlight) {
-    if (cartFlight.signature === signature) return cartFlight.promise;
-    return {error: 'Your previous selection is still being sent to Bullseye.', code: 'CART_BUSY'};
+    if (cartFlight.kind === 'add' && cartFlight.signature === signature) return cartFlight.promise;
+    return {error: 'Your Bullseye cart is still being updated.', code: 'CART_BUSY'};
   }
   const promise = sendCartOnce(cleaned, requestId, signature);
-  cartFlight = {signature, promise};
+  cartFlight = {kind:'add', signature, promise};
   try { return await promise; }
   finally { if (cartFlight?.promise === promise) cartFlight = null; }
 }
@@ -244,9 +244,6 @@ async function sendCartOnce(items, requestId, signature) {
       code: 'CART_UNCONFIRMED', uncertain: true, cartUrl: BULLSEYE_CART_URL,
     };
   }
-  const recent = journal.find(entry => entry.signature === signature && entry.status === 'complete' && Date.now() - entry.updatedAt < 5000);
-  if (recent) return {...recent.result, duplicate: true};
-
   const tab = await storeTab(true);
   const record = {requestId, signature, status: 'pending', updatedAt: Date.now()};
   journal.push(record);
@@ -277,6 +274,40 @@ async function sendCartOnce(items, requestId, signature) {
   return result;
 }
 
+async function emptyCart() {
+  if (cartFlight) {
+    if (cartFlight.kind === 'clear') return cartFlight.promise;
+    return {error:'Wait for your current Bullseye cart addition to finish before emptying it.', code:'CART_BUSY'};
+  }
+  const promise = emptyCartOnce();
+  cartFlight = {kind:'clear', promise};
+  try { return await promise; }
+  finally { if (cartFlight?.promise === promise) cartFlight = null; }
+}
+
+async function emptyCartOnce() {
+  const tab = await storeTab(true);
+  let result;
+  try {
+    result = await inStore(tab, {kind:'clear-cart'});
+    if ((result.cleared === true && result.itemCount !== 0)
+      || (result.cleared !== true && typeof result.error !== 'string')) throw new Error('Missing empty-cart confirmation.');
+  } catch {
+    result = {error:'The store tab stopped responding. Check your Bullseye cart before emptying it again.',
+      code:'CART_CLEAR_UNCONFIRMED', uncertain:true, cartUrl:BULLSEYE_CART_URL};
+  }
+  if (result.cleared === true) {
+    // Emptying resolves outstanding additions, while completed operation IDs
+    // remain protected against an old message being replayed after the clear.
+    const saved = await chrome.storage.local.get(CART_JOURNAL_KEY);
+    const journal = Array.isArray(saved[CART_JOURNAL_KEY]) ? saved[CART_JOURNAL_KEY] : [];
+    await chrome.storage.local.set({[CART_JOURNAL_KEY]:journal.filter(entry => !['pending','uncertain'].includes(entry.status))});
+    return {...result, opened:await showNativeCart(tab,result.cartUrl)};
+  }
+  if (result.uncertain) await showNativeCart(tab,result.cartUrl);
+  return result;
+}
+
 async function productVariants(handle) {
   if (!/^[a-z0-9-]+$/.test(handle || '')) throw new Error('Invalid Bullseye product.');
   const response = await fetch(`https://shop.bullseyeglass.com/products/${handle}.js`, {signal: AbortSignal.timeout(12000)});
@@ -295,6 +326,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     BULLSEYE_READ_CART: async () => inStore(await storeTab(true), {kind:'read-cart'}),
     BULLSEYE_SIGN_IN: signInToBullseye,
     BULLSEYE_SEND_CART: () => sendCart(request.items, request.requestId),
+    BULLSEYE_EMPTY_CART: emptyCart,
     PRODUCT_VARIANTS: () => productVariants(request.handle),
   };
   const action = actions[request.type];

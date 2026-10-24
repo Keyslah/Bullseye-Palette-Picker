@@ -24,7 +24,7 @@ function replaceGlobal(t, name, value) {
 function store(t, options = {}) {
   const fixture = {
     html: options.html ?? signedInHeader,
-    calls: [], posts: [],
+    calls: [], posts: [], clearPosts:[],
     cart: options.cart ?? [{id: 9000, quantity: 4}, {id: chosen[0].variantId, quantity: 3}],
     cartReads: 0,
   };
@@ -35,6 +35,15 @@ function store(t, options = {}) {
     assert.equal(init.credentials, 'include');
     assert.equal(init.cache, 'no-store');
     fixture.calls.push({url: parsed.href, method: init.method || 'GET'});
+    if (parsed.pathname.endsWith('/cart/clear.js')) {
+      assert.equal(init.method, 'POST');
+      assert.equal(init.headers['Content-Type'], 'application/json');
+      const body = JSON.parse(init.body);
+      fixture.clearPosts.push(body);
+      if (options.clearPost) return options.clearPost(body,fixture);
+      fixture.cart = [];
+      return Response.json({items:[],item_count:0});
+    }
     if (parsed.pathname.endsWith('/cart/add.js')) {
       assert.equal(init.method, 'POST');
       assert.equal(init.headers['Content-Type'], 'application/json');
@@ -214,4 +223,66 @@ test('cart API calls follow the store locale while rejecting external route valu
   assert.ok(fixture.calls.filter(call => call.url.endsWith('.js')).every(call => new URL(call.url).pathname.startsWith('/en/')));
   fixture.html = signedInHeader + '<script>Shopify.routes.root = "https://evil.example/";</script>';
   assert.equal((await runBullseyeStoreAction({kind: 'add', items: chosen})).cartUrl, `${BULLSEYE_ORIGIN}/cart`);
+});
+
+test('explicit empty-cart action clears once and verifies the website cart using the locale route', async t => {
+  const fixture = store(t,{html:signedInHeader + '<script>Shopify.routes.root = "/en/";</script>'});
+  const result = await runBullseyeStoreAction({kind:'clear-cart'});
+  assert.equal(result.cleared,true);
+  assert.equal(result.itemCount,0);
+  assert.equal(result.cartUrl,`${BULLSEYE_ORIGIN}/en/cart`);
+  assert.deepEqual(fixture.cart,[]);
+  assert.deepEqual(fixture.clearPosts,[{}]);
+  assert.equal(fixture.posts.length,0);
+  assert.equal(fixture.cartReads,1);
+  assert.deepEqual(fixture.calls.filter(call=>call.url.endsWith('.js')).map(call=>[new URL(call.url).pathname,call.method]),[
+    ['/en/cart/clear.js','POST'],['/en/cart.js','GET'],
+  ]);
+});
+
+test('empty additions and read-only account checks cannot clear a cart', async t => {
+  const fixture = store(t);
+  const before = structuredClone(fixture.cart);
+  assert.equal((await runBullseyeStoreAction({kind:'add',items:[]})).code,'INVALID_ITEMS');
+  assert.equal((await runBullseyeStoreAction({kind:'account'})).signedIn,true);
+  assert.deepEqual(fixture.cart,before);
+  assert.equal(fixture.clearPosts.length,0);
+});
+
+test('empty-cart actions require native store origin and fresh signed-in customer HTML', async t => {
+  const fixture = store(t,{html:signedOutHeader});
+  assert.equal((await runBullseyeStoreAction({kind:'clear-cart'})).code,'SIGN_IN_REQUIRED');
+  fixture.html = '<header>Loading</header>';
+  assert.equal((await runBullseyeStoreAction({kind:'clear-cart'})).code,'ACCOUNT_UNKNOWN');
+  globalThis.location = {origin:'chrome-extension://fixture',protocol:'chrome-extension:'};
+  const calls = fixture.calls.length;
+  assert.equal((await runBullseyeStoreAction({kind:'clear-cart'})).code,'STORE_TAB_REQUIRED');
+  assert.equal(fixture.calls.length,calls);
+  assert.equal(fixture.clearPosts.length,0);
+});
+
+test('a lost clear response is verified by reading the cart and is never POSTed again', async t => {
+  const fixture = store(t,{clearPost:(_body,current)=>{current.cart=[];throw new Error('Lost response');}});
+  assert.equal((await runBullseyeStoreAction({kind:'clear-cart'})).cleared,true);
+  assert.equal(fixture.clearPosts.length,1);
+  assert.equal(fixture.cartReads,1);
+});
+
+test('a failed clear or unreadable verification is surfaced without a second POST', async t => {
+  const fixture = store(t,{clearPost:()=>Response.json({description:'Cart is unavailable.'},{status:422})});
+  const result = await runBullseyeStoreAction({kind:'clear-cart'});
+  assert.equal(result.code,'CART_CLEAR_REJECTED');
+  assert.equal(result.uncertain,false);
+  assert.equal(result.cleared,undefined);
+  assert.match(result.error,/unavailable/);
+  assert.equal(fixture.clearPosts.length,1);
+});
+
+test('clear verification failure stays uncertain even when the POST returned an empty cart', async t => {
+  const fixture = store(t,{cartRead:()=>Response.json({error:'Unavailable'},{status:503})});
+  const result = await runBullseyeStoreAction({kind:'clear-cart'});
+  assert.equal(result.code,'CART_CLEAR_UNCONFIRMED');
+  assert.equal(result.uncertain,true);
+  assert.equal(result.cleared,undefined);
+  assert.equal(fixture.clearPosts.length,1);
 });

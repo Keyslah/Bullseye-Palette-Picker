@@ -6,7 +6,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {cancelPendingImage, getBullseyeAccount, openWorkspace, sendToCart, signInToBullseye, validateOrderLines} from '../extension/lib/extension.js';
+import {cancelPendingImage, emptyBullseyeCart, getBullseyeAccount, loadState, openWorkspace, sendToCart, signInToBullseye, validateOrderLines} from '../extension/lib/extension.js';
 
 test('Copied SKU order preserves distinct real package SKUs and whole jar quantities', () => {
   assert.equal(validateOrderLines('001426-0002-F-P001 2\n001120-0002-F-OZ05\t1'), '001426-0002-F-P001 2\n001120-0002-F-OZ05 1');
@@ -138,4 +138,66 @@ test('missing or malformed worker replies never become a successful cart or sign
   response = {opened: true};
   await assert.rejects(sendToCart(items), error => error.code === 'CART_UNCONFIRMED' && error.uncertain === true);
   assert.equal(sent[1].requestId, sent[2].requestId, 'Malformed replies must retain the operation identity.');
+});
+
+test('a new deliberate send after success receives a fresh request ID immediately', async t => {
+  const sent = [];
+  replaceGlobal(t,'chrome',{runtime:{id:'bridge-test',sendMessage:async request=>{
+    sent.push(request);return {added:true,itemCount:1};
+  }}});
+  const items = [{variantId:778899,quantity:1}];
+  await sendToCart(items);
+  await sendToCart(items);
+  assert.equal(sent.length,2);
+  assert.notEqual(sent[0].requestId,sent[1].requestId);
+});
+
+test('empty-cart bridge coalesces active clears, blocks additions, and releases the guard afterward', async t => {
+  const sent = [];
+  let resolve;
+  const pending = new Promise(done=>{resolve=done;});
+  replaceGlobal(t,'chrome',{runtime:{id:'bridge-test',sendMessage:async request=>{
+    sent.push(request);
+    return request.type === 'BULLSEYE_EMPTY_CART' ? pending : {added:true,itemCount:1};
+  }}});
+  const first = emptyBullseyeCart(), second = emptyBullseyeCart();
+  await assert.rejects(sendToCart([{variantId:891234,quantity:1}]),/still being updated/);
+  assert.deepEqual(sent,[{type:'BULLSEYE_EMPTY_CART'}]);
+  resolve({cleared:true,itemCount:0});
+  assert.equal((await first).cleared,true);
+  assert.equal((await second).cleared,true);
+  assert.equal((await sendToCart([{variantId:891234,quantity:1}])).added,true);
+});
+
+test('confirmed empty forgets an uncertain add ID so a later explicit addition starts fresh', async t => {
+  const sent = [];
+  replaceGlobal(t,'chrome',{runtime:{id:'bridge-test',sendMessage:async request=>{
+    sent.push(request);
+    if (request.type === 'BULLSEYE_EMPTY_CART') return {cleared:true,itemCount:0};
+    if (sent.length === 1) return {error:'Check your cart',uncertain:true,code:'CART_UNCONFIRMED'};
+    return {added:true,itemCount:1};
+  }}});
+  const items = [{variantId:991234,quantity:1}];
+  await assert.rejects(sendToCart(items),error=>error.uncertain);
+  await emptyBullseyeCart();
+  await sendToCart(items);
+  assert.notEqual(sent[0].requestId,sent[2].requestId);
+});
+
+test('empty-cart bridge rejects malformed confirmation and propagates sign-in failures', async t => {
+  let result = {cleared:true,itemCount:2};
+  replaceGlobal(t,'chrome',{runtime:{id:'bridge-test',sendMessage:async()=>result}});
+  await assert.rejects(emptyBullseyeCart(),error=>error.code==='CART_CLEAR_UNCONFIRMED' && error.uncertain);
+  result = {error:'Sign in first',code:'SIGN_IN_REQUIRED',authRequired:true};
+  await assert.rejects(emptyBullseyeCart(),error=>error.authRequired && error.code==='SIGN_IN_REQUIRED');
+});
+
+test('workspace load errors propagate so startup cannot replace unread personal data with defaults', async t => {
+  replaceGlobal(t,'chrome',{runtime:{id:'bridge-test'},storage:{local:{get:async()=>{throw new Error('Storage unavailable');}}}});
+  await assert.rejects(loadState(),/Storage unavailable/);
+  globalThis.chrome = undefined;
+  replaceGlobal(t,'localStorage',{getItem:()=>'{broken'});
+  await assert.rejects(loadState(),SyntaxError);
+  globalThis.localStorage = {getItem:()=>null};
+  assert.equal(await loadState(),null,'A genuinely missing project is still a new workspace.');
 });

@@ -9,6 +9,7 @@ import {includedGlass} from './material-filters.js';
 import {createCartPhotoViewer} from './cart-photos.js';
 import {sampleThickness} from './palette.js';
 import {cartVariants, cartSizeLabel, cartSizeKey, cartSizeChoices, preferredCartSize, exactCartVariant, switchedCartVariant, cartPurchasable} from './cart-options.js';
+import {loadWorkingCart, saveWorkingCart, addWorkingCartItems, patchWorkingCart, subscribeWorkingCart} from './working-cart.js';
 
 const $ = id => document.getElementById(id);
 const node = (tag, className = '', text) => {
@@ -19,8 +20,10 @@ const node = (tag, className = '', text) => {
 };
 const money = cents => new Intl.NumberFormat('en-US', {style:'currency', currency:'USD'}).format(cents / 100);
 
-export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getSelection, getSelectionName, sendItems, getSendState, getAccount, getPreferredJarSize = ()=>'5lb', getFilters = ()=>({}), pageMode=false, openPage, readWebsiteCart, signIn, notify}) {
+export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getSelection, getSelectionName, sendItems, emptyWebsiteCart, getSendState, getAccount, getPreferredJarSize = ()=>'5lb', getFilters = ()=>({}), pageMode=false, openPage, readWebsiteCart, signIn, notify}) {
   let draft = null, records = [], saving = false, listRequest = 0, editorRequest = 0, filters = null, naming = false, addForm = null;
+  let workingCart = null, draftBaseline = null, workingReady = false, pendingWrites = 0, workingSaveError = null;
+  let draftWrites = Promise.resolve();
   const addSizes = new Map();
   const photoViewer = createCartPhotoViewer(getPhotoIndex);
   const includedInCart = product => product.isClear ? filters?.includeClear===true : includedGlass(product,filters);
@@ -40,6 +43,39 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
   const units = items => items.some(item=>item.form==='sheets')?'items':'jars';
   const summary = items => `${new Set(items.map(item => item.productId)).size} colors · ${items.reduce((sum,item) => sum + item.quantity, 0)} ${units(items)} · ${money(items.reduce((sum,item) => sum + item.price * item.quantity, 0))}`;
 
+  function updateCount() {
+    const count = (workingCart?.items || []).reduce((sum,item) => sum + item.quantity,0);
+    $('cart-count').textContent = count;
+    $('open-cart').setAttribute('aria-label',`Cart, ${count} items`);
+  }
+  function receiveWorkingCart(value) {
+    workingCart = value; updateCount();
+    if (draft && !pendingWrites && !saving && !workingSaveError && value) {
+      draft = {...structuredClone(value),items:hydrate(value.items)};
+      draftBaseline = {saved:structuredClone(draft),replace:false};
+      $('saved-cart-name').value = draft.name; renderEditor(); renderSearch();
+    }
+  }
+  function queueWorkingSave(action) {
+    pendingWrites++; workingSaveError = null;
+    draftWrites = draftWrites.then(action).then(value => {workingSaveError=null;workingCart=value;updateCount();})
+      .catch(error => {workingSaveError=error;message(`Your cart could not be saved: ${error.message}`,true);})
+      .finally(() => {
+        pendingWrites--;
+        if (!pendingWrites && !workingSaveError) receiveWorkingCart(workingCart);
+        refresh();
+      });
+    return draftWrites;
+  }
+  async function flushWorking() {
+    await draftWrites;
+    if (workingSaveError) throw workingSaveError;
+  }
+  const ready = loadWorkingCart().then(value => {workingReady=true;receiveWorkingCart(value);refresh();});
+  // initialize() awaits ready and reports storage failures without overwriting the cart.
+  ready.catch(() => {});
+  subscribeWorkingCart(receiveWorkingCart);
+
   function message(text = '', error = false) {
     for (const id of ['saved-carts-message','saved-cart-message']) {
       $(id).textContent = text; $(id).hidden = !text; $(id).classList.toggle('is-error', error);
@@ -50,13 +86,13 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
   }
   function applySendState(button, items) {
     const status = getSendState(items);
-    button.disabled = saving || !items.length || status.busy || status.sent || status.uncertain;
-    const label = button.id === 'send-saved-cart' || (pageMode && button.id === 'send-to-cart') ? 'Send to Bullseye Website Cart' : 'Send to my cart';
-    button.textContent = status.sending ? 'Adding to cart…' : status.sent ? 'Added to cart ✓' : status.uncertain ? 'Check your cart' : label;
+    button.disabled = saving || !items.length || status.busy || status.uncertain;
+    button.textContent = status.sending ? 'Sending cart…' : status.uncertain ? 'Check your cart' : 'Send cart to Bullseye';
   }
   function refresh() {
-    for (const id of ['save-cart','save-cart-selection']) $(id).disabled = !getSelection().length || saving;
+    for (const id of ['save-cart','save-cart-selection']) $(id).disabled = !workingReady || !getSelection().length || saving;
     $('open-saved-carts').disabled = saving;
+    $('empty-bullseye-cart').disabled = saving || getSendState([]).busy;
     for (const button of $('saved-carts-list').querySelectorAll('[data-send-cart-id]')) {
       const cart = records.find(record => record.id === button.dataset.sendCartId);
       if (cart) applySendState(button, hydrate(cart.items));
@@ -64,7 +100,7 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
     for (const button of document.querySelectorAll('[data-cart-mutation]')) button.disabled = saving;
     const needsSignIn = getAccount()?.signedIn === false;
     $('saved-carts-sign-in').hidden = !needsSignIn; $('saved-cart-sign-in').hidden = !needsSignIn;
-    if (!draft) {if(pageMode)$('send-to-cart').disabled=true;return;}
+    if (!draft) return;
     $('saved-cart-name').disabled = saving;
     $('saved-cart-search').disabled = saving;
     for (const input of $('saved-cart-items').querySelectorAll('input')) input.disabled = saving;
@@ -73,14 +109,21 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
     $('cart-add-size').disabled = saving || !$('cart-add-size').options.length;
     for (const button of $('saved-cart-items').querySelectorAll('button')) button.disabled = saving;
     $('saved-cart-summary').textContent = summary(draft.items);
-    $('saved-cart-draft-status').textContent = draft.dirty ? 'Unsaved changes' : draft.id ? 'Saved' : 'New cart';
+    $('saved-cart-draft-status').textContent = workingSaveError ? 'Save failed' : pendingWrites ? 'Saving cart…' : draft.id && !draft.dirty ? 'Saved' : 'Cart kept automatically';
     $('save-cart-draft').disabled = saving || !draft.name.trim();
     $('save-cart-draft').textContent = saving ? 'Saving…' : draft.id ? 'Save changes' : 'Save cart';
     $('duplicate-cart-draft').disabled = saving || !draft.name.trim();
     applySendState($('send-saved-cart'), draft.items);
-    if(pageMode)applySendState($('send-to-cart'),draft.items);
   }
-  function markChanged() { draft.dirty = true; message(); refresh(); }
+  function markChanged() {
+    const baseline = draftBaseline || {saved:structuredClone(draft),replace:false};
+    draft.dirty = true; const after = structuredClone(draft);
+    queueWorkingSave(async () => {
+      const saved = baseline.replace ? await saveWorkingCart(after) : await patchWorkingCart(baseline.saved,after);
+      baseline.saved=after;baseline.replace=false;return saved;
+    });
+    message(); refresh();
+  }
   async function storageAction(action) {
     if (saving) return;
     const frozen = [...listDialog.querySelectorAll('button,input,select'), ...editorDialog.querySelectorAll('button,input,select'), ...addDialog.querySelectorAll('button,input,select')].map(control => [control,control.disabled]);
@@ -107,31 +150,57 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
         for (const [label, action] of [
           ['Edit', () => editSaved(record.id)],
           ['Duplicate', () => duplicateSaved(record)],
-          ['Delete', () => storageAction(async () => { await deleteCart(record.id); if (draft?.id === record.id) draft = null; await renderList(); })],
+          ['Delete', () => deleteSaved(record.id)],
         ]) {
           const button = node('button', label === 'Delete' ? 'text-button delete-saved-cart' : 'button secondary-button', label);
           button.type = 'button'; button.dataset.cartMutation = ''; button.setAttribute('aria-label', `${label} cart ${record.name}`);
           button.addEventListener('click', action); actions.append(button);
         }
-        const send = node('button', 'button primary-button', 'Send to my cart'); send.type = 'button'; send.dataset.sendCartId = record.id;
-        send.setAttribute('aria-label', `Send ${record.name} to my cart`); send.addEventListener('click', () => sendSaved(record.id)); actions.append(send);
+        const send = node('button', 'button primary-button', 'Send cart to Bullseye'); send.type = 'button'; send.dataset.sendCartId = record.id;
+        send.setAttribute('aria-label', `Send ${record.name} cart to Bullseye`); send.addEventListener('click', () => sendSaved(record.id)); actions.append(send);
         card.append(heading, preview, actions); list.append(card);
       }
       refresh();
     } catch (error) { if (request === listRequest) $('saved-carts-list').replaceChildren(node('p','saved-empty',error.message)); }
   }
   async function openList() { if (saving) return; if(!pageMode && openPage){await openPage('list');return;} editorRequest++; message(); if(!listDialog.open)listDialog.showModal(); await renderList(); }
-  function openEditor(record = null) {
+  async function deleteSaved(id) {
+    await storageAction(async () => {
+      await flushWorking();await deleteCart(id);
+      if (workingCart?.id === id || draft?.id === id) {
+        const detached = {...structuredClone(draft || workingCart),id:null,dirty:true};
+        draft=detached;draftBaseline={saved:structuredClone(detached),replace:false};
+        await queueWorkingSave(() => saveWorkingCart(detached));await flushWorking();
+        renderEditor();
+      }
+      await renderList();
+    });
+  }
+  function openEditor(record = null, store = true) {
     editorRequest++;
-    draft = {id:record?.id || null, name:record?.name || 'My cart', items:hydrate(record?.items || []), dirty:false};
+    draft = {...record,id:record?.id || null, name:record?.name || 'My cart', items:hydrate(record?.items || []), dirty:record?.dirty === true};
+    if (store) draft.instanceId=crypto.randomUUID();
+    draftBaseline = {saved:structuredClone(draft),replace:store};
+    if (store) {
+      const snapshot=structuredClone(draft),baseline=draftBaseline;
+      queueWorkingSave(async () => {const saved=await saveWorkingCart(snapshot);baseline.replace=false;return saved;});
+    }
     addDialog.close(); listDialog.close(); $('cart-dialog').close();
     $('saved-cart-name').value = draft.name; $('saved-cart-search').value = ''; message(); renderEditor(); renderSearch();
     if (!editorDialog.open) {if(pageMode)editorDialog.show();else editorDialog.showModal();} $('saved-cart-name').focus();
   }
   async function captureSelection() {
-    if(!pageMode && openPage){await openPage('selection');return;}
+    if (saving) return;
+    await ready; await flushWorking();
+    const items = normalizeCartItems(getSelection());
+    if (!items.length) return;
     const name = String(getSelectionName() || 'My cart').replace(/\.[a-z0-9]{2,5}$/i,'').slice(0,80);
-    openEditor({name, items:getSelection()}); draft.dirty = true; refresh(); $('saved-cart-name').select();
+    saving = true; refresh();
+    try {
+      receiveWorkingCart(await addWorkingCartItems(items,name));
+      $('cart-dialog').close();
+      notify(`${items.reduce((sum,item)=>sum+item.quantity,0)} items added to your cart.`);
+    } finally {saving=false;refresh();}
   }
   async function editSaved(id) {
     if(!mayReplaceDraft())return;
@@ -144,7 +213,9 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
     const name=await requestName(draft.name,'Save cart');if(name===null)return;
     await storageAction(async () => {
       const saved = await saveCart(name, hydrate(draft.items), draft.id);
-      draft = {...saved, dirty:false}; $('saved-cart-name').value = saved.name;
+      draft = {...saved, dirty:false,instanceId:draft.instanceId}; $('saved-cart-name').value = saved.name;
+      draftBaseline={saved:structuredClone(draft),replace:false};const snapshot=structuredClone(draft);
+      await queueWorkingSave(() => saveWorkingCart(snapshot));await flushWorking();
       renderEditor(); renderSearch(); notify(`Saved cart “${saved.name}”.`);
     });
   }
@@ -177,7 +248,7 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
     });
   }
   function mayReplaceDraft() {
-    return !draft?.dirty || window.confirm('Discard the unsaved changes in this local cart?');
+    return !draft?.items.length || !draft?.dirty || window.confirm('Replace this working cart? Save it as a named cart first if you want to keep a separate copy.');
   }
   async function copyWebsiteCart() {
     if(saving || naming || !mayReplaceDraft())return;
@@ -192,7 +263,7 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
           : {...item,productId:`website-${item.variantId}`,available:false};
       });
       const cleaned=normalizeCartItems(items);
-      openEditor({name:'My Bullseye cart',items:cleaned});draft.dirty=true;
+      openEditor({name:'My Bullseye cart',items:cleaned,dirty:true});
       const unsupported=cleaned.filter(item=>!productFor(item.productId)).length;
       message(`Copied ${result.itemCount ?? cleaned.reduce((sum,item)=>sum+item.quantity,0)} items. Your website cart was not changed. Save this copy under a name.${unsupported ? ` ${unsupported} items outside the glass catalog are kept in the copy but must be removed before sending from this tool.` : ''}`);
     });
@@ -207,10 +278,21 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
   async function runSend(items) {
     message();
     try {
+      await flushWorking();
       const result = await sendItems(hydrate(items));
       message(`${result.itemCount || items.reduce((sum,item) => sum + item.quantity,0)} ${units(items)} added to your Bullseye cart.`);
     } catch (error) { message(error.message || 'These jars could not be added to Bullseye.', true); }
     finally { refresh(); }
+  }
+  async function emptyBullseye() {
+    if (saving || getSendState([]).busy) return;
+    if (!window.confirm('Empty your cart on the Bullseye website? Your local cart and saved carts will stay here.')) return;
+    try {
+      message('Emptying your Bullseye cart…');
+      await emptyWebsiteCart();
+      message('Bullseye cart emptied. Your local cart is ready to send whenever you want.');
+    } catch (error) {message(error.message || 'Your Bullseye cart could not be emptied.',true);}
+    finally {refresh();}
   }
   async function sendSaved(id) {
     try { const record = await loadCart(id); if (!record) throw new Error('This saved cart no longer exists.'); await runSend(record.items); }
@@ -226,7 +308,7 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
   }
   function renderEditor() {
     const list = $('saved-cart-items'); list.replaceChildren();
-    if (!draft.items.length) list.append(node('p','saved-empty','This cart is empty. Use Add Color to choose glass.'));
+    if (!draft.items.length) list.append(node('p','saved-empty','This cart is empty. Use Add Colors or add your selected glass from the palette.'));
     for (const item of draft.items) {
       const product = productFor(item.productId), knownVariant = variantFor(product,item.variantId);
       const currentForm = knownVariant?.form || item.form || 'medium';
@@ -321,13 +403,15 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
   addDialog.addEventListener('cancel',event=>{if(saving)event.preventDefault();});
   addDialog.addEventListener('close',()=>{if(editorDialog.open)$('open-cart-add').focus({preventScroll:true});});
   $('copy-website-cart').addEventListener('click',copyWebsiteCart);
+  $('empty-bullseye-cart').addEventListener('click',emptyBullseye);
+  $('open-cart').addEventListener('click',async()=>{try{await ready;await flushWorking();await openPage('working');}catch(error){notify(error.message,true);}});
   $('cart-include-clear').addEventListener('click',()=>{filters ||= structuredClone(getFilters());filters.includeClear=!filters.includeClear;renderSearch();});
   $('cart-add-form').addEventListener('change',()=>{addForm=$('cart-add-form').value;renderSearch();});
   $('cart-add-size').addEventListener('change',()=>{addSizes.set(addForm,$('cart-add-size').value);renderSearch();});
   for(const kind of ['transparent','opalescent','tints'])$(`cart-include-${kind}`).addEventListener('click',()=>{filters ||= structuredClone(getFilters());filters.glassTypes ||= {transparent:true,opalescent:true};if(kind==='tints')filters.includeTints=!filters.includeTints;else filters.glassTypes[kind]=filters.glassTypes[kind]===false;renderSearch();});
   $('close-saved-carts').addEventListener('click',() => { editorRequest++; listDialog.close(); });
   $('new-saved-cart').addEventListener('click',() => {if(mayReplaceDraft())openEditor();});
-  $('close-cart-editor').addEventListener('click',() => {if(!mayReplaceDraft())return;editorRequest++;if(pageMode){if(draft)draft.dirty=false;location.href=new URL('picker.html?workspace=1',location.href).href;}else editorDialog.close();});
+  $('close-cart-editor').addEventListener('click',async() => {try{await flushWorking();editorRequest++;if(pageMode)location.href=new URL('picker.html?workspace=1',location.href).href;else editorDialog.close();}catch(error){message(error.message,true);}});
   $('back-to-saved-carts').addEventListener('click',() => { if(!pageMode)editorDialog.close();openList(); });
   for (const id of ['save-cart','save-cart-selection']) $(id).addEventListener('click',()=>captureSelection().catch(error=>notify(error.message,true)));
   $('saved-cart-form').addEventListener('submit',saveDraft);
@@ -338,14 +422,14 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
   for (const id of ['saved-carts-sign-in','saved-cart-sign-in']) $(id).addEventListener('click',signIn);
   for (const dialog of [listDialog,editorDialog]) dialog.addEventListener('cancel',event => { if (saving) event.preventDefault(); else editorRequest++; });
   refresh();
-  if(pageMode)window.addEventListener('beforeunload',event=>{if(draft?.dirty){event.preventDefault();event.returnValue='';}});
+  if(pageMode)window.addEventListener('beforeunload',event=>{if(pendingWrites || workingSaveError){event.preventDefault();event.returnValue='';}});
   return {
-    refresh,
+    refresh, ready, flush:flushWorking,
     optionsChanged(){if(draft){addForm=getProducts()[0]?.form || 'medium';renderEditor();renderSearch();}},
     sendDraft(){if(draft && !saving)return runSend(draft.items);},
-    async openPage(mode='selection'){
-      if(mode==='list'){openEditor();await openList();}
-      else await captureSelection();
+    async openPage(mode='working'){
+      await ready; await flushWorking(); openEditor(workingCart,false);
+      if(mode==='list')await openList();
     },
   };
 }

@@ -168,11 +168,17 @@ try:
                     return r.top>=bottom-1?r.height+parseFloat(getComputedStyle(f).rowGap):0;
                 }''')
                 if width>=650:assert header['height']+flow['height']-reference_row<155,(header,flow,reference_row)
-                if width>=1440:assert header['height']<44,('Orphan toolbar row',width,header)
-                assert page.locator('#open-cart').evaluate("n=>n.closest('#about-menu .menu-content')!==null")
+                # The persistent Cart badge raises the single-row header to 46px.
+                if width>=1440:assert header['height']<52,('Orphan toolbar row',width,header)
+                assert page.locator('#open-cart').evaluate("n=>n.parentElement.matches('.app-header') && n.parentElement.lastElementChild===n")
+                expect(page.locator('#cart-count')).to_have_text('0')
+                cart_button=page.locator('#open-cart').bounding_box()
+                assert cart_button['x']+cart_button['width']<=width and cart_button['x']+cart_button['width']>=width-12
                 row=page.locator('#refresh-settings').bounding_box()
                 for control in ['include-transparent','include-opalescent','include-tints']:
-                    assert abs(page.locator('#'+control).bounding_box()['y']-row['y'])<3
+                    control_box=page.locator('#'+control).bounding_box()
+                    if width>=650:assert abs(control_box['y']-row['y'])<3
+                    assert 0<=control_box['x'] and control_box['x']+control_box['width']<=cart_button['x']
                 assert page.locator('#open-saved').evaluate("n=>n.parentElement.id==='main-toolbar'")
                 box=page.locator('#source-canvas').bounding_box()
                 expected_ratio={'square':1,'portrait':640/960,'landscape':1200/500}[image_name]
@@ -240,9 +246,9 @@ try:
         page.evaluate("async value=>chrome.storage.local.set({bullseyeProjectV1:value})",older)
         page.reload();expect(page.locator('#image-loaded')).to_be_visible()
         upgraded=saved(page)
-        assert upgraded['version']==6 and upgraded['imageSize']=='larger'
+        assert upgraded['version']==6 and upgraded['imageSize']=='fit'
         assert image_state(upgraded)==image_state(restored)
-        passed('Upgrading the old Fit workspace starts larger without changing its photo or colors')
+        passed('Upgrading the old workspace preserves its chosen Fit setting, photo and colors')
         with context.expect_page() as new_tab:
             page.locator('#open-workspace').click()
         full=new_tab.value;watch(full);full.wait_for_load_state()
@@ -342,8 +348,16 @@ try:
         passed('All twelve landscape matches wrap without horizontal clipping on desktop and narrow panels')
         page.set_viewport_size({'width':1440,'height':900})
         photo_before_cart=saved(page)
+        expect(page.locator('#save-cart')).to_have_text('Add to Cart')
+        expect(page.locator('#send-to-cart')).to_have_count(0)
+        selected_count=sum(item['quantity'] for item in photo_before_cart['cart'])
+        tabs_before=len(context.pages)
+        page.locator('#save-cart').click()
+        expect(page.locator('#cart-count')).to_have_text(str(selected_count))
+        assert len(context.pages)==tabs_before
+        passed('Add to Cart adds selected quantities without opening a window; the top-right Cart badge shows the working-cart total')
         with context.expect_page() as new_tab:
-            page.locator('#save-cart').click()
+            page.locator('#open-cart').click()
         cart=new_tab.value;watch(cart);cart.wait_for_load_state()
         expect(cart.locator('#cart-editor-dialog')).to_be_visible()
         assert 'cart=1' in cart.url
@@ -406,13 +420,22 @@ try:
         passed('Native website cart copy uses GET only and preserves exact item IDs and quantities')
         cart.locator(f'#saved-cart-items [data-variant-id="{unknown_id}"] .icon-button').click()
         cart.locator('#save-cart-draft').click();name_cart(cart,'Website copy')
-        cart.locator('#send-to-cart').click()
-        expect(cart.locator('#send-to-cart')).to_contain_text('Added to cart')
+        cart.locator('#send-saved-cart').click()
+        expect(cart.locator('#saved-cart-message')).to_contain_text('added to your Bullseye cart')
+        expect(cart.locator('#send-saved-cart')).to_have_text('Send cart to Bullseye')
+        expect(cart.locator('#send-saved-cart')).to_be_enabled()
         assert len([r for r in requests if r['method']=='POST'])==1
         assert next(item for item in store['items'] if item['variant_id']==variant['id'])['quantity']==4
         assert next(item for item in store['items'] if item['variant_id']==unknown_id)['quantity']==1
         assert saved(page)==photo_before_cart
         passed('Explicit cart Send adds once to mocked store and never rewrites photo workspace')
+        cart.locator('#send-saved-cart').click()
+        expect(cart.locator('#saved-cart-message')).to_contain_text('added to your Bullseye cart')
+        expect(cart.locator('#send-saved-cart')).to_be_enabled()
+        assert len([r for r in requests if r['method']=='POST'])==2
+        assert next(item for item in store['items'] if item['variant_id']==variant['id'])['quantity']==6
+        expect(page.locator('#cart-count')).to_have_text('2')
+        passed('Send remains usable for a second deliberate addition while the local cart and its quantity badge stay intact')
         cart.screenshot(path=str(OUT/'cart-copy-1440.png'),full_page=True)
         assert not errors,errors
         passed('No uncaught browser JavaScript errors')

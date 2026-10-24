@@ -1,5 +1,15 @@
 # Bullseye Palette Picker
 
+## v0.6.7: a reusable cart and personal-data retention
+
+**Add to Cart** adds the checked glass and quantities to your working cart. The **Cart** button at the top right shows the total item quantity and opens that cart. Edits are kept automatically, including when the cart page is closed or the extension is updated in place. The main page has one Sign in button; sending happens from the cart workspace.
+
+**Send cart to Bullseye** remains available after each successful send. Each deliberate click adds the displayed quantities again. **Empty Bullseye cart** clears the website cart after confirmation and keeps your local cart. **Add Colors** sits beside Cart items and opens the separate color-selection window.
+
+Alternatives has independent Transparent, Opalescent and Tints filters. Browsing alternatives leaves the main filters unchanged; choosing a color changes only that palette target.
+
+Updates retain the existing extension identity, storage keys, saved settings, palettes, photos and carts. A failed workspace read stops startup before it can save defaults. **Settings → Back up my data / Restore my data** transfers everything to another folder or computer. See [v0.6.7 release notes](docs/release-v0.6.7.md).
+
 ## v0.6.6: Black matching and a focused cart workspace
 
 **Black and near-black neutral colors select regular Black**, including with only Transparent enabled. This fixes dark neutral targets that could still choose Aventurine Blue despite Black being available. Visibly colored dark targets, explicit glass choices, and the selected form's real photo samples retain their behavior.
@@ -30,7 +40,7 @@ The existing source image, edited colors, dots, named palettes/settings/carts an
 
 Landscape glass photographs now have their information below them. All match cards fit across the available width or wrap to another row without sideways scrolling. Each name has a plain selection checkbox. Purchase controls show the frit grade or actual sheet thickness as well as size. Alternatives opens in a separate searchable popup without replacing the main palette. Light Orange Striker is preferred over an automatic Carnelian choice; explicitly selected Carnelian remains available and saved.
 
-**Right-click a photo, get matching Bullseye glass selected automatically, and click Send to my cart.**
+**Right-click a photo, choose matching Bullseye glass, click Add to Cart, then open Cart to send it to Bullseye.**
 
 Version **0.6.0** selects the suggested glass as soon as a palette loads. Choose **Sheets, Powder, Fine, Medium, or Coarse** at the top, save your preferred settings, and keep multiple named carts that you can edit, duplicate, and send directly to Bullseye. Frit starts with an available **5 lb. jar**, with another available size used when necessary.
 
@@ -74,9 +84,11 @@ No compilation, API key, or Node installation is required to use the extension. 
 
 Chrome documents these [unpacked-extension steps](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked).
 
-**Updating an existing installation:** replace the files in the same extension folder with the new version, click **Reload** on its card at `chrome://extensions`, refresh Pinterest or any source page already open, and close/reopen the picker. Keep the same installed extension and folder to retain its saved palettes. An unpacked extension does not automatically update when this GitHub repository changes.
+**Updating an existing installation:** close picker/cart tabs, replace the files in the **same installed extension folder**, click **Reload** on its card at `chrome://extensions`, confirm **0.6.7**, then reopen the picker. Refresh Pinterest or any source page already open. Keep the existing Chrome installation and folder; do not remove and reinstall for an ordinary update. Your settings, palettes, photos, named carts and working cart remain in that installation. An unpacked extension does not automatically update when this GitHub repository changes.
 
-The prepared [**Bullseye-Palette-Picker-v0.6.5.zip**](https://github.com/Keyslah/Bullseye-Palette-Picker/releases/download/v0.6.5/Bullseye-Palette-Picker-v0.6.5.zip) has `manifest.json` at its root. If you use that package instead of the repository ZIP, extract it and load the extracted root folder.
+The prepared [**Bullseye-Palette-Picker-v0.6.7.zip**](https://github.com/Keyslah/Bullseye-Palette-Picker/releases/download/v0.6.7/Bullseye-Palette-Picker-v0.6.7.zip) has `manifest.json` at its root. If you installed from the repository's `extension` subfolder, replace files inside that subfolder. For a first installation, extract the prepared ZIP to a permanent folder and load that root folder.
+
+**Moving folders, reinstalling, or changing computers:** first use **Settings → Back up my data** in the old installation. Install the extension at the new location and use **Restore my data** there. Restore reloads the picker; close and reopen any other picker/cart tabs. The backup includes your photos, palette choices, settings presets and both working/saved carts. Uninstalling or loading a different folder can create a different storage location; the extension cannot automatically read another installation's private data.
 
 ## Pick and edit colors
 
@@ -111,11 +123,11 @@ Click **Save settings** and enter a preset name to remember the glass format, pr
 
 ## Multiple saved carts
 
-**Save cart** copies the current selected glass into a separate cart editor. Give it a name and save it. **Saved Carts**, at the top, opens the cart page and lists all your named carts with color previews, quantities, and estimated totals.
+**Add to Cart** adds the checked glass to the persistent working cart without a naming prompt. Open **Cart** at the top right to edit it; its badge counts total quantities, including multiple jars of one color. **Save cart** inside the workspace saves a named copy, and **Saved Carts** in its footer opens your named carts with color previews, quantities, and estimated totals.
 
 - **Edit** a cart's name, colors, selected sizes, and quantities. Add another color through its search list or remove individual items.
 - **Duplicate** creates an independent copy. Changing the copy leaves the original intact.
-- **Send to my cart** works directly from a saved-cart entry or from its editor. It uses the same signed-in Bullseye cart action as the main palette.
+- **Send cart to Bullseye** works directly from a saved-cart entry or its editor. Successful sends leave the button usable for another explicit send.
 - **New cart** starts an empty named order. Empty carts can be saved and filled later; sending requires at least one selected item.
 
 Saved carts keep exact variant IDs and quantities, including their purchase form and size when the global format changes. New colors added in the editor use the current format and preferred jar size. If a saved size is unavailable, the editor shows it so you can choose another size or remove it. Editing a saved cart does not replace the photo palette. Saved carts, saved photo palettes, and Bullseye's website cart are independent records.
@@ -148,7 +160,7 @@ The original shared-reference library uses **123 fired medium-frit spreads, two 
 
 ## Direct cart behavior
 
-The palette's suggested glass is already checked. Click **Send to my cart**, or first edit the checked colors, purchase sizes, or quantities. You can also send a named saved cart directly from its list entry or editor. The extension checks the Bullseye customer session, adds the selected real variants directly through the store's cart API, and opens the cart. It preserves products already there. There is no Quick Add page, SKU submission form, or second Add to Cart step.
+The palette's suggested glass is already checked. Edit the checked colors, purchase sizes or quantities, click **Add to Cart**, and open the top-right **Cart** button. Click **Send cart to Bullseye** in the workspace when ready. A new click after success adds the displayed quantities again. You can also send a named cart from its list entry. The extension checks the Bullseye customer session, adds the real variants through the store's cart API, and opens the website cart. Existing website items are retained when sending.
 
 Automatic suggestions use the closest eligible full-color match with an available purchase option in the selected format's snapshot. Sold-out colors remain visible in alternatives; choosing one explicitly does not silently substitute another glass. Duplicate matches share one selected variant and quantity. The cart button becomes ready from the local selection; the store receives an addition only when you click it.
 
@@ -156,7 +168,7 @@ If a signed-in session cannot be confirmed, the picker asks you to sign in to Bu
 
 The cart action uses [Shopify's documented Ajax Cart API](https://shopify.dev/docs/api/ajax/reference/cart) in a native Bullseye tab. It uses actual variant IDs and quantities. Bullseye confirms stock, prices, quantity limits, and discounts. The extension reports failures instead of claiming an unconfirmed addition succeeded, and does not automatically retry an uncertain cart write.
 
-It never clears your existing store cart or completes checkout. Saving settings, palettes, or named carts does not add anything to Bullseye.
+**Empty Bullseye cart** is a separate, confirmed action that clears all website line items and verifies the empty result. It retains your working cart, named carts, palettes and settings. No action completes checkout. Adding to the local working cart or saving settings, palettes or named carts does not change the website cart.
 
 ## Development and verification
 
@@ -168,7 +180,7 @@ npm run check
 npm run package
 ```
 
-Development requires Node 20 or later. Packaging also uses Python 3's standard library and creates `dist/Bullseye-Palette-Picker-v0.6.3.zip`, with the manifest at the ZIP root. Extract that packaged ZIP and load its root folder in Chrome. Version 0.6.3 retains the reviewed **0.3.0 base catalog byte for byte**, including its photographs, RGB/Lab samples, and source timestamps. The purchase options and new form-specific samples live in separate data indexes.
+Development requires Node 20 or later. Packaging also uses Python 3's standard library and creates `dist/Bullseye-Palette-Picker-v0.6.7.zip`, with the manifest at the ZIP root. Update an existing installation in place; for a new installation, extract and load the ZIP's root folder. Version 0.6.7 retains the reviewed **0.3.0 base catalog byte for byte**, including its photographs, RGB/Lab samples, and source timestamps. Purchase options and form-specific samples live in separate data indexes.
 
 To refresh public purchase-format records or reproduce them from an existing source cache:
 

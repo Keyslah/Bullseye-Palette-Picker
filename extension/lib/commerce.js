@@ -1,8 +1,8 @@
 /**
  * Purpose: validate selected jars and use Bullseye's current customer/cart session.
  * Setup: imported by the MV3 worker; runBullseyeStoreAction is also injected as-is.
- * Destructive behavior: an explicit add action adds jars to the existing native cart.
- * Constraints: never clears a cart, checks out, reads credentials, or retries a POST.
+ * Destructive behavior: explicit add/clear actions change the native website cart.
+ * Constraints: never checks out, reads credentials, or automatically retries a POST.
  */
 
 export const BULLSEYE_ORIGIN = 'https://shop.bullseyeglass.com';
@@ -88,9 +88,9 @@ export async function runBullseyeStoreAction(request) {
     return unknown('Bullseye did not return a recognized account status. Open your account and try again.');
   };
 
-  if (!['account', 'add', 'read-cart'].includes(request?.kind)) return fail('Invalid store action.', 'INVALID_ACTION');
-  if (['add','read-cart'].includes(request.kind) && (typeof location === 'undefined' || location.origin !== origin)) {
-    return fail('Open Bullseye before adding to your cart.', 'STORE_TAB_REQUIRED', {mutationStarted: false});
+  if (!['account', 'add', 'read-cart', 'clear-cart'].includes(request?.kind)) return fail('Invalid store action.', 'INVALID_ACTION');
+  if (['add','read-cart','clear-cart'].includes(request.kind) && (typeof location === 'undefined' || location.origin !== origin)) {
+    return fail('Open Bullseye before changing your cart.', 'STORE_TAB_REQUIRED', {mutationStarted: false});
   }
   if (typeof location !== 'undefined' && /^https?:$/.test(location.protocol) && location.origin !== origin) {
     return fail('The store tab has navigated away from Bullseye.', 'STORE_TAB_REQUIRED', {mutationStarted: false});
@@ -149,6 +149,34 @@ export async function runBullseyeStoreAction(request) {
     } catch (error) {
       return fail(plainText(error.message || 'The website cart could not be read.'), 'CART_READ_FAILED', {account, mutationStarted:false});
     }
+  }
+  // Emptying is a separate, explicit operation. An empty add request never clears
+  // anything. Verify the website cart after one POST, including a lost response.
+  if (request.kind === 'clear-cart') {
+    let response;
+    let data;
+    try {
+      ({response, data} = await jsonFetch(new URL(`${root}cart/clear.js`, origin).href, {
+        method:'POST', headers:{'Content-Type':'application/json'}, body:'{}',
+      }));
+    } catch { /* Read back before deciding whether the single POST succeeded. */ }
+    let after;
+    try {
+      const result = await jsonFetch(cartApi);
+      if (result.response.ok) after = cartTotals(result.data);
+    } catch { /* Never retry a clear whose outcome could not be confirmed. */ }
+    if (after && [...after.values()].every(quantity => quantity === 0)) {
+      return {cleared:true, itemCount:0, cartUrl, account, mutationStarted:true};
+    }
+    const storeMessage = plainText(data?.description || data?.message || data?.errors);
+    if (after && response && !response.ok && response.status >= 400 && response.status < 500) {
+      return fail(storeMessage || 'Bullseye could not empty your cart. Try again when the store is available.', 'CART_CLEAR_REJECTED', {
+        account, cartUrl, mutationStarted:true, uncertain:false,
+      });
+    }
+    return fail('Bullseye did not confirm an empty cart. Check your website cart before trying again.', 'CART_CLEAR_UNCONFIRMED', {
+      account, cartUrl, mutationStarted:true, uncertain:true,
+    });
   }
   const items = request.items;
   if (!Array.isArray(items) || !items.length || items.some(item => !Number.isSafeInteger(item.variantId)

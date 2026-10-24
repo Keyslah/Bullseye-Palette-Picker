@@ -53,10 +53,14 @@ def assert_main_controls(page):
     assert audit['order'] == ['refresh-settings','sign-in','settings-menu','include-transparent'], audit
     assert audit['openMenus'] == 0, audit
     for first, second in zip(audit['controls'], audit['controls'][1:]):
-        assert abs(first['y'] - second['y']) <= 2, audit
-        assert 0 <= second['x'] - first['right'] < 8, audit
+        if audit['width'] >= 650 or abs(first['y'] - second['y']) <= 2:
+            assert abs(first['y'] - second['y']) <= 2, audit
+            assert 0 <= second['x'] - first['right'] < 8, audit
+        else:
+            # The persistent Cart button reserves the top-right corner on small screens.
+            assert second['y'] >= first['bottom'] - 1, audit
     if audit['width'] == 1440:
-        assert audit['header']['height'] < 44, audit
+        assert audit['header']['height'] < 52, audit
     r = audit['reference']
     assert r['x'] >= 0 and r['right'] <= audit['width']+1 and r['y'] >= 0 and r['bottom'] <= audit['height'], audit
     assert audit['referenceScrollWidth'] <= audit['referenceClientWidth']+1, audit

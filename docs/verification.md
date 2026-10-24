@@ -1,5 +1,44 @@
 # Verification record
 
+## Version 0.6.7
+
+Continues from main and published v0.6.6 commit `27c4207966cfc131f5851276c147cd89e60f9d85`. Source changes are limited to the requested cart workflow, independent Alternatives filters, sign-in labeling, personal-data retention and their verification/documentation. Catalogs, images, photo samples and thickness calculations remain unchanged.
+
+### Cart workflow
+
+Native Chromium tests verify Add to Cart without a naming prompt, summed item quantities on the top-right Cart button, repeated additions, and live synchronization between picker and cart tabs. Edits and quantities survive reload. Add Colors remains a separate dialog, reached from beside the Cart items heading. Main/cart/dialog bounds are checked at desktop and narrow widths.
+
+Successful website sends leave the Send cart to Bullseye button available. Two deliberate sends generate two independent native-store POSTs with the exact displayed variants and quantities. Same-request replay protection, overlapping-click coalescing, and uncertain-outcome guards remain. Empty Bullseye cart is independently confirmed, makes one clear POST and a verification GET, preserves local/named carts, and allows another send. Tests also delete the currently open named cart and verify its working copy remains editable and can be saved under a new ID.
+
+### Personal data and alternatives
+
+Actual Chrome local storage and IndexedDB are exercised in disposable profiles. An in-place version update followed by browser restart keeps the extension ID and every saved workspace, photo, setting, palette and cart. Backup/restore transfers the same records into a different folder with a different unpacked ID. Named records merge without clearing unrelated data; invalid files are rejected before writes. Account/session data and cart-request journals are excluded.
+
+The actual Settings backup download and restore-file controls are exercised. Web Locks wait for in-flight workspace/cart writes before restore; a generation marker blocks writes from stale pages. A second open picker reloads the restored filters and working-cart count. Storage read failures propagate rather than causing defaults to overwrite unread data. Working-cart edits are scoped to their active copy and cannot be merged into a different cart opened elsewhere.
+
+Independent Alternatives tests verify that Transparent, Opalescent and Tints affect only the dialog. Choosing an excluded material changes one target and preserves the main settings through reload. Retained layout and black/purple matching suites remain part of the release gate.
+
+### Release gate
+
+The final local JavaScript run passes **224 tests**. Native groups pass as follows: workspace and exact package 47; cart builder 12; toolbar/Alternatives layout 19; Black/purple matching 9; independent Alternatives 5; cart workflow and failure recovery 11; personal-data update/restore 7. The focused cart suite includes an injected storage-write failure followed by another edit, and two fast edits queued behind a delayed write; no quantity changes are lost. All successful browser runs report no uncaught page errors.
+
+```sh
+npm test
+npm run check
+npm run package
+python scripts/verify-package.py
+python tests/v061-browser.py
+python tests/v063-layout-browser.py
+python tests/v065-matching-browser.py
+python tests/v067-alternatives-browser.py
+python tests/v067-cart-browser.py
+python tests/personal-data-browser.py
+```
+
+The v061 suite also runs the cart-builder checks. Browser tests use synthetic storefront responses and disposable profiles; no customer account or live cart is accessed. The ZIP contains exactly 185 files and is verified byte for byte against the source before publishing and again after downloading the published release. Updates require replacing files in the same installed folder, clicking Reload at `chrome://extensions`, and reopening picker/cart tabs.
+
+---
+
 ## Version 0.6.6
 
 Continues from the verified current main and published v0.6.5 commit `5a5607a`. The [initial v0.6.6 verification run](https://github.com/Keyslah/Bullseye-Palette-Picker/actions/runs/40028748573) passed on 2026-10-23 with **190 JavaScript tests**, manifest/catalog/module checks, and exact-source ZIP checks.

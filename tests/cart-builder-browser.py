@@ -29,6 +29,10 @@ def fulfill(route):
         for item in request.post_data_json['items']:
             stored.append({'id':item['id'],'variant_id':item['id'],'quantity':item['quantity']})
         route.fulfill(status=200,content_type='application/json',body=json.dumps({'items':stored}));return
+    if path.endswith('/cart/clear.js') and request.method=='POST':
+        writes.append({'clear':True})
+        stored.clear()
+        route.fulfill(status=200,content_type='application/json',body=json.dumps({'items':[],'item_count':0}));return
     if path.endswith('/cart'):
         route.fulfill(status=200,content_type='text/html',body='<html><body><span class="account-actions__email">isolated@example.invalid</span></body></html>');return
     route.fulfill(status=404,content_type='application/json',body='{}')
@@ -49,11 +53,12 @@ def close_add(page,control='#done-cart-add'):
     expect(page.locator('#open-cart-add')).to_be_focused()
 def prominent_send(page):
     page.evaluate('window.scrollTo(0,0)')
-    button=page.locator('#send-to-cart')
-    expect(button).to_have_text('Send to Bullseye Website Cart')
+    button=page.locator('#send-saved-cart')
+    expect(button).to_have_text('Send cart to Bullseye')
     box=button.bounding_box();width=page.viewport_size['width']
-    assert box['y']<24 and box['height']>=60 and box['width']>=width-32,box
-    assert box['y']+box['height']<=page.locator('#cart-editor-dialog').bounding_box()['y'],box
+    assert box['y']<120 and box['height']>=60 and box['width']>=width-48,box
+    assert button.evaluate("n=>n.parentElement.matches('.saved-cart-editor-shell') && n.parentElement.firstElementChild===n")
+    assert box['y']+box['height']<=page.locator('#cart-editor-dialog .dialog-heading').first.bounding_box()['y'],box
 def exact(page,pid,form,size):
     return page.evaluate('''async([pid,form,size])=>{
       const {productForForm}=await import('./lib/product-formats.js');
@@ -103,7 +108,7 @@ try:
     expect(page.locator('#saved-cart-search-results')).not_to_be_visible()
     expect(page.locator('.saved-cart-search-result:visible')).to_have_count(0)
     expect(page.locator('#cart-add-form')).not_to_be_visible()
-    expect(page.locator('#send-to-cart')).to_be_disabled()
+    expect(page.locator('#send-saved-cart')).to_be_disabled()
     prominent_send(page)
     page.screenshot(path=str(OUT/'cart-empty-1440.png'),full_page=True)
     open_add(page);close_add(page,'Escape')
@@ -204,10 +209,29 @@ try:
         close_add(page,'Escape')
     done('Main cart and full Add Color catalog fit desktop and narrow panels; results scroll to the last color inside the window and the full-width Send remains first')
     assert not writes,writes
-    page.set_viewport_size({'width':1440,'height':900});page.locator('#send-to-cart').click();expect(page.locator('#send-to-cart')).to_contain_text('Added to cart')
-    expect(page.locator('#send-to-cart')).to_be_disabled()
+    page.set_viewport_size({'width':1440,'height':900});page.locator('#send-saved-cart').click()
+    expect(page.locator('#saved-cart-message')).to_contain_text('added to your Bullseye cart')
+    expect(page.locator('#send-saved-cart')).to_have_text('Send cart to Bullseye')
+    expect(page.locator('#send-saved-cart')).to_be_enabled()
     assert len(writes)==1;assert {(v['id'],v['quantity']) for v in writes[0]['items']}==expected
     done('Explicit Send forwards exactly the selected clear and colored variants once in the isolated store')
+    page.locator('#send-saved-cart').click()
+    expect(page.locator('#saved-cart-message')).to_contain_text('added to your Bullseye cart')
+    expect(page.locator('#send-saved-cart')).to_be_enabled()
+    assert len(writes)==2;assert writes[1]==writes[0]
+    done('A second intentional Send adds the same quantities again and leaves the button usable')
+    page.locator('#empty-bullseye-cart').click()
+    expect(page.locator('#saved-cart-message')).to_contain_text('Bullseye cart emptied')
+    assert len(writes)==3 and writes[-1]=={'clear':True} and not stored
+    expect(page.locator('#saved-cart-items .saved-cart-item')).to_have_count(5)
+    preserved=page.evaluate("async()=> (await (await import('./lib/saved-carts.js')).listCarts()).find(c=>c.name==='Cart builder QA')")
+    assert preserved==record
+    expect(page.locator('#send-saved-cart')).to_be_enabled()
+    page.locator('#send-saved-cart').click()
+    expect(page.locator('#saved-cart-message')).to_contain_text('added to your Bullseye cart')
+    expect(page.locator('#send-saved-cart')).to_be_enabled()
+    assert len(writes)==4 and writes[-1]==writes[0]
+    done('Empty Bullseye cart clears only the website fixture; local and named carts remain ready to send again')
     assert not errors,errors;context.close()
 except Exception as error:
     failure=str(error);traceback.print_exc()

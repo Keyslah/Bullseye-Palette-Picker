@@ -26,6 +26,8 @@ import {loadSettings, normalizeSettings, DEFAULT_SETTINGS} from './lib/settings.
 import {includedGlass} from './lib/material-filters.js';
 import {preferredAutomaticMatch} from './lib/match-preference.js';
 import {initializeSettingsDialog} from './lib/settings-dialog.js';
+import {createPersonalDataBackup, normalizePersonalDataBackup, restorePersonalDataBackup} from './lib/personal-data.js';
+import {initPersonalDataSession, runPersonalDataRestore} from './lib/personal-data-session.js';
 
 const $ = id => document.getElementById(id);
 const MAX_TARGETS = 20;
@@ -36,7 +38,7 @@ const state = {
   glassTypes: {transparent: true, opalescent: true}, includeTints:false, imageSize: 'larger',
   view: 'palette', query: '', selectedForms: {}, selectedVariants: {}, quantities: {}, chosenMatches: {}, cart: [], selection: emptySelection(),
   lastPendingImageAt: 0, savedPaletteId: null, savedPaletteName: '',
-  account: {signedIn: null, status: 'checking'}, sending: false,
+  account: {signedIn: null, status: 'checking'}, sending: false, clearing: false,
   sentCartFingerprint: '', cartUnconfirmed: '',
 };
 const sourceCanvas = $('source-canvas');
@@ -50,8 +52,10 @@ let captureBase = null, captureSelection = null, captureStart = null;
 let emptyAction = null, pendingReceivedThisSession = false;
 let draggingPoint = null, pointRenderFrame = 0, accountCheck = null, lastAccountCheck = 0;
 let cartLibrary = null, sendingFingerprint = '', alternativesTargetId = null;
+let alternativesFilters = {glassTypes:{transparent:true,opalescent:true},includeTints:false};
 let clearCartProducts = [], cartPhotoIndex = {}, formSampleIndex = {};
 let savedSettingsFingerprint = '', settingsSaving = false, settingsDialog = null;
+let workspaceReady = false, personalDataBusy = false;
 const isCartPage = new URLSearchParams(location.search).get('cart') === '1';
 document.body.classList.toggle('cart-page',isCartPage);
 
@@ -86,7 +90,7 @@ function selectedItem(product, variant) { return variant && state.cart.find(item
 function cartFingerprint(items = state.cart) { return JSON.stringify(items.map(item => [String(item.variantId), item.quantity]).sort((a,b) => a[0].localeCompare(b[0]))); }
 function cartSendState(items) {
   const fingerprint = cartFingerprint(items);
-  return {busy:state.sending, sending:state.sending && sendingFingerprint === fingerprint,
+  return {busy:state.sending || state.clearing, sending:state.sending && sendingFingerprint === fingerprint,
     sent:Boolean(items.length && state.sentCartFingerprint === fingerprint),
     uncertain:Boolean(items.length && state.cartUnconfirmed === fingerprint)};
 }
@@ -196,13 +200,14 @@ function workspaceSnapshot() {
     cartUnconfirmed:state.cartUnconfirmed,
   };
 }
-function persist() { renderSettings(); if(isCartPage)return; clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 250); }
-async function flushSave() {
-  if (!saveTimer) return; clearTimeout(saveTimer); saveTimer = undefined;
+function persist() { renderSettings(); if(isCartPage || !workspaceReady || personalDataBusy)return; clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 250); }
+async function flushSave({propagate=false}={}) {
+  if (!saveTimer || !workspaceReady || personalDataBusy) return; clearTimeout(saveTimer); saveTimer = undefined;
   try { await bridge.saveState(workspaceSnapshot()); }
   catch (error) {
     console.warn('Could not save palette workspace:', error);
     if (!saveWarningShown) { notify('This browser could not save the current workspace. Try Save palette.', true); saveWarningShown = true; }
+    if(propagate)throw error;
   }
 }
 function normalizeTarget(target, index = 0) {
@@ -234,7 +239,9 @@ function restoreWorkspace(saved) {
   state.view = ['library','alternatives'].includes(saved.view) ? saved.view : 'palette';
   state.lastPendingImageAt = Math.max(state.lastPendingImageAt, Number(saved.lastPendingImageAt) || 0);
   state.savedPaletteId = saved.savedPaletteId || null; state.savedPaletteName = saved.savedPaletteName || '';
-  state.sentCartFingerprint = saved.sentCartFingerprint || ''; state.cartUnconfirmed = typeof saved.cartUnconfirmed === 'string' ? saved.cartUnconfirmed : '';
+  // The worker's durable request journal guards uncertain operations across reloads.
+  // A previous successful send must never lock this cart out of a new explicit send.
+  state.sentCartFingerprint = ''; state.cartUnconfirmed = '';
   state.cart = [];
   for (const previous of Array.isArray(saved.cart) ? saved.cart : []) {
     const product = getProduct(previous.productId), variant = getVariant(product, previous.variantId);
@@ -421,20 +428,22 @@ function nearestSourcePoint(rgb) {
   return best<0 ? null : {x:((best%width)+.5)/width,y:(Math.floor(best/width)+.5)/height};
 }
 
-function includedProducts() { return state.products.filter(product=>includedGlass(product,state)); }
-function matchesFor(target, alternatives = false) {
+function includedProducts(filters = state) { return state.products.filter(product=>includedGlass(product,filters)); }
+function matchesFor(target, alternatives = false, filters = state) {
   if (!target) return [];
-  const key = `${target.hex}:${state.glassTypes.transparent}:${state.glassTypes.opalescent}:${state.includeTints}:${alternatives}`;
+  const key = `${target.hex}:${filters.glassTypes.transparent}:${filters.glassTypes.opalescent}:${filters.includeTints}:${alternatives}`;
   if (!matchCache.has(key)) {
     if (matchCache.size >= 128) matchCache.delete(matchCache.keys().next().value);
-    const products = includedProducts();
+    const products = includedProducts(filters);
     matchCache.set(key, matchCatalog(target, products, {tolerance:Infinity, limit:products.length, includeOtherFamilies:alternatives}));
   }
   return matchCache.get(key);
 }
 function primaryMatch(target) {
   const matches=matchesFor(target), chosen=state.chosenMatches[target.id];
-  return (chosen ? matchesFor(target,true).find(entry=>entry.product.id===chosen) : null)
+  // A deliberate per-color choice may use a different material from the main
+  // automatic-match filters. Keep that choice without changing those filters.
+  return (chosen ? matchesFor(target,true,{glassTypes:{transparent:true,opalescent:true},includeTints:true}).find(entry=>entry.product.id===chosen) : null)
     || preferredAutomaticMatch(matches,entry=>Boolean(currentVariant(entry.product)?.available),target);
 }
 function selectionSuggestions() {
@@ -663,7 +672,7 @@ function changeCartVariant(key,variantId) {
 }
 function renderCartSummary() {
   const count=new Set(state.cart.map(item=>item.productId)).size,jars=state.cart.reduce((sum,item)=>sum+item.quantity,0),total=state.cart.reduce((sum,item)=>sum+item.quantity*item.price,0);
-  $('cart-count').textContent=count;$('open-cart').setAttribute('aria-label',`Review selected glass, ${count} colors and ${jars} ${cartUnits(state.cart)}`);$('selection-total').textContent=count?` · ${money(total)}`:'';$('cart-total').textContent=money(total);$('cart-empty').hidden=!!state.cart.length;$('cart-bottom').hidden=!state.cart.length;
+  $('selection-total').textContent=count?` · ${money(total)}`:'';$('cart-total').textContent=money(total);$('cart-empty').hidden=!!state.cart.length;$('cart-bottom').hidden=!state.cart.length;
   for(const button of document.querySelectorAll('.purchase-toggle')){const product=getProduct(button.dataset.productId);if(product)button.textContent=purchaseSummary(product);}
   renderSendButtons();
 }
@@ -678,12 +687,12 @@ function renderSendButtons() {
   const sent=state.cart.length&&state.sentCartFingerprint===fingerprint;
   const uncertain=state.cartUnconfirmed===fingerprint;
   $('view-bullseye-cart').hidden=!sent&&!uncertain;
-  for(const id of ['send-to-cart','send-cart-dialog']){$(id).disabled=!state.cart.length||state.sending||!!sent||uncertain;$(id).textContent=state.sending?'Adding to cart…':sent?'Added to cart ✓':uncertain?'Check your cart':'Send to my cart';}
+  $('empty-bullseye-cart').textContent=state.clearing?'Emptying Bullseye cart…':'Empty Bullseye cart';
   cartLibrary?.refresh();
 }
 function renderAccount() {
   const account=state.account,status=$('account-status');status.classList.toggle('is-signed-in',account.signedIn===true);status.classList.toggle('is-error',account.signedIn===false);
-  $('account-menu').querySelector('summary').textContent=account.signedIn===false?'Sign in':'Account';
+  $('account-menu').querySelector('summary').textContent='Account';
   status.textContent=account.signedIn===true?'Signed in to Bullseye':account.signedIn===false?'Sign in to Bullseye before sending your glass.':account.status==='checking'?'Checking Bullseye sign-in…':account.status==='preview'?'Cart sending is available in the installed extension.':'Bullseye sign-in will be checked before adding glass.';
   $('sign-in').hidden=account.signedIn===true||account.status==='checking'||account.status==='preview';$('check-account').hidden=account.signedIn===true||account.status==='checking'||account.status==='preview';renderSendButtons();
 }
@@ -693,11 +702,10 @@ async function checkAccount(force=false) {
 }
 async function signIn() {try{await bridge.signInToBullseye();notify('Sign in on Bullseye, then return here to send your glass.');}catch(error){notify(error.message||'Bullseye sign-in could not open.',true);}}
 async function sendCartItems(selection) {
-  if(state.sending)throw new Error('A cart addition is already in progress.');
+  if(state.sending || state.clearing)throw new Error('A Bullseye cart action is already in progress.');
   const jars=normalizeCartItems(selection);
   if(!jars.length)throw new Error('Add at least one jar to this cart.');
   const fingerprint=cartFingerprint(jars);
-  if(state.sentCartFingerprint===fingerprint)throw new Error('These jars have already been added. View your Bullseye cart.');
   if(state.cartUnconfirmed===fingerprint)throw new Error('Check your Bullseye cart before sending these jars again.');
   const invalid=jars.find(item=>!getVariant(getProduct(item.productId),item.variantId)?.available);
   if(invalid)throw new Error(`Choose an available jar size for ${invalid.name || invalid.productId}.`);
@@ -713,11 +721,44 @@ async function sendCartItems(selection) {
     throw error;
   }finally{state.sending=false;sendingFingerprint='';renderAccount();}
 }
-async function sendSelection() {
-  if(state.sending||!state.cart.length||state.cartUnconfirmed===cartFingerprint()||state.sentCartFingerprint===cartFingerprint())return;
-  const jars=state.cart.map(item=>({...item}));
-  try{const result=await sendCartItems(jars);$('cart-dialog').close();notify(`${result.itemCount||jars.reduce((sum,item)=>sum+item.quantity,0)} ${cartUnits(jars)} added to your Bullseye cart.`,false,7000);}
-  catch(error){if(error.authRequired||error.uncertain)$('cart-dialog').close();notify(error.message||'Your glass could not be added to Bullseye.',true,9000);}
+async function emptyWebsiteCart() {
+  if(state.sending || state.clearing)throw new Error('A Bullseye cart action is already in progress.');
+  state.clearing=true;renderSendButtons();
+  try {
+    const result=await bridge.emptyBullseyeCart();
+    state.sentCartFingerprint='';state.cartUnconfirmed='';state.account={signedIn:true,status:'signed_in'};
+    persist();return result;
+  } catch(error) {
+    if(error.authRequired)state.account=error.account||{signedIn:error.code==='SIGN_IN_REQUIRED'?false:null,status:error.code==='SIGN_IN_REQUIRED'?'signed_out':'unknown'};
+    throw error;
+  } finally {state.clearing=false;renderAccount();}
+}
+
+async function exportPersonalData() {
+  if(personalDataBusy)return;
+  try {
+    await flushSave({propagate:true});await cartLibrary.flush();
+    const backup=await createPersonalDataBackup();
+    if(!isCartPage && workspaceReady)backup.local.bullseyeProjectV1=workspaceSnapshot();
+    const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob),link=document.createElement('a');
+    link.href=url;link.download=`Bullseye-personal-data-${new Date().toISOString().slice(0,10)}.json`;
+    link.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
+    notify('Backup downloaded with your settings, palettes, photos and carts.');
+  } catch(error) {notify(error.message || 'Your data could not be backed up.',true);}
+}
+async function importPersonalData(file) {
+  if(!file || personalDataBusy)return;
+  try {
+    const backup=normalizePersonalDataBackup(await file.text());
+    if(!window.confirm('Restore the settings, palettes and carts in this backup? Your current workspace will be replaced, other named items will be kept, and open picker/cart tabs will reload.'))return;
+    await flushSave({propagate:true});await cartLibrary.flush();personalDataBusy=true;
+    await runPersonalDataRestore(()=>restorePersonalDataBackup(backup));
+    location.reload();
+  } catch(error) {
+    notify(error.message || 'Your backup could not be restored. Reload before trying again.',true,12000);
+    if(personalDataBusy){clearTimeout(saveTimer);saveTimer=undefined;}
+  }
 }
 function orderLines(){const quantities=new Map();for(const item of state.cart)if(item.sku)quantities.set(item.sku,(quantities.get(item.sku)||0)+item.quantity);return Array.from(quantities,([sku,quantity])=>`${sku} ${quantity}`).join('\n');}
 async function copyOrder(){try{await navigator.clipboard.writeText(orderLines());notify('SKU list copied.');}catch{notify('This browser could not copy the list.',true);}}
@@ -728,6 +769,7 @@ function selectTarget(id){state.activeTargetId=id;if(state.view==='library')stat
 function showAlternatives(id) {
   const target=state.targets.find(value=>value.id===id);if(!target)return;
   alternativesTargetId=id;state.activeTargetId=id;
+  alternativesFilters={glassTypes:{...state.glassTypes},includeTints:state.includeTints};
   $('alternatives-search').value='';closeToolbarMenus();renderPalette();renderAlternatives();
   const dialog=$('alternatives-dialog');if(!dialog.open)dialog.showModal();
   $('alternatives-search').focus({preventScroll:true});persist();
@@ -740,12 +782,12 @@ function renderAlternatives() {
   $('alternatives-target').title=target.hex;
   const query=$('alternatives-search').value.trim().toLowerCase();
   const list=$('alternatives-grid'),scroll=list.scrollTop;
-  const matches=matchesFor(target,true).filter(entry=>`${entry.product.name} ${entry.product.code} ${entry.product.id}`.toLowerCase().includes(query));
+  const matches=matchesFor(target,true,alternativesFilters).filter(entry=>`${entry.product.name} ${entry.product.code} ${entry.product.id}`.toLowerCase().includes(query));
   list.replaceChildren(...matches.map(entry=>renderProduct({...entry,target},true)));
   $('alternatives-empty').hidden=Boolean(matches.length);
   list.scrollTop=scroll;
-  for(const type of ['transparent','opalescent'])$(`alternatives-${type}`).setAttribute('aria-pressed',String(state.glassTypes[type]));
-  $('alternatives-tints').setAttribute('aria-pressed',String(state.includeTints));
+  for(const type of ['transparent','opalescent'])$(`alternatives-${type}`).setAttribute('aria-pressed',String(alternativesFilters.glassTypes[type]));
+  $('alternatives-tints').setAttribute('aria-pressed',String(alternativesFilters.includeTints));
 }
 function chooseAlternative(targetId,productId) {
   if(!state.targets.some(target=>target.id===targetId))return;
@@ -957,14 +999,17 @@ function bindEvents() {
   $('close-color-editor').addEventListener('click',()=>$('color-editor-dialog').close());
   $('close-alternatives').addEventListener('click',()=>$('alternatives-dialog').close());
   $('alternatives-search').addEventListener('input',renderAlternatives);
-  for(const type of ['transparent','opalescent','tints'])$(`alternatives-${type}`).addEventListener('click',()=>{if(type==='tints')state.includeTints=!state.includeTints;else state.glassTypes[type]=!state.glassTypes[type];reconcilePaletteSelection();renderResults();persist();});
+  for(const type of ['transparent','opalescent','tints'])$(`alternatives-${type}`).addEventListener('click',()=>{if(type==='tints')alternativesFilters.includeTints=!alternativesFilters.includeTints;else alternativesFilters.glassTypes[type]=!alternativesFilters.glassTypes[type];renderAlternatives();});
   settingsDialog=initializeSettingsDialog({getSettings:currentSettings,applySettings:applyWorkingSettings,onSaved:settings=>{savedSettingsFingerprint=JSON.stringify(settings);renderSettings();},notify});
   $('load-settings').addEventListener('click',()=>settingsDialog.open(false));
+  $('export-personal-data').addEventListener('click',exportPersonalData);
+  $('import-personal-data').addEventListener('click',()=>$('personal-data-file').click());
+  $('personal-data-file').addEventListener('change',event=>{const file=event.target.files[0];event.target.value='';void importPersonalData(file);});
   $('refresh-settings').addEventListener('click',refreshWorkingSettings);
   $('remix-palette').addEventListener('click',remixPalette);
   $('include-tints').addEventListener('click',()=>{state.includeTints=!state.includeTints;reconcilePaletteSelection();renderResults();persist();});
   cartLibrary=initializeCartLibrary({getProducts:()=>[...state.products,...clearCartProducts],getPhotoIndex:()=>cartPhotoIndex,getSelection:()=>state.cart,
-    getSelectionName:()=>state.savedPaletteName||state.sourceName||'My cart',sendItems:sendCartItems,
+    getSelectionName:()=>state.savedPaletteName||state.sourceName||'My cart',sendItems:sendCartItems,emptyWebsiteCart,
     getSendState:cartSendState,getAccount:()=>state.account,getPreferredJarSize:()=>state.preferredJarSize,getFilters:()=>({glassTypes:{...state.glassTypes},includeTints:state.includeTints}),pageMode:isCartPage,openPage:async mode=>{await flushSave();await bridge.openCartPage(mode);},readWebsiteCart:()=>bridge.readBullseyeCart(),signIn,notify});
   for(const option of FORM_OPTIONS)$(`form-${option.id}`).addEventListener('click',()=>{if(state.format!==option.id)changePurchaseOptions(option.id);});
   $('preferred-jar-size').addEventListener('change',event=>changePurchaseOptions(state.format,event.target.value,true));
@@ -1029,7 +1074,6 @@ function bindEvents() {
     try { flushSave().then(()=>bridge.openWorkspace()).catch((error) => notify(error.message || 'Could not open a larger workspace.', true)); }
     catch (error) { notify(error.message || 'Could not open a larger workspace.', true); }
   });
-  for (const id of ['open-cart']) $(id).addEventListener('click', async () => {try{await flushSave();await bridge.openCartPage('selection');}catch(error){notify(error.message,true);}});
   for (const id of ['close-cart', 'back-to-glass']) $(id).addEventListener('click', () => $('cart-dialog').close());
   $('close-detail').addEventListener('click', () => $('detail-dialog').close());
   $('detail-alternatives').addEventListener('click',()=>{const id=detailTargetId;$('detail-dialog').close();if(id)showAlternatives(id);});
@@ -1048,7 +1092,6 @@ function bindEvents() {
   });
   $('detail-dialog').addEventListener('close', () => { detailProduct = null; detailSample = null; detailTargetId=null; });
   $('copy-order').addEventListener('click', copyOrder);
-  for (const id of ['send-to-cart', 'send-cart-dialog']) $(id).addEventListener('click', () => isCartPage ? cartLibrary.sendDraft() : sendSelection());
   $('allow-image-access').addEventListener('click', async () => {
     if (!pendingAccessUrl) return;
     const button = $('allow-image-access'); button.disabled = true;
@@ -1104,8 +1147,13 @@ function bindEvents() {
 }
 
 async function initialize() {
-  bindEvents();
   try {
+    await initPersonalDataSession({
+      onPause:()=>{personalDataBusy=true;clearTimeout(saveTimer);saveTimer=undefined;document.body.inert=true;},
+      onComplete:()=>location.reload(),
+      onError:error=>notify(error.message,true,12000),
+    });
+    bindEvents();
     const [catalogResult, savedResult, formatsResult, settingsResult, clearResult, photosResult, samplesResult] = await Promise.allSettled([
       fetch('./data/catalog.json').then((response) => {
         if (!response.ok) throw new Error(`Catalog could not be loaded (${response.status}).`);
@@ -1119,6 +1167,8 @@ async function initialize() {
       fetch('./data/form-samples.json').then(response=>{if(!response.ok)throw new Error('Frit photo samples could not load.');return response.json();}),
     ]);
     if (catalogResult.status !== 'fulfilled') throw catalogResult.reason;
+    if (savedResult.status !== 'fulfilled') throw new Error(`Your saved workspace could not be read. Reload before making changes. ${savedResult.reason?.message || ''}`);
+    await cartLibrary.ready;
     const catalog = catalogResult.value;
     state.baseProducts = Array.isArray(catalog.products) ? catalog.products : [];
     clearCartProducts = clearResult.status==='fulfilled' && Array.isArray(clearResult.value.products)?clearResult.value.products:[];
@@ -1132,8 +1182,7 @@ async function initialize() {
     $('library-count').textContent = String(state.products.length);
     const saved = savedResult.status === 'fulfilled' ? savedResult.value : null;
     restoreWorkspace(saved);
-    // Apply the requested larger starting view once on upgrade, not on each reload.
-    if(saved && Number(saved.version || 0)<6 && saved.imageSize==='fit')state.imageSize='larger';
+    workspaceReady=true;
     renderAll();
     if(formatsResult.status==='rejected')notify('Product form options could not load. Medium frit is available; reload to use the other forms.',true);
     if(settingsResult.status==='rejected')notify('Saved defaults could not be read. Your current workspace is still available.',true);
@@ -1157,7 +1206,7 @@ async function initialize() {
     console.error('Palette Picker could not start:', error);
     $('product-grid').replaceChildren();
     $('glass-results').hidden = true; $('empty-state').hidden = false;
-    setEmpty('The glass catalog could not load.', 'Reload the extension, or open this page through its local web server.', 'Reload', () => window.location.reload());
+    setEmpty('The picker could not load.', 'Your saved data has been kept. Reload the extension and reopen this page.', 'Reload', () => window.location.reload());
     notify(error.message || 'The glass catalog could not load.', true);
   }
 }

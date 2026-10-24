@@ -451,3 +451,73 @@ test('an interrupted worker record prevents blind resend after restart', async (
   assert.equal(result.uncertain, true);
   assert.equal(harness.scripts.length, 0);
 });
+
+test('new explicit send IDs can add the same quantities again immediately after success', async t => {
+  const harness = await workerHarness(t);
+  harness.scriptImpl = async()=>({added:true,itemCount:1,cartUrl:'https://shop.bullseyeglass.com/cart'});
+  const request = {type:'BULLSEYE_SEND_CART',requestId:'repeat-send-first-123456',items:[{variantId:100,quantity:1}]};
+  assert.equal((await harness.send(request)).added,true);
+  assert.equal((await harness.send({...request,requestId:'repeat-send-second-12345'})).added,true);
+  assert.equal(harness.scripts.length,2,'A completed selection must not suppress a new deliberate click.');
+  assert.equal((await harness.send(request)).duplicate,true);
+  assert.equal(harness.scripts.length,2,'Replaying the same request ID remains protected.');
+});
+
+test('empty website cart resolves uncertain adds, preserves personal data, and retains completed replay IDs', async t => {
+  const harness = await workerHarness(t);
+  const items = [{variantId:100,quantity:1}];
+  const completed = {requestId:'completed-add-123456789',signature:JSON.stringify([{variantId:200,quantity:1}]),
+    status:'complete',updatedAt:Date.now(),result:{added:true,itemCount:1,cartUrl:'https://shop.bullseyeglass.com/cart'}};
+  harness.local.bullseyeCartRequestsV1 = [completed,
+    {requestId:'uncertain-add-123456789',signature:JSON.stringify(items),status:'uncertain',updatedAt:Date.now()},
+    {requestId:'pending-add-12345678900',signature:JSON.stringify(items),status:'pending',updatedAt:Date.now()}];
+  harness.local.bullseyeWorkingCartV1 = {items:[{variantId:100,quantity:1}]};
+  harness.local.bullseyeSettingsV1 = {format:'fine'};
+  harness.scriptImpl = async options=>options.args[0].kind === 'clear-cart'
+    ? {cleared:true,itemCount:0,cartUrl:'https://shop.bullseyeglass.com/cart'}
+    : {added:true,itemCount:1,cartUrl:'https://shop.bullseyeglass.com/cart'};
+  const cleared = await harness.send({type:'BULLSEYE_EMPTY_CART'});
+  assert.equal(cleared.cleared,true);
+  assert.equal(cleared.opened,true);
+  assert.equal(harness.scripts[0].args[0].kind,'clear-cart');
+  assert.deepEqual(harness.local.bullseyeCartRequestsV1,[completed]);
+  assert.deepEqual(harness.local.bullseyeWorkingCartV1,{items:[{variantId:100,quantity:1}]});
+  assert.deepEqual(harness.local.bullseyeSettingsV1,{format:'fine'});
+  assert.equal((await harness.send({type:'BULLSEYE_SEND_CART',requestId:'after-clear-send-1234567',items})).added,true);
+  assert.equal((await harness.send({type:'BULLSEYE_SEND_CART',requestId:completed.requestId,items:[{variantId:200,quantity:1}]})).duplicate,true);
+  assert.equal(harness.scripts.length,2);
+});
+
+test('worker serializes add and empty operations and coalesces concurrent empty clicks', async t => {
+  const harness = await workerHarness(t);
+  const addPause = deferred(), clearPause = deferred();
+  harness.scriptImpl = async options=>{
+    if (options.args[0].kind === 'add') {await addPause.promise;return {added:true,itemCount:1};}
+    await clearPause.promise;return {cleared:true,itemCount:0};
+  };
+  const request = {type:'BULLSEYE_SEND_CART',requestId:'parallel-add-123456789',items:[{variantId:100,quantity:1}]};
+  const adding = harness.send(request);
+  await waitFor(()=>harness.scripts.length===1,'Addition did not begin.');
+  assert.equal((await harness.send({type:'BULLSEYE_EMPTY_CART'})).code,'CART_BUSY');
+  addPause.resolve();await adding;
+  const clearing = harness.send({type:'BULLSEYE_EMPTY_CART'});
+  await waitFor(()=>harness.scripts.length===2,'Clear did not begin.');
+  const repeatedClear = harness.send({type:'BULLSEYE_EMPTY_CART'});
+  assert.equal((await harness.send({...request,requestId:'parallel-add-new-123456'})).code,'CART_BUSY');
+  clearPause.resolve();
+  assert.equal((await clearing).cleared,true);
+  assert.equal((await repeatedClear).cleared,true);
+  assert.equal(harness.scripts.length,2);
+});
+
+test('unconfirmed empty preserves replay guards and does not retry the store mutation', async t => {
+  const harness = await workerHarness(t);
+  harness.local.bullseyeCartRequestsV1 = [{requestId:'old-uncertain-123456789',status:'uncertain',signature:'keep'}];
+  const before = structuredClone(harness.local);
+  harness.scriptImpl = async()=>{throw new Error('Tab gone');};
+  const result = await harness.send({type:'BULLSEYE_EMPTY_CART'});
+  assert.equal(result.code,'CART_CLEAR_UNCONFIRMED');
+  assert.equal(result.uncertain,true);
+  assert.equal(harness.scripts.length,1);
+  assert.deepEqual(harness.local,before);
+});

@@ -88,10 +88,8 @@
 @media(max-width:560px){.image-landscape #product-grid>.compact-card{padding:5px;min-height:0}.image-landscape #product-grid>.compact-card>.photo-button{max-width:85px}}
 
 /* Cart controls: independent add defaults and per-item grade/package selection. */
-.cart-send-primary,.cart-page #main-toolbar>#send-to-cart{width:100%;min-height:64px;padding:16px;font-size:21px;line-height:1.25;font-weight:750;white-space:normal;text-align:center}
+.cart-send-primary{width:100%;min-height:64px;padding:16px;font-size:21px;line-height:1.25;font-weight:750;white-space:normal;text-align:center}
 .cart-send-primary{flex:none;margin-bottom:14px}
-.cart-page #main-toolbar>#send-to-cart{order:-1;flex:1 0 100%;margin-bottom:5px}
-.cart-page #send-saved-cart{display:none}
 .cart-page .saved-cart-editor-scroll{display:block}
 .saved-cart-draft-heading{flex-wrap:wrap;gap:10px}
 .saved-cart-draft-actions{display:flex;align-items:center;gap:12px;margin-left:auto}
@@ -151,3 +149,16 @@
 .detail-photo-grade{text-align:center;font-weight:650;margin:6px 0}
 .detail-range{text-align:center;font-size:11px;color:var(--muted);margin:0 0 8px}
 .detail-sample:focus-visible{outline:2px solid var(--green);outline-offset:1px}
+
+/* The quantity badge belongs to the persistent working cart, beside the toolbar. */
+.app-header{display:flex;align-items:flex-start;flex-wrap:nowrap;gap:8px}
+.compact-toolbar{flex:1;min-width:0}
+.cart-nav{display:inline-flex;align-items:center;justify-content:center;gap:7px;flex:none;min-height:31px;font-size:12px;padding:5px 9px;margin-left:auto}
+.cart-badge{display:inline-flex;align-items:center;justify-content:center;min-width:21px;height:21px;padding:0 5px;border-radius:12px;background:var(--green);color:white;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums}
+.cart-items-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;border-top:1px solid var(--line);padding-top:13px}
+.cart-items-heading h3{font-size:15px;margin:0}
+.saved-cart-draft-heading>span{font-size:11px;color:var(--muted)}
+.empty-website-cart{color:#884938}
+.personal-data-controls{display:flex;flex-wrap:wrap;gap:8px;border-top:1px solid var(--line);padding-top:10px;width:100%}
+.personal-data-controls p{font-size:11px;line-height:1.45;color:var(--muted);margin:0;width:100%}
+@media(max-width:560px){.app-header{gap:5px}.cart-nav{padding:4px 6px;font-size:11px;gap:4px}.cart-badge{min-width:19px;height:19px}}
