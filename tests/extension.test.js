@@ -6,7 +6,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {cancelPendingImage, emptyBullseyeCart, getBullseyeAccount, loadState, saveState, openWorkspace, sendToCart, signInToBullseye, validateOrderLines} from '../extension/lib/extension.js';
+import {cancelPendingImage, emptyBullseyeCart, getBullseyeAccount, loadState, saveState, openCartPage, openWorkspace, sendToCart, signInToBullseye, validateOrderLines} from '../extension/lib/extension.js';
 
 test('Copied SKU order preserves distinct real package SKUs and whole jar quantities', () => {
   assert.equal(validateOrderLines('001426-0002-F-P001 2\n001120-0002-F-OZ05\t1'), '001426-0002-F-P001 2\n001120-0002-F-OZ05 1');
@@ -35,11 +35,12 @@ test('opening a workspace saves the source tab before switching to the extension
     storage: {session: {set: async (values) => { Object.assign(saved, values); order.push('save'); }}},
     tabs: {
       query: async () => [active],
-      create: async ({url}) => {
+      create: async ({url,active}) => {
         order.push('open');
         assert.equal(saved.sourceTabId, 42);
         assert.equal(saved.sourceWindowId, 3);
         assert.equal(url, 'chrome-extension://bridge-test/picker.html?workspace=1');
+        assert.equal(active,true);
         return {id: 43};
       },
     },
@@ -49,6 +50,35 @@ test('opening a workspace saves the source tab before switching to the extension
   active = {id: 43, windowId: 3, url: 'chrome-extension://bridge-test/picker.html'};
   await openWorkspace();
   assert.deepEqual(order, ['save', 'open', 'open'], 'An extension tab must not replace the remembered source.');
+});
+
+test('Cart always creates an active extension tab without navigating any existing tab', async t => {
+  const source={id:42,url:'https://shop.bullseyeglass.com/products/source-glass',active:true};
+  const sourceBefore=structuredClone(source),created=[];
+  replaceGlobal(t,'chrome',{
+    runtime:{id:'bridge-test',getURL:path=>'chrome-extension://bridge-test/'+path},
+    tabs:{
+      query:async()=>[source],
+      update:async()=>assert.fail('Cart must never navigate or reuse the source tab.'),
+      create:async options=>{created.push(options);return {id:42+created.length,...options};},
+    },
+  });
+  for(const mode of ['working','list','selection'])await openCartPage(mode);
+  assert.deepEqual(created,['working','list','working'].map(mode=>({
+    url:`chrome-extension://bridge-test/picker.html?workspace=1&cart=1&mode=${mode}`,active:true,
+  })));
+  assert.deepEqual(source,sourceBefore);
+});
+
+test('preview Cart opens a separate browsing context without changing the source location', async t => {
+  const opened=[];
+  replaceGlobal(t,'chrome',undefined);
+  replaceGlobal(t,'location',{href:'http://localhost:8080/picker.html?workspace=1'});
+  replaceGlobal(t,'window',{open:(...args)=>{opened.push(args);return null;}});
+  const opening=openCartPage('list');
+  assert.deepEqual(opened,[['http://localhost:8080/picker.html?workspace=1&cart=1&mode=list','_blank','noopener']]);
+  await opening;
+  assert.equal(location.href,'http://localhost:8080/picker.html?workspace=1');
 });
 
 test('preview workspace opening stays synchronous and image cancellation is harmless', async (t) => {

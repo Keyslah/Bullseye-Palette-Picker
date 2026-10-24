@@ -77,7 +77,7 @@ test('each green format selects a distinct actual SKU; frit defaults to 5 lb and
   assert.equal(new Set(chosen).size,5);
 });
 
-test('available explicit choices are honored within the active form, with saved global frit sizes respected',()=>{
+test('explicit choices are honored within the active form even out of stock, with saved global frit sizes respected',()=>{
   const powder=productForForm(green,index,'powder');
   const fine=productForForm(green,index,'fine');
   const small=powder.variants.find(variant=>/5 oz/.test(variant.title));
@@ -87,7 +87,11 @@ test('available explicit choices are honored within the active form, with saved 
   assert.notEqual(defaultFormatVariant(powder,'powder',fine.variants[0].id).id,fine.variants[0].id);
   assert.equal(defaultFormatVariant(powder,'fine'),null);
   const withoutPreferred={...powder,variants:powder.variants.map(variant=>({...variant,available:variant.id!==small.id}))};
-  assert.notEqual(defaultFormatVariant(withoutPreferred,'powder',small.id).id,small.id);
+  assert.equal(defaultFormatVariant(withoutPreferred,'powder',small.id).id,small.id);
+  assert.equal(defaultFormatVariant(withoutPreferred,'powder',small.id).available,false);
+  const soldOut={...powder,variants:powder.variants.map(variant=>({...variant,available:false}))};
+  assert.equal(defaultFormatVariant(soldOut,'powder',small.id).id,small.id);
+  assert.equal(defaultFormatVariant(soldOut,'powder',undefined,'5oz').id,small.id);
 });
 
 test('allVariants retains prior form IDs and sheet source records after changing the global form',()=>{

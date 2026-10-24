@@ -1,5 +1,45 @@
 # Verification record
 
+## Version 0.6.8
+
+Continues from published v0.6.7 commit `e801945c3e0618eed90a2d8cc6a2cc54adffbac0`. Changes are limited to retaining unavailable glass, reliable cart edits, separate browser tabs, automatic palette prominence/black exclusion, removal of the obsolete full-palette checkbox, palette ordering and their persistence/tests. Catalog photographs, sample values and thickness calculations are unchanged.
+
+### Unavailable selections
+
+Stock availability is separate from whether a real catalog variant can be selected and stored. Main selections and cart grade/size controls retain unavailable variants with their exact form, size, ID and quantity. Names display `* unavailable`; real sold-out options remain editable. Saving, Add to Cart and reloading retain those choices. Missing listings never gain invented options. Sending reports unavailable rows and makes no cart POST; it does not silently discard or partially submit them.
+
+The native unavailable suite covers checked/uncheck/recheck state, quantity and size changes, immediate reload, named palette and cart saves, working-cart restore, and unavailable Add Colors choices at desktop/narrow widths. Retained cart suites verify repeat sends, Empty confirmation, account checks, storage failure retry and queued edits.
+
+Three deterministic cart-edit checks hold a pending working-cart write while typing into a quantity field. Identical completed-save snapshots now preserve the current row objects and focus, so both duplicate creation and ordinary autosaves retain the typed value. A genuinely changed external snapshot still refreshes the rows; later local edits keep working and survive reload. Active storage actions display Saving instead of a stale Saved status.
+
+### Prominence and manual ownership
+
+Prominence defaults true and is stored with workspace, named palettes and settings. Its change handler persists the preference without modifying the current palette. Automatic extraction groups the support of nearby Lab shades, suppresses isolated low-area colors and varies actual representative source pixels within that theme when seeded for Remix. Black filtering occurs before reservoir sampling and excludes neutral L* <= 20 / C* < 10 pixels. Dark chromatic colors remain eligible; an all-black image produces no invented replacement.
+
+Manual targets and extra glass selections survive Remix. New automatic targets cannot take regular Black as their match, while old saved targets and explicit manual Black remain supported. Native tests prove that manual accent colors and Black points remain exact through Remix, preference changes, reload and saving. A regression edits an automatic dot to Black and then remixes a flat image, verifying distinct target IDs for the preserved manual dot and newly sampled original color.
+
+Restoring an existing nonempty workspace or named palette preserves its saved targets. The new sampling policy applies to the next image extraction or explicit Remix; Remix retains manual targets and does not overwrite the saved palette record.
+
+Automatic sampling now considers a bounded pool of up to 36 real source candidates, groups them by the actual automatic glass match and prioritizes distinct product IDs. If the requested count is not filled, a reused product must have source color separation of at least 5 CIEDE2000 and measured thickness separation of at least 10 percentage points. A native seven-band fixture fills six slots with six different products first; a two-band Red Transparent fixture retains two actual 56%/72% source-supported shades on initial sampling and Remix. Unknown thickness does not permit duplicate fallback.
+
+Selection uses the actual remaining capacity before ranking automatic colors. With 18 manual colors, the two remaining slots still receive distinct products before repeated thicknesses. With 20 manual colors, Remix preserves all of them and adds no automatic targets. Native checks cover both cases without waiting for an unchanged save to emit a storage-change event.
+
+### Navigation and ordering
+
+Cart and Full page create active tabs. Native cart results no longer call tabs.update on the request/source tab. Immediate subsequent requests use an established complete same-origin document rather than a newly opening result tab; pendingUrl prevents premature injection. Native tests verify original URL, history, unsaved input and Back/Forward across Cart, Full page, repeated Send and Empty.
+
+Palette reordering changes the target array order while preserving keyed data. Portrait and landscape checks cover swatch/card/dot order, color/sample identity, selected quantities, active target and saved palette/reload persistence. The obsolete full-palette control and wording are absent; Prominence remains beside Alternatives.
+
+### Release gate
+
+The JavaScript suite passes 259 tests. Focused native suites pass: unavailable choices 6; Prominence, distinct colors, thickness fallback and capacity 13; palette reordering 10; separate navigation 5; cart edit races 3. The retained workspace suite passes 47 checks, its cart-builder suite 12, and the cart workflow suite 11 against the final source and rebuilt package.
+
+The gate runs the JavaScript suite, source structure checks, exact-source packaging, retained workspace/cart/layout/matching/Alternatives checks, focused unavailable/Prominence/reordering/navigation checks, and the existing native personal-data suite. Every cart mutation uses an isolated fixture with a disposable profile. Native result pages can initialize before Playwright attaches routes; unrelated blocked Shopify telemetry and external page errors are recorded separately. All extension page errors, unexpected mutating cart paths and incorrect exact add/clear payload counts remain failures.
+
+The installable archive contains 185 exact-source files. The release workflow checks it byte for byte against the tested source before publication, then downloads the published ZIP and repeats the check. Updates replace files in the same installed folder, require Reload at `chrome://extensions`, and reopen picker/cart tabs. Pressing Remix applies the new automatic sampling policy to an existing image while preserving its manual colors.
+
+---
+
 ## Version 0.6.7
 
 Continues from main and published v0.6.6 commit `27c4207966cfc131f5851276c147cd89e60f9d85`. Source changes are limited to the requested cart workflow, independent Alternatives filters, sign-in labeling, personal-data retention and their verification/documentation. Catalogs, images, photo samples and thickness calculations remain unchanged.

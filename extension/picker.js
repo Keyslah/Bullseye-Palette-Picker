@@ -12,7 +12,7 @@ import {rgbToLab, rgbToHex} from './lib/color.js';
 import {extractPalette, matchCatalog, sampleThickness as measureSampleThickness} from './lib/palette.js';
 import * as bridge from './lib/extension.js';
 import {listPalettes, savePalette, loadPalette, deletePalette} from './lib/saved-palettes.js';
-import {availableVariant, emptySelection, restoreSelection, reconcileSelection, setItemSelected, changeSelectedVariant} from './lib/selection.js';
+import {emptySelection, restoreSelection, reconcileSelection, setItemSelected, changeSelectedVariant} from './lib/selection.js';
 import {initializeCartLibrary} from './lib/cart-library.js';
 import {productPhotoSpec} from './lib/cart-photos.js';
 import {productWithFormSamples, samplesForPhoto, nearestPhotoSample} from './lib/form-samples.js';
@@ -20,7 +20,7 @@ import {containedImageBounds, imagePointFromClient} from './lib/photo-geometry.j
 import {preservedPhotoGuideMatches} from './lib/photo-guide-workspace.js';
 import {normalizeCartItems} from './lib/saved-carts.js';
 import {FORM_OPTIONS, normalizeForm, productForForm, defaultFormatVariant} from './lib/product-formats.js';
-import {cartSizeLabel, switchedCartVariant} from './lib/cart-options.js';
+import {cartSelectable, cartSizeLabel, switchedCartVariant} from './lib/cart-options.js';
 import {itemForm, normalizeItemForms} from './lib/item-forms.js';
 import {loadSettings, normalizeSettings, DEFAULT_SETTINGS} from './lib/settings.js';
 import {includedGlass} from './lib/material-filters.js';
@@ -34,7 +34,7 @@ const MAX_TARGETS = 20;
 const state = {
   products: [], baseProducts: [], formatIndex: null, format:'medium', preferredJarSize:'5lb',
   sourceDataUrl: '', sourceName: '', sourceUrl: '', sourceThumbnail: '', imageData: null,
-  paletteCount: 6, targets: [], activeTargetId: null,
+  paletteCount: 6, prominence:true, targets: [], activeTargetId: null,
   glassTypes: {transparent: true, opalescent: true}, includeTints:false, imageSize: 'larger',
   view: 'palette', query: '', selectedForms: {}, selectedVariants: {}, quantities: {}, chosenMatches: {}, cart: [], selection: emptySelection(),
   lastPendingImageAt: 0, savedPaletteId: null, savedPaletteName: '',
@@ -56,6 +56,7 @@ let alternativesFilters = {glassTypes:{transparent:true,opalescent:true},include
 let clearCartProducts = [], cartPhotoIndex = {}, formSampleIndex = {};
 let savedSettingsFingerprint = '', settingsSaving = false, settingsDialog = null;
 let workspaceReady = false, personalDataBusy = false;
+let draggedPaletteTarget = null;
 const isCartPage = new URLSearchParams(location.search).get('cart') === '1';
 document.body.classList.toggle('cart-page',isCartPage);
 
@@ -94,7 +95,7 @@ function cartSendState(items) {
     sent:Boolean(items.length && state.sentCartFingerprint === fingerprint),
     uncertain:Boolean(items.length && state.cartUnconfirmed === fingerprint)};
 }
-function currentSettings() { return normalizeSettings({format:state.format,preferredJarSize:state.preferredJarSize,glassTypes:state.glassTypes,includeTints:state.includeTints,showFullPalette:state.view!=='alternatives',paletteCount:state.paletteCount,imageSize:state.imageSize}); }
+function currentSettings() { return normalizeSettings({format:state.format,preferredJarSize:state.preferredJarSize,glassTypes:state.glassTypes,includeTints:state.includeTints,showFullPalette:state.view!=='alternatives',paletteCount:state.paletteCount,prominence:state.prominence,imageSize:state.imageSize}); }
 function renderSettings() {
   for (const option of FORM_OPTIONS) {
     const button=$(`form-${option.id}`);button.setAttribute('aria-pressed',String(state.format===option.id));button.disabled=!state.products.length;
@@ -134,7 +135,7 @@ function changePurchaseOptions(form, preferredJarSize=state.preferredJarSize, fo
     for(const item of cart)state.quantities[item.key]=item.quantity;
     if(detailProduct){detailProduct=products.find(p=>p.id===detailProduct.id)||null;if(detailProduct)renderDetailSample();else $('detail-dialog').close();}
     reconcilePaletteSelection();renderAll();cartLibrary?.optionsChanged();persist();
-    if(skipped.length)notify(`No available ${FORM_OPTIONS.find(option=>option.id===nextForm).grain.toLowerCase()} size for ${[...new Set(skipped)].join(', ')}. Those sizes are not selected.`,false,7500);
+    if(skipped.length)notify(`No listed ${FORM_OPTIONS.find(option=>option.id===nextForm).grain.toLowerCase()} size for ${[...new Set(skipped)].join(', ')}. Those forms cannot be selected.`,false,7500);
   } catch(error){notify(error.message||'The purchase options could not change.',true);}
 }
 function changeProductForm(productId, form) {
@@ -144,7 +145,7 @@ function changeProductForm(productId, form) {
   const selectedForms={...state.selectedForms,[productId]:normalizeForm(form)};
   const product=productForCurrentForm(base,state.format,selectedForms),previous=currentVariant(current);
   const variant=switchedCartVariant(product,product.form,previous,state.preferredJarSize);
-  if(!variant){notify(`No available ${FORM_OPTIONS.find(option=>option.id===product.form).label.toLowerCase()} package for ${product.name}.`);return;}
+  if(!variant){notify(`No listed ${FORM_OPTIONS.find(option=>option.id===product.form).label.toLowerCase()} package for ${product.name}.`);return;}
   const old=selectedItem(current,previous),quantity=old?.quantity || state.quantities[variantKey(current,previous || {})] || 1;
   // Retain all visible color choices while this one product's sample range changes.
   // Full-color matching still finds its closest sample within the newly selected form.
@@ -170,7 +171,7 @@ function applyWorkingSettings(value) {
   if(state.sending)throw new Error('Wait for the current cart addition to finish.');
   const settings=normalizeSettings(value);
   state.glassTypes={...settings.glassTypes};state.includeTints=settings.includeTints;
-  state.paletteCount=settings.paletteCount;state.imageSize=settings.imageSize;
+  state.paletteCount=settings.paletteCount;state.prominence=settings.prominence;state.imageSize=settings.imageSize;
   state.query='';$('glass-search').value='';
   state.view=settings.showFullPalette || !activeTarget()?'palette':'alternatives';
   changePurchaseOptions(settings.format,settings.preferredJarSize,true);
@@ -183,16 +184,19 @@ function refreshWorkingSettings() {
 function remixPalette() {
   if(!state.imageData || state.sending)return;
   const seed=crypto.getRandomValues(new Uint32Array(1))[0];
-  state.targets=[];state.activeTargetId=null;state.chosenMatches={};state.view='palette';
+  const manualIds=new Set(state.targets.filter(target=>target.manual).map(target=>target.id));
+  state.chosenMatches=Object.fromEntries(Object.entries(state.chosenMatches).filter(([id])=>manualIds.has(id)));
+  if(!manualIds.has(state.activeTargetId))state.activeTargetId=null;
+  state.view='palette';
   state.savedPaletteId=null;state.savedPaletteName='';
-  extractStartingColors(false,seed);notify('Remixed a new palette from the same image.');
+  extractStartingColors(true,seed);notify('Remixed the sampled colors. Your manually added colors were kept.');
 }
 function workspaceSnapshot() {
   return {
     version:6, photoGuideVersion:1, includeTints:state.includeTints, format:state.format, preferredJarSize:state.preferredJarSize,
     sourceDataUrl:state.sourceDataUrl, sourceName:state.sourceName, sourceUrl:state.sourceUrl,
     thumbnailDataUrl:state.sourceThumbnail, glassTypes:state.glassTypes, imageSize:state.imageSize, imageLayout:'auto',
-    paletteCount:state.paletteCount, targets:state.targets, activeTargetId:state.activeTargetId,
+    paletteCount:state.paletteCount, prominence:state.prominence, targets:state.targets, activeTargetId:state.activeTargetId,
     view:state.view, selectedForms:state.selectedForms, selectedVariants:state.selectedVariants,
     quantities:state.quantities, chosenMatches:state.chosenMatches, cart:state.cart, selection:state.selection,
     lastPendingImageAt:state.lastPendingImageAt, savedPaletteId:state.savedPaletteId,
@@ -214,7 +218,7 @@ function normalizeTarget(target, index = 0) {
   if (!Array.isArray(target?.rgb) || target.rgb.length !== 3) return null;
   const rgb = target.rgb.map(value => clamp(Math.round(Number(value) || 0), 0, 255));
   const point = Number.isFinite(target.x) && Number.isFinite(target.y) ? {x:clamp(target.x,0,1), y:clamp(target.y,0,1)} : {};
-  return {id:String(target.id || `color-${index}`), rgb, hex:colorHex(rgb), lab:rgbToLab(rgb), weight:Number(target.weight)||0, manual:Boolean(target.manual), custom:Boolean(target.custom), ...point};
+  return {id:String(target.id || `color-${index}`), rgb, hex:colorHex(rgb), lab:rgbToLab(rgb), weight:Number(target.weight)||0, manual:Boolean(target.manual), custom:Boolean(target.custom), ...point, ...(target.excludeBlack===true?{excludeBlack:true}:{})};
 }
 function restoreWorkspace(saved) {
   if (!saved || typeof saved !== 'object') return;
@@ -224,6 +228,7 @@ function restoreWorkspace(saved) {
   if (['5lb','1lb','5oz'].includes(saved.preferredJarSize)) state.preferredJarSize=saved.preferredJarSize;
   rebuildProducts();
   state.paletteCount = clamp(Math.round(Number(saved.paletteCount) || 6), 2, 12);
+  state.prominence = saved.prominence !== false;
   state.glassTypes = {
     transparent: saved.glassTypes?.transparent !== false,
     opalescent: saved.glassTypes?.opalescent !== false,
@@ -268,8 +273,10 @@ function renderPalette() {
     button.setAttribute('aria-pressed', String(target.id === state.activeTargetId));
     const color = element('span','palette-chip-color',index+1); color.style.backgroundColor = target.hex;
     button.append(color);
-    button.addEventListener('click', () => selectTarget(target.id)); chips.append(button);
-    button.title = `Color ${index+1}: ${target.hex}. Select, then Edit color for details.`;
+    button.addEventListener('click', () => selectTarget(target.id));
+    enablePaletteDrag(button,target,'chip');enablePaletteDrop(button,target,'chip');chips.append(button);
+    button.setAttribute('aria-keyshortcuts','Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown Alt+Home Alt+End');
+    button.title = `Color ${index+1}: ${target.hex}. Select, then Edit color for details. Drag to reorder; Alt + Arrow keys move, Alt + Home/End moves first/last.`;
   }
   const target = activeTarget(); $('target-editor').hidden = !target; $('show-alternatives').hidden = !target;
   if (target) {
@@ -284,7 +291,79 @@ function renderPalette() {
   $('add-custom-color').disabled = state.targets.length >= MAX_TARGETS;
   $('save-palette').disabled = !state.targets.length;
   $('remix-palette').disabled = !state.imageData || state.sending;
+  $('prominence').checked = state.prominence;
   renderPoints();
+}
+
+function movePaletteTarget(id, destination, surface, keyboard = false) {
+  const from=state.targets.findIndex(target=>target.id===id);
+  const to=clamp(destination,0,state.targets.length-1);
+  if(from<0 || from===to)return;
+  const reordered=[...state.targets], [target]=reordered.splice(from,1);
+  reordered.splice(to,0,target);state.targets=reordered;
+  // All color choices and purchase state are keyed by ID. Reordering must not
+  // reconcile the selection or resample the photo.
+  renderPalette();renderResults();persist();
+  const points=$('image-points');
+  for(const target of state.targets){const point=[...points.children].find(node=>node.dataset.targetId===target.id);if(point)points.append(point);}
+  const handle=[...document.querySelectorAll('.palette-reorder-handle,.palette-chip')].find(node=>node.dataset.targetId===id && node.dataset.reorderSurface===surface);
+  handle?.focus({preventScroll:!keyboard});
+  notify(`Color ${target.hex} moved to position ${to+1} of ${state.targets.length}.`,false,2000);
+}
+function clearPaletteDrag() {
+  draggedPaletteTarget=null;
+  for(const node of document.querySelectorAll('[data-reorder-target]'))node.classList.remove('palette-drop-before','palette-drop-after','palette-drag-source');
+}
+function paletteReorderHandle(target,surface) {
+  const handle=element('button','palette-reorder-handle','⠿');handle.type='button';
+  handle.dataset.targetId=target.id;handle.dataset.reorderSurface=surface;
+  handle.setAttribute('aria-label',`Reorder color ${targetNumber(target)}, ${target.hex}`);
+  handle.title='Drag to reorder colors. Arrow keys move; Home or End moves to the first or last position.';
+  handle.disabled=state.targets.length<2;
+  handle.addEventListener('click',event=>event.stopPropagation());
+  enablePaletteDrag(handle,target,surface);
+  return handle;
+}
+function enablePaletteDrag(handle,target,surface) {
+  handle.dataset.reorderSurface=surface;handle.draggable=state.targets.length>1;
+  handle.addEventListener('keydown',event=>{
+    if(surface==='chip' && !event.altKey)return;
+    const direction={ArrowLeft:-1,ArrowUp:-1,ArrowRight:1,ArrowDown:1}[event.key];
+    if(direction===undefined && !['Home','End'].includes(event.key))return;
+    event.preventDefault();event.stopPropagation();
+    const index=state.targets.findIndex(entry=>entry.id===target.id);
+    movePaletteTarget(target.id,event.key==='Home'?0:event.key==='End'?state.targets.length-1:index+direction,surface,true);
+  });
+  handle.addEventListener('dragstart',event=>{
+    if(!handle.draggable){event.preventDefault();return;}
+    draggedPaletteTarget={id:target.id,surface};
+    event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',target.id);
+    handle.closest('[data-reorder-target]')?.classList.add('palette-drag-source');
+  });
+  handle.addEventListener('dragend',clearPaletteDrag);
+}
+function enablePaletteDrop(node,target,surface) {
+  node.dataset.reorderTarget=target.id;
+  const placement=event=>{
+    const horizontal=surface==='chip' || !document.querySelector('.app-main').classList.contains('image-beside');
+    const bounds=node.getBoundingClientRect();node.dataset.reorderAxis=horizontal?'horizontal':'vertical';
+    return horizontal?event.clientX>bounds.left+bounds.width/2:event.clientY>bounds.top+bounds.height/2;
+  };
+  node.addEventListener('dragover',event=>{
+    if(!draggedPaletteTarget || draggedPaletteTarget.id===target.id)return;
+    event.preventDefault();event.dataTransfer.dropEffect='move';
+    for(const previous of document.querySelectorAll('.palette-drop-before,.palette-drop-after'))previous.classList.remove('palette-drop-before','palette-drop-after');
+    node.classList.add(placement(event)?'palette-drop-after':'palette-drop-before');
+  });
+  node.addEventListener('drop',event=>{
+    if(!draggedPaletteTarget)return;
+    event.preventDefault();event.stopPropagation();
+    const {id,surface:sourceSurface}=draggedPaletteTarget,after=placement(event);
+    const from=state.targets.findIndex(entry=>entry.id===id),over=state.targets.findIndex(entry=>entry.id===target.id);
+    clearPaletteDrag();
+    if(from<0 || over<0 || from===over)return;
+    movePaletteTarget(id,over+(after?1:0)-(from<over?1:0),sourceSurface);
+  });
 }
 
 function renderImageLayout() {
@@ -439,12 +518,16 @@ function matchesFor(target, alternatives = false, filters = state) {
   }
   return matchCache.get(key);
 }
+function automaticMatch(target) {
+  const matches=matchesFor(target).filter(entry=>!target.excludeBlack || target.manual || entry.product.id!=='000100');
+  return preferredAutomaticMatch(matches,entry=>cartSelectable(currentVariant(entry.product)),target);
+}
 function primaryMatch(target) {
-  const matches=matchesFor(target), chosen=state.chosenMatches[target.id];
+  const chosen=state.chosenMatches[target.id];
   // A deliberate per-color choice may use a different material from the main
   // automatic-match filters. Keep that choice without changing those filters.
   return (chosen ? matchesFor(target,true,{glassTypes:{transparent:true,opalescent:true},includeTints:true}).find(entry=>entry.product.id===chosen) : null)
-    || preferredAutomaticMatch(matches,entry=>Boolean(currentVariant(entry.product)?.available),target);
+    || automaticMatch(target);
 }
 function selectionSuggestions() {
   return state.targets.map(target => {
@@ -466,9 +549,6 @@ function renderResults() {
     $(`${view}-tab`).tabIndex=active?0:-1;
   }
   $('glass-results').setAttribute('aria-labelledby',state.view==='library'?'library-tab':'palette-tab');
-  $('show-full-palette').checked=state.view==='palette';
-  $('show-full-palette').disabled=!state.targets.length;
-  $('show-full-palette').closest('label').hidden=!state.targets.length;
   for (const type of ['transparent','opalescent']) {
     $(`include-${type}`).classList.toggle('is-active',state.glassTypes[type]);
     $(`include-${type}`).setAttribute('aria-pressed',String(state.glassTypes[type]));
@@ -494,7 +574,7 @@ function renderResults() {
     if (!state.glassTypes.transparent && !state.glassTypes.opalescent) setEmpty('Choose a glass type.','Turn on Transparent, Opalescent, or both above. Your selected jars are kept.','',null);
     else if (query) setEmpty('No glass by that name.','Search by a color name or Bullseye code.','Clear search',()=>{state.query='';$('glass-search').value='';renderResults();});
     else if (!state.targets.length && state.view!=='library') setEmpty('Add an image or a color.','Your Bullseye matches will appear here.','Choose image',()=>$('image-file').click());
-    else if (state.view==='alternatives') setEmpty('No glass in the included types for this color.','Try including the other glass type.','Show full palette',()=>setView('palette'));
+    else if (state.view==='alternatives') setEmpty('No glass in the included types for this color.','Try including the other glass type.','Back to matches',()=>setView('palette'));
     else setEmpty('The glass catalog could not load.','Reload the picker.','Reload',()=>location.reload());
   }
   for (const entry of entries) list.append(entry.product?renderProduct(entry):renderNoMatch(entry.target));
@@ -538,7 +618,9 @@ function photoElement(product,sample,eager=true,variant=currentVariant(product))
 function renderNoMatch(target) {
   const row=element('article','product-card no-match-card');row.dataset.targetId=target.id;
   const swatch=element('span','no-match-swatch',targetNumber(target));swatch.style.backgroundColor=target.hex;
-  const body=element('div');body.append(element('h3','product-name',`Color ${targetNumber(target)} · ${target.hex}`),element('p','','No matching glass in the included types.'));
+  const body=element('div'),heading=element('div','glass-name-row');
+  if(state.view==='palette'){heading.append(paletteReorderHandle(target,'card'));enablePaletteDrop(row,target,'card');}
+  heading.append(element('h3','product-name',`Color ${targetNumber(target)} · ${target.hex}`));body.append(heading,element('p','','No matching glass in the included types.'));
   const edit=element('button','row-alternatives','Edit color');edit.type='button';edit.addEventListener('click',()=>{selectTarget(target.id);$('color-editor-dialog').showModal();$('target-hex').focus();});body.append(edit);row.append(swatch,body);return row;
 }
 function purchaseGrade(product,variant=currentVariant(product)) {
@@ -573,7 +655,10 @@ function renderProduct(entry,alternative=false) {
   row.dataset.productId=product.id;if(target)row.dataset.targetId=target.id;
   const scope=alternative?'alternative':'row';
   const body=element('div','product-card-content'),heading=element('div','glass-name-row');
-  heading.append(element('h3','product-name',product.name),selectionCheckbox(product,variant,`${scope}-${target?.id || ''}-${product.id}-selected`));
+  if(target && !alternative && state.view==='palette'){heading.append(paletteReorderHandle(target,'card'));enablePaletteDrop(row,target,'card');}
+  const name=element('h3','product-name',product.name);
+  if(!variant?.available)name.append(' ',element('span','unavailable-note','* unavailable'));
+  heading.append(name,selectionCheckbox(product,variant,`${scope}-${target?.id || ''}-${product.id}-selected`));
   body.append(heading);
   if(sample){
     const label=element('p','match-label'),swatch=element('span','small-swatch'),thickness=sampleThickness(sample,product);
@@ -600,15 +685,15 @@ function renderProduct(entry,alternative=false) {
 
 function variantSelect(product,chosen,onChange,focusKey) {
   const select=element('select','variant-select');select.setAttribute('aria-label',`${product.form==='sheets'?'Sheet size':'Jar size'} for ${product.name}`);if(focusKey)select.dataset.focusKey=focusKey;
-  for(const variant of product.variants||[]){const option=element('option','',`${cartSizeLabel(variant)}${variant.available?'':' · unavailable'}`);option.value=String(variant.id);option.disabled=!variant.available;option.selected=String(variant.id)===String(chosen?.id);select.append(option);}
-  if(!product.variants?.length)select.append(element('option','','Unavailable in this form'));select.disabled=!product.variants?.some(variant=>variant.available);
+  for(const variant of product.variants||[]){const option=element('option','',`${cartSizeLabel(variant)}${variant.available?'':' · unavailable'}`);option.value=String(variant.id);option.disabled=!cartSelectable(variant);option.selected=String(variant.id)===String(chosen?.id);select.append(option);}
+  if(!product.variants?.length)select.append(element('option','','No listed size in this form'));select.disabled=!product.variants?.some(cartSelectable);
   select.addEventListener('change',()=>onChange(select.value));return select;
 }
 function selectionCheckbox(product,variant,focusKey) {
   const input=element('input','glass-checkbox'),selected=selectedItem(product,variant);
   input.type='checkbox';input.checked=Boolean(selected);input.dataset.focusKey=focusKey;
   input.setAttribute('aria-label',`${selected?'Remove':'Select'} ${product.name}, ${variant?.title || 'glass'}`);
-  input.disabled=!selected && (!variant?.available || !variant?.sku);
+  input.disabled=!selected && !cartSelectable(variant);
   input.addEventListener('change',()=>toggleGlass(product,variant));
   return input;
 }
@@ -618,8 +703,8 @@ function purchaseControls(product,inDetail=false,targetId='',scope='row') {
   const form=element('select','product-form-select');form.setAttribute('aria-label',`Form for ${product.name}`);form.dataset.focusKey=`${focusPrefix}-form`;
   for(const id of ['powder','fine','medium','coarse','sheets']){
     const label=FORM_OPTIONS.find(option=>option.id===id).label;
-    const available=(product.allVariants || []).some(candidate=>candidate.form===id && candidate.available && candidate.id && candidate.sku);
-    const option=element('option','',`${label}${available?'':' · unavailable'}`);option.value=id;option.selected=product.form===id;option.disabled=!available;form.append(option);
+    const variants=(product.allVariants || []).filter(candidate=>candidate.form===id && cartSelectable(candidate));
+    const option=element('option','',`${label}${variants.some(candidate=>candidate.available)?'':' · unavailable'}`);option.value=id;option.selected=product.form===id;option.disabled=!variants.length;form.append(option);
   }
   form.addEventListener('change',()=>changeProductForm(product.id,form.value));
   const select=variantSelect(product,variant,value=>{
@@ -629,7 +714,7 @@ function purchaseControls(product,inDetail=false,targetId='',scope='row') {
     const next=getVariant(product,value);if(next)state.quantities[variantKey(product,next)]=quantity;
     if(old)changeCartVariant(old.key,value);else{reconcilePaletteSelection();renderResults();if(detailProduct?.id===product.id)renderDetailPurchase();persist();}
   },`${focusPrefix}-variant`);
-  const quantity=element('input','quantity-field');quantity.type='number';quantity.min='1';quantity.max='999';quantity.step='1';quantity.value=selected?.quantity||state.quantities[variantKey(product,variant||{})]||1;quantity.title='Quantity';quantity.dataset.quantityKey=variantKey(product,variant||{});quantity.dataset.focusKey=`${focusPrefix}-quantity`;quantity.setAttribute('aria-label',`Quantity of ${product.name}`);quantity.disabled=!variant?.available;
+  const quantity=element('input','quantity-field');quantity.type='number';quantity.min='1';quantity.max='999';quantity.step='1';quantity.value=selected?.quantity||state.quantities[variantKey(product,variant||{})]||1;quantity.title='Quantity';quantity.dataset.quantityKey=variantKey(product,variant||{});quantity.dataset.focusKey=`${focusPrefix}-quantity`;quantity.setAttribute('aria-label',`Quantity of ${product.name}`);quantity.disabled=!cartSelectable(variant);
   quantity.addEventListener('change',()=>{const amount=clamp(Math.round(Number(quantity.value)||1),1,999);state.quantities[variantKey(product,variant||{})]=amount;if(selected)changeQuantity(selected.key,amount);else{syncQuantityControls(variantKey(product,variant||{}),amount);persist();}});
   const row=element('div','select-row');
   row.append(element('span','product-price',variant?money(variant.price):'View item'));
@@ -641,7 +726,7 @@ function makeCartItem(product,variant,quantity=1) {return {key:variantKey(produc
 function toggleGlass(product,variant) {
   if(!variant)return;const key=variantKey(product,variant),index=state.cart.findIndex(item=>item.key===key);
   if(index!==-1){removeCartItem(key);return;}
-  if(!availableVariant({variants:[variant]}))return;
+  if(!cartSelectable(variant))return;
   state.cart.push(makeCartItem(product,variant,state.quantities[key]||1));
   state.selection=setItemSelected(state.selection,key,true);
   reconcilePaletteSelection();renderResults();persist();
@@ -664,7 +749,7 @@ function changeQuantity(key, quantity) {
   syncQuantityControls(key, item.quantity); renderCartSummary(); persist();
 }
 function changeCartVariant(key,variantId) {
-  const index=state.cart.findIndex(item=>item.key===key);if(index<0)return;const current=state.cart[index],product=getProduct(current.productId),variant=getVariant(product,variantId);if(!availableVariant({variants:[variant]}))return;
+  const index=state.cart.findIndex(item=>item.key===key);if(index<0)return;const current=state.cart[index],product=getProduct(current.productId),variant=getVariant(product,variantId);if(!cartSelectable(variant))return;
   const updated=makeCartItem(product,variant,current.quantity),existing=state.cart.find(item=>item.key===updated.key&&item.key!==key);
   if(existing){existing.quantity=clamp(existing.quantity+updated.quantity,1,999);state.cart.splice(index,1);}else state.cart[index]=updated;
   state.selection=changeSelectedVariant(state.selection,key,updated.key);
@@ -708,7 +793,7 @@ async function sendCartItems(selection) {
   const fingerprint=cartFingerprint(jars);
   if(state.cartUnconfirmed===fingerprint)throw new Error('Check your Bullseye cart before sending these jars again.');
   const invalid=jars.find(item=>!getVariant(getProduct(item.productId),item.variantId)?.available);
-  if(invalid)throw new Error(`Choose an available jar size for ${invalid.name || invalid.productId}.`);
+  if(invalid)throw new Error(`${invalid.name || invalid.productId} · ${invalid.title || 'Selected size'} is unavailable. Nothing was sent. All items remain in your cart.`);
   const items=jars.map(item=>({variantId:Number(item.variantId),quantity:item.quantity}));
   state.sending=true;sendingFingerprint=fingerprint;renderSendButtons();
   try{
@@ -799,7 +884,33 @@ function removeTarget(id){const index=state.targets.findIndex(target=>target.id=
 function addTarget(rgb,point=null){if(state.targets.length>=MAX_TARGETS){notify(`Remove a color before adding more than ${MAX_TARGETS}.`,true);return null;}const target=normalizeTarget({id:`manual-${Date.now()}-${++manualTargetId}`,rgb,manual:true,...point});state.targets.push(target);state.activeTargetId=target.id;state.view='palette';reconcilePaletteSelection();renderPalette();renderResults();persist();return target;}
 function createCustomTarget(){const rgb=activeTarget()?.rgb||[83,121,103],target=addTarget(rgb,nearestSourcePoint(rgb));if(target){target.custom=true;renderPalette();$('color-editor-dialog').showModal();$('target-hex').select();}}
 function editTarget(hex){const normalized=hex.startsWith('#')?hex:`#${hex}`;if(!/^#[0-9a-f]{6}$/i.test(normalized)){$('target-hex').setAttribute('aria-invalid','true');return false;}const target=activeTarget();if(!target)return false;target.rgb=[1,3,5].map(index=>parseInt(normalized.slice(index,index+2),16));target.hex=normalized.toUpperCase();target.lab=rgbToLab(target.rgb);target.manual=true;target.custom=true;target.weight=0;delete state.chosenMatches[target.id];reconcilePaletteSelection();renderPalette();renderResults();persist();return true;}
-function extractStartingColors(preserveManual=true,seed=undefined){if(!state.imageData)return;const manual=preserveManual?state.targets.filter(target=>target.manual):[],manualHexes=new Set(manual.map(target=>target.hex));const extracted=extractPalette(state.imageData,{count:state.paletteCount,seed}).map((target,index)=>normalizeTarget({...target,id:`auto-${index}-${colorHex(target.rgb)}`,manual:false})).filter(target=>!manualHexes.has(target.hex));state.targets=[...extracted.slice(0,MAX_TARGETS-manual.length),...manual];if(!activeTarget())state.activeTargetId=state.targets[0]?.id||null;reconcilePaletteSelection();renderPalette();renderResults();persist();}
+function extractStartingColors(preserveManual=true,seed=undefined){
+  if(!state.imageData)return;
+  const manual=preserveManual?state.targets.filter(target=>target.manual):[];
+  const automaticCount=Math.min(state.paletteCount,Math.max(0,MAX_TARGETS-manual.length));
+  const manualHexes=new Set(manual.map(target=>target.hex)),manualIds=new Set(manual.map(target=>target.id));
+  const excludedKeys=manual.map(target=>primaryMatch(target)?.product.id).filter(Boolean);
+  const candidateMatches=new Map();
+  const matchForCandidate=candidate=>{
+    const hex=colorHex(candidate.rgb);
+    if(!candidateMatches.has(hex))candidateMatches.set(hex,automaticMatch({...candidate,hex,excludeBlack:true}));
+    return candidateMatches.get(hex);
+  };
+  const extracted=(automaticCount?extractPalette(state.imageData,{
+    count:automaticCount,seed,prominence:state.prominence,excludeBlack:true,
+    distinctKey:candidate=>matchForCandidate(candidate)?.product.id ?? null,
+    variationValue:candidate=>{const match=matchForCandidate(candidate);return match?sampleThickness(match.sample,match.product):null;},
+    excludedKeys,excludedColors:manual,
+  }):[]).map((target,index)=>{
+    let id=`auto-${index}-${colorHex(target.rgb)}`;
+    // An edited automatic dot keeps its ID even after its color changes.
+    while(manualIds.has(id))id+='-sampled';
+    return normalizeTarget({...target,id,manual:false,excludeBlack:true});
+  }).filter(target=>!manualHexes.has(target.hex));
+  state.targets=[...extracted.slice(0,MAX_TARGETS-manual.length),...manual];
+  if(!activeTarget())state.activeTargetId=state.targets[0]?.id||null;
+  reconcilePaletteSelection();renderPalette();renderResults();persist();
+}
 function changePaletteCount(value){state.paletteCount=clamp(Math.round(Number(value)||6),2,12);extractStartingColors(true);}
 function pickSourceColor(event){const point=pointerPoint(event);if(!point)return;const rgb=sampleImagePoint(point);if(!rgb){notify('That area is transparent. Pick a visible color.');return;}addTarget(rgb,point);}
 
@@ -1007,6 +1118,7 @@ function bindEvents() {
   $('personal-data-file').addEventListener('change',event=>{const file=event.target.files[0];event.target.value='';void importPersonalData(file);});
   $('refresh-settings').addEventListener('click',refreshWorkingSettings);
   $('remix-palette').addEventListener('click',remixPalette);
+  $('prominence').addEventListener('change',event=>{state.prominence=event.target.checked;persist();});
   $('include-tints').addEventListener('click',()=>{state.includeTints=!state.includeTints;reconcilePaletteSelection();renderResults();persist();});
   cartLibrary=initializeCartLibrary({getProducts:()=>[...state.products,...clearCartProducts],getPhotoIndex:()=>cartPhotoIndex,getSelection:()=>state.cart,
     getSelectionName:()=>state.savedPaletteName||state.sourceName||'My cart',sendItems:sendCartItems,emptyWebsiteCart,
@@ -1017,7 +1129,6 @@ function bindEvents() {
   window.addEventListener('pagehide', flushSave);
   $('show-alternatives').addEventListener('click', () => { if (state.activeTargetId) showAlternatives(state.activeTargetId); });
   $('back-to-palette').addEventListener('click', () => setView('palette'));
-  $('show-full-palette').addEventListener('change', (event) => { if(event.target.checked)setView('palette');else if(state.activeTargetId)setView('alternatives'); });
   $('save-palette').addEventListener('click', () => openSaved(true));
   $('open-saved').addEventListener('click', () => openSaved(false));
   $('close-saved').addEventListener('click', () => $('saved-dialog').close());

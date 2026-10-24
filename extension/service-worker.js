@@ -14,6 +14,7 @@ const MAX_DOWNLOAD = 20 * 1024 * 1024;
 let currentImageRequest = 0;
 const CART_JOURNAL_KEY = 'bullseyeCartRequestsV1';
 let cartFlight = null;
+let storeRequestTabId = null;
 const WORKSPACE_KEY = 'bullseyeProjectV1';
 let workspaceSaves = Promise.resolve();
 
@@ -173,13 +174,20 @@ async function cancelPendingImage() {
   return {cancelled: true};
 }
 
+function tabLoaded(tab) {
+  return tab.status === 'complete' && !tab.pendingUrl;
+}
+
 async function tabReady(tabId) {
-  await new Promise((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const done = () => { clearTimeout(timer); chrome.tabs.onUpdated.removeListener(listener); };
-    const listener = (id, change) => { if (id === tabId && change.status === 'complete') { done(); resolve(); } };
+    const check = () => chrome.tabs.get(tabId).then(tab => {
+      if (tabLoaded(tab)) { done(); resolve(tab); }
+    }).catch(error => { done(); reject(error); });
+    const listener = (id, change) => { if (id === tabId && change.status === 'complete') void check(); };
     const timer = setTimeout(() => { done(); reject(new Error('Bullseye is still loading. Check your connection and try again.')); }, 15000);
     chrome.tabs.onUpdated.addListener(listener);
-    chrome.tabs.get(tabId).then(tab => { if (tab.status === 'complete') { done(); resolve(); } }).catch(error => { done(); reject(error); });
+    void check();
   });
 }
 
@@ -187,10 +195,16 @@ async function storeTab(create = false) {
   const tabs = (await chrome.tabs.query({url: `${BULLSEYE_ORIGIN}/*`})).filter(tab => {
     try { return new URL(tab.url).origin === BULLSEYE_ORIGIN; } catch { return false; }
   });
-  tabs.sort((a, b) => Number(b.url?.includes('/cart')) - Number(a.url?.includes('/cart'))
+  // Keep using the established store document for immediate Send/Empty actions.
+  // A newly opened result tab can still have a pending navigation even when its
+  // previous document is reported as complete.
+  tabs.sort((a, b) => Number(tabLoaded(b)) - Number(tabLoaded(a))
+    || Number(b.id === storeRequestTabId) - Number(a.id === storeRequestTabId)
+    || Number(b.url?.includes('/cart')) - Number(a.url?.includes('/cart'))
     || Number(b.active) - Number(a.active) || (b.lastAccessed || 0) - (a.lastAccessed || 0));
-  const tab = tabs[0] || (create ? await chrome.tabs.create({url: BULLSEYE_CART_URL, active: false}) : null);
-  if (tab && tab.status !== 'complete') await tabReady(tab.id);
+  let tab = tabs[0] || (create ? await chrome.tabs.create({url: BULLSEYE_CART_URL, active: false}) : null);
+  if (tab && !tabLoaded(tab)) tab = await tabReady(tab.id);
+  if (tab) storeRequestTabId = tab.id;
   return tab;
 }
 
@@ -220,7 +234,7 @@ async function signInToBullseye() {
   return {opened: true};
 }
 
-async function showNativeCart(tab, url = BULLSEYE_CART_URL) {
+async function showNativeCart(url = BULLSEYE_CART_URL) {
   // The only destination accepted here is this store's cart, including its locale.
   let destination = BULLSEYE_CART_URL;
   try {
@@ -228,8 +242,9 @@ async function showNativeCart(tab, url = BULLSEYE_CART_URL) {
     if (parsed.origin === BULLSEYE_ORIGIN && /^\/(?:[a-zA-Z0-9_-]+\/)*cart$/.test(parsed.pathname)) destination = parsed.href;
   } catch { /* Keep the verified default cart URL. */ }
   try {
-    if (tab) await chrome.tabs.update(tab.id, {url: destination, active: true});
-    else await chrome.tabs.create({url: destination, active: true});
+    // The store tab used for the request may be the user's source product page.
+    // Always open the result separately so its URL, history and page state survive.
+    await chrome.tabs.create({url: destination, active: true});
     return true;
   } catch { return false; }
 }
@@ -253,12 +268,12 @@ async function sendCartOnce(items, requestId, signature) {
   const journal = Array.isArray(saved[CART_JOURNAL_KEY]) ? saved[CART_JOURNAL_KEY].slice(-19) : [];
   const prior = journal.find(entry => entry.requestId === requestId);
   if (prior?.status === 'complete') {
-    await showNativeCart(await storeTab().catch(() => null), prior.result.cartUrl);
+    await showNativeCart(prior.result.cartUrl);
     return {...prior.result, duplicate: true};
   }
   const unresolved = journal.find(entry => entry.signature === signature && ['pending', 'uncertain'].includes(entry.status));
   if (unresolved) {
-    await showNativeCart(await storeTab().catch(() => null));
+    await showNativeCart();
     return {
       error: 'A previous attempt to send this selection was not confirmed. Check your Bullseye cart before changing your selection and sending again.',
       code: 'CART_UNCONFIRMED', uncertain: true, cartUrl: BULLSEYE_CART_URL,
@@ -285,12 +300,12 @@ async function sendCartOnce(items, requestId, signature) {
     record.status = 'complete';
     record.result = result;
     await chrome.storage.local.set({[CART_JOURNAL_KEY]: journal});
-    return {...result, opened: await showNativeCart(tab, result.cartUrl)};
+    return {...result, opened: await showNativeCart(result.cartUrl)};
   }
   if (result.uncertain) record.status = 'uncertain';
   else journal.splice(journal.indexOf(record), 1);
   await chrome.storage.local.set({[CART_JOURNAL_KEY]: journal});
-  if (result.uncertain) await showNativeCart(tab, result.cartUrl);
+  if (result.uncertain) await showNativeCart(result.cartUrl);
   return result;
 }
 
@@ -322,9 +337,9 @@ async function emptyCartOnce() {
     const saved = await chrome.storage.local.get(CART_JOURNAL_KEY);
     const journal = Array.isArray(saved[CART_JOURNAL_KEY]) ? saved[CART_JOURNAL_KEY] : [];
     await chrome.storage.local.set({[CART_JOURNAL_KEY]:journal.filter(entry => !['pending','uncertain'].includes(entry.status))});
-    return {...result, opened:await showNativeCart(tab,result.cartUrl)};
+    return {...result, opened:await showNativeCart(result.cartUrl)};
   }
-  if (result.uncertain) await showNativeCart(tab,result.cartUrl);
+  if (result.uncertain) await showNativeCart(result.cartUrl);
   return result;
 }
 

@@ -72,6 +72,7 @@ async function workerHarness(t) {
     fetchImpl: async () => imageResponse('default-image'),
     tabs: [{id: 7, windowId: 2, status: 'complete', url: 'https://page.example/photos'}],
     scripts: [],
+    tabCreates: [],
     tabUpdates: [],
     scriptImpl: async () => ({signedIn: true, status: 'signed_in'}),
   };
@@ -120,7 +121,14 @@ async function workerHarness(t) {
     permissions: { contains: async () => true },
     tabs: {
       query: async () => harness.tabs,
+      get: async id => {
+        const tab = harness.tabs.find(value => value.id === id);
+        if (!tab) throw new Error('No tab with this ID.');
+        return {...tab};
+      },
+      onUpdated: event('tabUpdated'),
       create: async options => {
+        harness.tabCreates.push({...options});
         const tab = {id: 80 + harness.tabs.length, windowId: 2, status: 'complete', ...options};
         harness.tabs.push(tab);
         return tab;
@@ -439,6 +447,8 @@ test('account checks prefer a fresh native-store request over an extension cooki
 
 test('direct cart journals before execution, coalesces double clicks, and opens the native cart once', async (t) => {
   const harness = await workerHarness(t);
+  const source={id:91,windowId:2,status:'complete',url:'https://shop.bullseyeglass.com/products/source-glass',active:true};
+  const sourceBefore=structuredClone(source);harness.tabs.push(source);
   const pause = deferred();
   let started = false;
   harness.scriptImpl = async options => {
@@ -457,14 +467,70 @@ test('direct cart journals before execution, coalesces double clicks, and opens 
   assert.equal((await first).added, true);
   assert.equal((await doubleClick).added, true);
   assert.equal(harness.scripts.length, 1);
-  assert.equal(harness.tabUpdates.length, 1);
-  assert.equal(harness.tabUpdates[0].url, 'https://shop.bullseyeglass.com/cart');
+  assert.deepEqual(harness.tabCreates,[{url:'https://shop.bullseyeglass.com/cart',active:true}]);
+  assert.equal(harness.tabUpdates.length,0,'Displaying a cart must never navigate an existing source tab.');
+  assert.deepEqual(source,sourceBefore);
   assert.equal(harness.local.bullseyeCartRequestsV1[0].status, 'complete');
 
   const replay = await harness.send(request);
   assert.equal(replay.added, true);
   assert.equal(replay.duplicate, true);
   assert.equal(harness.scripts.length, 1, 'The same transaction must not cause a second native cart write.');
+  assert.equal(harness.tabCreates.length,2,'Even a replay displays the existing cart in a new tab.');
+  assert.equal(harness.tabUpdates.length,0);
+});
+
+test('empty and uncertain cart results open new tabs while preserving the Bullseye source page', async t=>{
+  const harness=await workerHarness(t);
+  const source={id:91,windowId:2,status:'complete',url:'https://shop.bullseyeglass.com/products/source-glass',active:true};
+  const sourceBefore=structuredClone(source);harness.tabs.push(source);
+  harness.scriptImpl=async()=>({cleared:true,itemCount:0,cartUrl:'https://shop.bullseyeglass.com/en/cart'});
+  assert.equal((await harness.send({type:'BULLSEYE_EMPTY_CART'})).opened,true);
+  assert.deepEqual(harness.tabCreates,[{url:'https://shop.bullseyeglass.com/en/cart',active:true}]);
+  harness.scriptImpl=async()=>({error:'Check cart',code:'CART_UNCONFIRMED',uncertain:true,cartUrl:'https://wrong.example/cart'});
+  assert.equal((await harness.send({type:'BULLSEYE_SEND_CART',requestId:'new-tab-uncertain-123456',items:[{variantId:100,quantity:1}]})).uncertain,true);
+  assert.equal(harness.tabCreates.at(-1).url,'https://shop.bullseyeglass.com/cart','An untrusted destination still falls back to the verified cart.');
+  assert.equal(harness.tabCreates.length,2);
+  assert.equal(harness.tabUpdates.length,0);
+  assert.deepEqual(source,sourceBefore);
+});
+
+test('immediate repeat sends and empty use the established store tab while new result tabs navigate', async t=>{
+  const harness=await workerHarness(t);
+  const source={id:91,windowId:2,status:'complete',url:'https://shop.bullseyeglass.com/products/source-glass'};
+  harness.tabs.push(source);
+  harness.scriptImpl=async options=>options.args[0].kind==='clear-cart'
+    ? {cleared:true,itemCount:0,cartUrl:'https://shop.bullseyeglass.com/cart'}
+    : {added:true,itemCount:1,cartUrl:'https://shop.bullseyeglass.com/cart'};
+  const request={type:'BULLSEYE_SEND_CART',requestId:'stable-store-first-123456',items:[{variantId:100,quantity:1}]};
+  assert.equal((await harness.send(request)).added,true);
+  // Chrome may report the previous document as complete before this navigation commits.
+  harness.tabs.at(-1).pendingUrl='https://shop.bullseyeglass.com/cart';
+  assert.equal((await harness.send({...request,requestId:'stable-store-second-123456'})).added,true);
+  // Even once a result page has loaded, subsequent actions keep the working document.
+  assert.equal((await harness.send({type:'BULLSEYE_EMPTY_CART'})).cleared,true);
+  assert.deepEqual(harness.scripts.map(options=>options.target.tabId),[91,91,91]);
+  assert.equal(harness.tabCreates.length,3);
+  assert.equal(harness.tabUpdates.length,0);
+  assert.equal(source.url,'https://shop.bullseyeglass.com/products/source-glass');
+});
+
+test('store requests wait for a pending navigation even when Chrome reports complete', async t=>{
+  const harness=await workerHarness(t);
+  const tab={id:91,windowId:2,status:'complete',url:'https://shop.bullseyeglass.com/cart',
+    pendingUrl:'https://shop.bullseyeglass.com/cart'};
+  harness.tabs.push(tab);
+  harness.scriptImpl=async()=>({items:[],itemCount:0});
+  const pending=harness.send({type:'BULLSEYE_READ_CART'});
+  await waitFor(()=>harness.events.tabUpdated.listeners.size>0,'The worker did not wait for the pending store document.');
+  harness.events.tabUpdated.emit(91,{status:'complete'});
+  await flushTasks();
+  assert.equal(harness.scripts.length,0,'A complete old document must not receive the next store request.');
+  delete tab.pendingUrl;
+  harness.events.tabUpdated.emit(91,{status:'complete'});
+  assert.deepEqual(await pending,{items:[],itemCount:0});
+  assert.equal(harness.scripts.length,1);
+  assert.equal(harness.events.tabUpdated.listeners.size,0);
 });
 
 test('an uncertain native cart attempt blocks a new-ID retry of the same selection', async (t) => {

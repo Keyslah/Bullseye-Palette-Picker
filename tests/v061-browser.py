@@ -193,8 +193,9 @@ try:
         page.set_viewport_size({'width':1440,'height':900})
         page.locator('#image-file').set_input_files(temp/'square.png')
         expect(page.locator('#palette-chips .palette-chip')).to_have_count(6)
-        assert page.evaluate("document.querySelector('.palette-flow').firstElementChild.contains(document.querySelector('#show-full-palette')) && [...document.querySelector('#palette-chips').children].every(node=>node.classList.contains('palette-chip'))")
-        passed('Show full palette is far left and never splits palette colors')
+        assert page.evaluate("!document.querySelector('#show-full-palette') && document.querySelector('.palette-flow').firstElementChild.id==='palette-chips' && [...document.querySelector('#palette-chips').children].every(node=>node.classList.contains('palette-chip'))")
+        assert 'Show full palette' not in page.locator('body').inner_text()
+        passed('The obsolete full-palette checkbox and wording are absent; the color strip stays uninterrupted')
 
         before=saved(page)
         point=page.locator('.source-point').first
@@ -212,7 +213,7 @@ try:
 
         page.locator('#settings-menu > summary').click()
         page.locator('#form-fine').click();page.locator('#preferred-jar-size').select_option('1lb')
-        page.locator('#include-tints').click();page.locator('#show-full-palette').uncheck()
+        page.locator('#include-tints').click();page.locator('#prominence').uncheck()
         page.locator('#settings-menu > summary').click()
         page.locator('#save-settings').click()
         page.locator('#settings-name').fill('Fine study');page.locator('#confirm-save-settings').click()
@@ -220,19 +221,20 @@ try:
         before=saved(page)
         page.locator('#refresh-settings').click();reset=saved(page)
         assert image_state(reset)==image_state(before)
-        assert reset['format']=='medium' and reset['preferredJarSize']=='5lb' and not reset['includeTints'] and reset['view']=='palette'
+        assert reset['format']=='medium' and reset['preferredJarSize']=='5lb' and not reset['includeTints'] and reset['view']=='palette' and reset['prominence']
         page.locator('#settings-menu > summary').click()
         page.locator('#load-settings').click();page.get_by_role('button',name='Load settings Fine study',exact=True).click()
         loaded=saved(page)
         assert image_state(loaded)==image_state(before)
-        assert loaded['format']=='fine' and loaded['preferredJarSize']=='1lb' and loaded['includeTints'] and loaded['view']=='alternatives'
+        assert loaded['format']=='fine' and loaded['preferredJarSize']=='1lb' and loaded['includeTints'] and loaded['view']=='palette' and not loaded['prominence']
         passed('Named settings round-trip; Refresh and Load settings preserve image, colors and dots')
 
         page.locator('#refresh-settings').click();original=saved(page)
         page.locator('#remix-palette').click();remixed=saved(page)
         assert remixed['sourceDataUrl']==original['sourceDataUrl'] and remixed['targets']!=original['targets']
-        assert all(not target['manual'] for target in remixed['targets'])
-        passed('Remix samples a new palette separately from Refresh')
+        assert {target['id']:target for target in remixed['targets'] if target['manual']}=={target['id']:target for target in original['targets'] if target['manual']}
+        assert any(not target['manual'] for target in remixed['targets'])
+        passed('Remix samples new automatic colors separately from Refresh while preserving manual colors and dots')
         page.locator('#save-palette').click();page.locator('#palette-name').fill('V6 browser palette');page.locator('#confirm-save-palette').click()
         expect(page.locator('#saved-dialog')).not_to_be_visible()
         page.locator('#open-saved').click()
@@ -290,6 +292,9 @@ try:
             else:assert all(re.search(r'\d+\s*(?:lb|oz).*jar',option['label']) for option in actual), actual
             first.locator('.purchase-popover').get_by_role('button',name='Close purchase options',exact=True).click()
         passed('Every purchase summary and dropdown identifies the frit grade or sheet thickness')
+        # Remix now retains an edited manual target and its active selection.
+        # This scenario intentionally edits the first displayed card.
+        page.locator('#palette-chips .palette-chip').first.click()
         page.locator('#open-color-editor').click()
         page.locator('#target-hex').fill('#F7F4E3');page.locator('#target-hex').press('Tab')
         page.locator('#close-color-editor').click()
@@ -311,7 +316,7 @@ try:
         page.locator('#alternatives-tints').click()
         expect(page.locator('#alternatives-grid .compact-card')).to_have_count(1)
         page.locator('#close-alternatives').click()
-        page.locator('#show-full-palette').check()
+        page.locator('#palette-tab').click()
         passed('Sunset Coral remains available; Coral Orange Tint obeys the visible Tints toggle')
         page.locator('#open-color-editor').click()
         page.locator('#target-hex').fill('#F9994F');page.locator('#target-hex').press('Tab')
@@ -336,7 +341,7 @@ try:
         page.locator('#detail-alternatives').click()
         expect(page.locator('#alternatives-dialog')).to_be_visible()
         page.locator('#close-alternatives').click()
-        expect(page.locator('#product-grid .compact-card')).to_have_count(6)
+        expect(page.locator('#product-grid .compact-card')).to_have_count(len(before_alternatives['targets']))
         passed('Card, top toolbar and glass-detail Alternatives actions open an independent popup')
         # More colors must wrap rather than disappear beyond either screen edge.
         page.locator('#image-file').set_input_files(temp/'landscape.png')

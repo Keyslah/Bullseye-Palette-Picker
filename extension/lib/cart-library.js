@@ -8,7 +8,7 @@ import {FORM_OPTIONS} from './product-formats.js';
 import {includedGlass} from './material-filters.js';
 import {createCartPhotoViewer} from './cart-photos.js';
 import {sampleThickness} from './palette.js';
-import {cartVariants, cartSizeLabel, cartSizeKey, cartSizeChoices, preferredCartSize, exactCartVariant, switchedCartVariant, cartPurchasable} from './cart-options.js';
+import {cartVariants, cartSizeLabel, cartSizeKey, cartSizeChoices, preferredCartSize, exactCartVariant, switchedCartVariant, cartSelectable, cartPurchasable} from './cart-options.js';
 import {loadWorkingCart, saveWorkingCart, addWorkingCartItems, patchWorkingCart, subscribeWorkingCart} from './working-cart.js';
 
 const $ = id => document.getElementById(id);
@@ -51,7 +51,18 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
   function receiveWorkingCart(value) {
     workingCart = value; updateCount();
     if (draft && !pendingWrites && !saving && !workingSaveError && value) {
-      draft = {...structuredClone(value),items:hydrate(value.items)};
+      const next = {...structuredClone(value),items:hydrate(value.items)};
+      const unchanged = ['id','instanceId','name','dirty'].every(key=>draft[key]===next[key])
+        && JSON.stringify(normalizeCartItems(draft.items)) === JSON.stringify(normalizeCartItems(next.items));
+      // A completed local save can arrive while someone is typing in the next
+      // quantity field. Keep its DOM and item references when nothing changed:
+      // replacing the focused input would blur it against an already-new draft.
+      if (unchanged) {
+        Object.assign(draft,next,{items:draft.items});
+        draftBaseline = {saved:structuredClone(draft),replace:false};
+        refresh(); return;
+      }
+      draft = next;
       draftBaseline = {saved:structuredClone(draft),replace:false};
       $('saved-cart-name').value = draft.name; renderEditor(); renderSearch();
     }
@@ -109,7 +120,7 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
     $('cart-add-size').disabled = saving || !$('cart-add-size').options.length;
     for (const button of $('saved-cart-items').querySelectorAll('button')) button.disabled = saving;
     $('saved-cart-summary').textContent = summary(draft.items);
-    $('saved-cart-draft-status').textContent = workingSaveError ? 'Save failed' : pendingWrites ? 'Saving cart…' : draft.id && !draft.dirty ? 'Saved' : 'Cart kept automatically';
+    $('saved-cart-draft-status').textContent = workingSaveError ? 'Save failed' : saving || pendingWrites ? 'Saving cart…' : draft.id && !draft.dirty ? 'Saved' : 'Cart kept automatically';
     $('save-cart-draft').disabled = saving || !draft.name.trim();
     $('save-cart-draft').textContent = saving ? 'Saving…' : draft.id ? 'Save changes' : 'Save cart';
     $('duplicate-cart-draft').disabled = saving || !draft.name.trim();
@@ -279,7 +290,13 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
     message();
     try {
       await flushWorking();
-      const result = await sendItems(hydrate(items));
+      const selected = hydrate(items);
+      const unavailable = selected.filter(item => !cartPurchasable(variantFor(productFor(item.productId),item.variantId)));
+      if (unavailable.length) {
+        const names = unavailable.map(item => `${item.name || item.productId} (${FORM_OPTIONS.find(form=>form.id===item.form)?.grain || 'Glass'}, ${item.title || 'saved size'})`);
+        throw new Error(`Unavailable: ${names.join('; ')}. Nothing was sent. All items remain in your cart.`);
+      }
+      const result = await sendItems(selected);
       message(`${result.itemCount || items.reduce((sum,item) => sum + item.quantity,0)} ${units(items)} added to your Bullseye cart.`);
     } catch (error) { message(error.message || 'These jars could not be added to Bullseye.', true); }
     finally { refresh(); }
@@ -300,7 +317,7 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
   }
 
   function replaceDraftVariant(item, product, variant) {
-    if (saving || naming || !cartPurchasable(variant)) return;
+    if (saving || naming || !cartSelectable(variant)) return;
     try {
       draft.items = normalizeCartItems(draft.items.map(current => current === item ? itemFor(product,variant,item.quantity) : current));
       markChanged(); renderEditor(); renderSearch();
@@ -314,25 +331,27 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
       const currentForm = knownVariant?.form || item.form || 'medium';
       const sizeOptions = cartVariants(product,currentForm);
       const row = node('article','saved-cart-item'); row.dataset.variantId = String(item.variantId);
-      const body = node('div','saved-cart-item-body'); body.append(node('h3','',product?.name || item.name || item.productId),node('p','product-code',`${FORM_OPTIONS.find(option=>option.id===item.form)?.grain || 'Glass'} · ${item.sku || item.productId}`));
+      const body = node('div','saved-cart-item-body'), heading = node('h3','',product?.name || item.name || item.productId);
+      if (!cartPurchasable(knownVariant)) heading.append(' ',node('span','unavailable-note','* unavailable'));
+      body.append(heading,node('p','product-code',`${FORM_OPTIONS.find(option=>option.id===item.form)?.grain || 'Glass'} · ${item.sku || item.productId}`));
       const controls = node('div','saved-cart-item-controls');
       const grade = node('select','variant-select cart-grade-select'), size = node('select','variant-select cart-size-select');
       grade.setAttribute('aria-label',`Grade for saved ${item.name}`);
       for (const form of FORM_OPTIONS) {
-        const available = cartVariants(product,form.id).some(cartPurchasable);
+        const variants = cartVariants(product,form.id), available = variants.some(cartPurchasable);
         const option = node('option','',`${form.grain}${available ? '' : ' · unavailable'}`);
-        option.value=form.id; option.disabled=!available; grade.append(option);
+        option.value=form.id; option.disabled=!variants.some(cartSelectable); grade.append(option);
       }
       grade.value=currentForm;
-      grade.dataset.unavailable=String(!FORM_OPTIONS.some(form=>cartVariants(product,form.id).some(cartPurchasable)));
+      grade.dataset.unavailable=String(!FORM_OPTIONS.some(form=>cartVariants(product,form.id).some(cartSelectable)));
       grade.addEventListener('change',()=>replaceDraftVariant(item,product,switchedCartVariant(product,grade.value,knownVariant,getPreferredJarSize())));
       size.setAttribute('aria-label',`${currentForm === 'sheets' ? 'Sheet size and thickness' : 'Jar size'} for saved ${item.name}`);
       if (!knownVariant) { const missing = node('option','',`${item.title || 'Saved size'} · unavailable`); missing.value = String(item.variantId); size.append(missing); }
       for (const variant of sizeOptions) {
         const option = node('option','',`${cartSizeLabel(variant)}${cartPurchasable(variant) ? '' : ' · unavailable'}`);
-        option.value=String(variant.id); option.disabled=!cartPurchasable(variant); size.append(option);
+        option.value=String(variant.id); option.disabled=!cartSelectable(variant); size.append(option);
       }
-      size.value=String(item.variantId); size.dataset.unavailable=String(!sizeOptions.some(cartPurchasable));
+      size.value=String(item.variantId); size.dataset.unavailable=String(!sizeOptions.some(cartSelectable));
       size.addEventListener('change',()=>replaceDraftVariant(item,product,variantFor(product,size.value)));
       const quantity = node('input','quantity-field'); quantity.type = 'number'; quantity.min = '1'; quantity.max = '999'; quantity.step = '1'; quantity.value = item.quantity;
       quantity.setAttribute('aria-label',`Quantity of saved ${item.name}`);
@@ -342,7 +361,7 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
       });
       const price = node('span','cart-item-price',money(item.price * item.quantity)); controls.append(grade,size,quantity,price); body.append(controls);
       if(product)body.append(node('p','cart-thickness',thicknessGuide(product)));
-      if (!knownVariant?.available) body.append(node('p','cart-unavailable',product?'Saved size is unavailable. Choose another size or remove it.':'Copied website item outside this glass catalog. Kept in this copy; remove it before sending with this tool.'));
+      if (!product) body.append(node('p','cart-unavailable','Copied website item outside this glass catalog. Kept in this copy; remove it before sending with this tool.'));
       const remove = node('button','icon-button','×'); remove.type = 'button'; remove.setAttribute('aria-label',`Remove saved ${item.name}, ${item.title}`);
       remove.addEventListener('click', () => { draft.items = draft.items.filter(current => current !== item); markChanged(); renderEditor(); renderSearch(); });
       row.append(photo(item.productId,item.name,knownVariant),body,remove); list.append(row);
@@ -363,7 +382,7 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
     const sizeControl=$('cart-add-size'); sizeControl.replaceChildren();
     for (const choice of sizes) {
       const option=node('option','',`${choice.label}${choice.available ? '' : ' · unavailable'}`);
-      option.value=choice.key; option.disabled=!choice.available; sizeControl.append(option);
+      option.value=choice.key; sizeControl.append(option);
     }
     sizeControl.value=sizeKey;
     $('cart-add-size-label').textContent=addForm==='sheets' ? 'Size / thickness' : 'Size';
@@ -382,7 +401,9 @@ export function initializeCartLibrary({getProducts, getPhotoIndex=()=>({}), getS
       const row = node('div','saved-cart-search-result'), label = node('div');
       row.dataset.productId=product.id; row.dataset.variantId=variant ? String(variant.id) : '';
       const requestedSize=sizes.find(choice=>choice.key===sizeKey)?.label || 'this size';
-      label.append(node('strong','',product.name),node('span','',`${gradeLabel} · ${variant ? cartSizeLabel(variant) : `${requestedSize} · unavailable`}`));
+      const heading=node('strong','',product.name);
+      if (!cartPurchasable(variant)) heading.append(' ',node('span','unavailable-note','* unavailable'));
+      label.append(heading,node('span','',`${gradeLabel} · ${variant ? cartSizeLabel(variant) : `${requestedSize} · unavailable`}`));
       label.append(node('span','cart-thickness',thicknessGuide(product)));
       const add = node('button','button secondary-button',already ? 'Added' : 'Add'); add.type = 'button'; add.disabled = saving || !variant || already;
       add.setAttribute('aria-label',`Add ${product.name} to saved cart`);

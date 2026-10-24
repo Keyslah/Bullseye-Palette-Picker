@@ -6,7 +6,9 @@
  */
 import {normalizeForm} from './product-formats.js';
 
-export const cartPurchasable = variant => Boolean(variant?.available && variant?.sku && Number.isSafeInteger(variant.id) && variant.id > 0);
+// A real catalog variant can be kept locally even when it is currently sold out.
+export const cartSelectable = variant => Boolean(variant?.sku && Number.isSafeInteger(variant.id) && variant.id > 0);
+export const cartPurchasable = variant => Boolean(cartSelectable(variant) && variant.available);
 
 export function cartVariants(product, form) {
   const options = product?.allVariants?.length ? product.allVariants : product?.variants || [];
@@ -31,7 +33,7 @@ export function cartSizeKey(variant) {
 
 export function cartSizeChoices(products, form) {
   const choices = new Map();
-  for (const product of products) for (const variant of cartVariants(product, form)) {
+  for (const product of products) for (const variant of cartVariants(product, form).filter(cartSelectable)) {
     const key = cartSizeKey(variant), previous = choices.get(key);
     choices.set(key, {key, label:cartSizeLabel(variant), available:Boolean(previous?.available || cartPurchasable(variant))});
   }
@@ -50,13 +52,14 @@ export function preferredCartSize(choices, form, requested = '5lb') {
 }
 
 export function exactCartVariant(product, form, sizeKey) {
-  return cartVariants(product, form).find(variant => cartSizeKey(variant) === sizeKey && cartPurchasable(variant)) || null;
+  return cartVariants(product, form).find(variant => cartSizeKey(variant) === sizeKey && cartSelectable(variant)) || null;
 }
 
 export function switchedCartVariant(product, form, previousVariant, preferredJarSize = '5lb') {
-  const options = cartVariants(product, form).filter(cartPurchasable);
-  const exact = options.find(variant => cartSizeKey(variant) === cartSizeKey(previousVariant));
+  const options = cartVariants(product, form).filter(cartSelectable);
+  const exact = options.find(variant => variant.id === previousVariant?.id)
+    || options.find(variant => cartSizeKey(variant) === cartSizeKey(previousVariant));
   if (exact) return exact;
-  const size = preferredCartSize(cartSizeChoices([product],form).filter(choice=>choice.available), form, preferredJarSize);
+  const size = preferredCartSize(cartSizeChoices([product],form), form, preferredJarSize);
   return options.find(variant => cartSizeKey(variant) === size) || options[0] || null;
 }

@@ -8,7 +8,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deltaE2000, labToRgb, rgbToHex, rgbToLab } from '../extension/lib/color.js';
-import { extractPalette, matchCatalog, sampleDarkness, sampleThickness } from '../extension/lib/palette.js';
+import { extractPalette, selectDistinctPalette, matchCatalog, sampleDarkness, sampleThickness } from '../extension/lib/palette.js';
 import fs from 'node:fs';
 
 function pixels(groups) {
@@ -76,6 +76,357 @@ test('representatives are actual input colors and count is bounded', () => {
   assert.ok(palette.every((color) => actualHex.has(color.hex)));
   assert.equal(extractPalette(data, { count: 1 }).length, 2);
   assert.equal(extractPalette(pixels([{ rgb: [15, 80, 190], count: 10 }])).length, 1);
+});
+
+test('automatic extraction replaces black before a limited reservoir is filled', () => {
+  const blue = [20, 90, 170];
+  const image = pixels([
+    { rgb: [0, 0, 0], count: 20000 },
+    { rgb: [32, 39, 41], count: 1000 },
+    { rgb: blue, count: 1 },
+  ]);
+  const before = image.data.slice();
+  for (const prominence of [false, true]) {
+    for (const seed of [1, 17, 491]) {
+      const palette = extractPalette(image, { count: 6, maxSamples: 1, prominence, seed });
+      assert.deepEqual(palette.map(color => color.rgb), [blue]);
+      assert.equal(palette[0].weight, 1);
+      const offset = Math.floor(palette[0].x * image.width) * 4;
+      assert.deepEqual([...image.data.slice(offset, offset + 3)], blue);
+    }
+  }
+  assert.deepEqual(image.data, before);
+});
+
+test('only-black images return no invented color and explicit legacy extraction retains black', () => {
+  const image = pixels([
+    { rgb: [0, 0, 0], count: 20 },
+    { rgb: [32, 39, 41], count: 10 },
+    { rgb: [48, 48, 48], count: 10 },
+  ]);
+  assert.deepEqual(extractPalette(image), []);
+  assert.deepEqual(extractPalette(image, { prominence: true, seed: 7 }), []);
+  const legacy = extractPalette(image, { count: 3, excludeBlack: false });
+  assert.deepEqual(legacy.map(color => color.hex), ['#000000', '#202729', '#303030']);
+  assert.deepEqual(legacy.map(color => color.weight), [0.5, 0.25, 0.25]);
+});
+
+test('automatic black exclusion keeps visibly colored navy, forest green, burgundy and lighter neutrals', () => {
+  const darkColors = [[10, 20, 41], [12, 40, 23], [59, 16, 32]];
+  for (const rgb of darkColors) {
+    const [lightness, a, b] = rgbToLab(rgb);
+    assert.ok(lightness < 20 && Math.hypot(a, b) > 10, 'the fixture must be dark and visibly chromatic');
+  }
+  const retained = [...darkColors, [49, 49, 49], [150, 150, 150], [255, 255, 255]];
+  const image = pixels([...retained, [0, 0, 0], [32, 39, 41]].map(rgb => ({ rgb, count: 20 })));
+  for (const prominence of [false, true]) {
+    const palette = extractPalette(image, { count: 8, prominence });
+    assert.deepEqual(new Set(palette.map(color => color.hex)), new Set(retained.map(rgbToHex)));
+    assert.ok(Math.abs(palette.reduce((sum, color) => sum + color.weight, 0) - 1) < 1e-12);
+  }
+});
+
+function texturedTheme() {
+  const blue = Array.from({ length: 10 }, (_, index) => [25 + index * 2, 80 + index * 3, 140 + index * 2]);
+  const green = Array.from({ length: 8 }, (_, index) => [50 + index * 3, 100 + index * 2, 45 + index]);
+  return {
+    blue: new Set(blue.map(rgbToHex)), green: new Set(green.map(rgbToHex)),
+    image: pixels([
+      ...blue.map(rgb => ({ rgb, count: 90 })),
+      ...green.map(rgb => ({ rgb, count: 100 })),
+      { rgb: [255, 255, 255], count: 5 },
+      { rgb: [255, 0, 255], count: 5 },
+    ]),
+  };
+}
+
+test('Prominence keeps the broad theme instead of giving isolated accents and gaps a full slot', () => {
+  const { image, blue, green } = texturedTheme();
+  const broad = extractPalette(image, { count: 6, prominence: false });
+  assert.ok(broad.some(color => color.hex === '#FFFFFF'));
+  assert.ok(broad.some(color => color.hex === '#FF00FF'));
+  const prominent = extractPalette(image, { count: 6, prominence: true });
+  assert.equal(prominent.length, 6);
+  assert.ok(prominent.every(color => blue.has(color.hex) || green.has(color.hex)));
+  assert.ok(prominent.some(color => blue.has(color.hex)));
+  assert.ok(prominent.some(color => green.has(color.hex)));
+  assert.ok(Math.abs(prominent.reduce((sum, color) => sum + color.weight, 0) - 1) < 1e-12);
+  assert.deepEqual(extractPalette(image, { count: 6, prominence: true }), prominent);
+});
+
+test('Prominence counts related shades together rather than demanding repeated exact RGB pixels', () => {
+  const shades = Array.from({ length: 400 }, (_, index) => [
+    35 + index % 20, 80 + Math.floor(index / 20), 140 + (index * 7) % 23,
+  ]);
+  assert.equal(new Set(shades.map(rgbToHex)).size, shades.length);
+  const image = pixels([
+    ...shades.map(rgb => ({ rgb, count: 1 })),
+    { rgb: [255, 0, 255], count: 5 },
+    { rgb: [255, 255, 255], count: 3 },
+  ]);
+  const theme = new Set(shades.map(rgbToHex));
+  for (const seed of [undefined, 1, 7]) {
+    const palette = extractPalette(image, { count: 6, prominence: true, seed });
+    assert.equal(palette.length, 6);
+    assert.ok(palette.every(color => theme.has(color.hex)));
+  }
+});
+
+test('Prominence Remix varies actual shades while preserving both major color regions', () => {
+  const { image, blue, green } = texturedTheme();
+  const signatures = new Set();
+  for (let remix = 1; remix <= 16; remix += 1) {
+    const seed = Math.imul(remix, 0x9e3779b9) >>> 0;
+    const options = { count: 6, prominence: true, seed };
+    const palette = extractPalette(image, options);
+    assert.deepEqual(extractPalette(image, options), palette, 'the same seed must reproduce its palette');
+    assert.ok(palette.some(color => blue.has(color.hex)));
+    assert.ok(palette.some(color => green.has(color.hex)));
+    assert.equal(new Set(palette.map(color => color.hex)).size, palette.length);
+    for (const color of palette) {
+      assert.ok(blue.has(color.hex) || green.has(color.hex));
+      const offset = Math.floor(color.x * image.width) * 4;
+      assert.deepEqual([...image.data.slice(offset, offset + 3)], color.rgb);
+      assert.deepEqual(color.lab, rgbToLab(color.rgb));
+    }
+    signatures.add(palette.map(color => color.hex).sort().join(','));
+  }
+  assert.ok(signatures.size >= 4, 'Remix must vary the colors, not merely reorder the same top shades');
+});
+
+test('Prominence respects opacity and does not mistake nearly invisible clutter for the theme', () => {
+  const image = pixels([
+    { rgb: [30, 90, 160], count: 300 },
+    { rgb: [80, 130, 60], count: 300 },
+    { rgb: [255, 0, 255], count: 1000, alpha: 1 },
+    { rgb: [255, 255, 255], count: 2000, alpha: 0 },
+  ]);
+  const palette = extractPalette(image, { count: 6, prominence: true });
+  assert.deepEqual(palette.map(color => color.hex), ['#1E5AA0', '#50823C']);
+  assert.deepEqual(palette.map(color => color.weight), [0.5, 0.5]);
+});
+
+test('flat images keep their real supported colors without inventing variation or dropping a useful accent', () => {
+  const image = pixels([
+    { rgb: [20, 90, 170], count: 70 },
+    { rgb: [170, 170, 140], count: 25 },
+    { rgb: [240, 20, 50], count: 5 },
+  ]);
+  const expected = extractPalette(image, { count: 6, prominence: true });
+  assert.equal(expected.length, 3);
+  assert.deepEqual(expected.map(color => color.weight), [0.7, 0.25, 0.05]);
+  for (const seed of [1, 7, 31]) {
+    assert.deepEqual(extractPalette(image, { count: 6, prominence: true, seed }), expected);
+  }
+});
+
+function candidate(rgb, glass, weight, thickness = null) {
+  return { ...sample(rgb), id:rgbToHex(rgb), glass, weight, thickness, x:0.25, y:0.75 };
+}
+
+test('distinct extraction honors zero or one remaining slot while ordinary extraction retains its minimum', () => {
+  const image = pixels([
+    { rgb:[20, 90, 170], count:70 },
+    { rgb:[60, 130, 45], count:20 },
+    { rgb:[220, 120, 35], count:10 },
+  ]);
+  let matched = 0;
+  const distinctKey = color => { matched += 1; return color.hex; };
+  assert.deepEqual(extractPalette(image, { count:0, distinctKey }), []);
+  assert.equal(matched, 0, 'a full manual palette must not sample or match new colors');
+  assert.equal(extractPalette(image, { count:1, distinctKey }).length, 1);
+  assert.equal(extractPalette(image, { count:0 }).length, 2);
+  assert.equal(extractPalette(image, { count:1 }).length, 2);
+});
+
+test('remaining capacity is applied before thickness fallback so two slots retain distinct products', () => {
+  const candidates = [
+    candidate([15, 50, 105], 'blue', 0.4, 90),
+    candidate([60, 110, 180], 'blue', 0.3, 60),
+    candidate([130, 170, 220], 'blue', 0.2, 30),
+    candidate([60, 130, 45], 'green', 0.06, 80),
+    candidate([220, 120, 35], 'orange', 0.04, 75),
+  ];
+  const byHex = new Map(candidates.map(color => [color.hex, color]));
+  const image = pixels(candidates.map(color => ({ rgb:color.rgb, count:Math.round(color.weight * 1000) })));
+  const options = {
+    prominence:true, distinctKey:color => byHex.get(color.hex).glass,
+    variationValue:color => byHex.get(color.hex).thickness,
+  };
+  const overfilled = extractPalette(image, { ...options, count:6 }).slice(0, 2);
+  assert.deepEqual(overfilled.map(color => byHex.get(color.hex).glass), ['blue', 'blue'], 'reproduce the unsafe post-selection truncation');
+  const fitted = extractPalette(image, { ...options, count:2 });
+  assert.deepEqual(fitted.map(color => byHex.get(color.hex).glass), ['blue', 'green']);
+});
+
+test('distinct selection combines repeated glass area and prefers other supported glass before thickness repeats', () => {
+  const candidates = [
+    candidate([20, 90, 170], 'blue', 0.32, 90),
+    candidate([90, 150, 210], 'blue', 0.28, 50),
+    candidate([60, 130, 45], 'green', 0.25, 80),
+    candidate([220, 120, 35], 'orange', 0.15, 75),
+  ];
+  const before = structuredClone(candidates);
+  const options = { count:3, keyFor:color => color.glass, variationFor:color => color.thickness };
+  const distinct = selectDistinctPalette(candidates, options);
+  assert.deepEqual(distinct.map(color => color.glass), ['blue', 'green', 'orange']);
+  for (const [index, expected] of [0.6, 0.25, 0.15].entries()) {
+    assert.ok(Math.abs(distinct[index].weight - expected) < 1e-12);
+  }
+  assert.deepEqual(distinct[0].rgb, candidates[0].rgb);
+  assert.deepEqual(candidates, before);
+  assert.ok(distinct.every(color => candidates.some(source => source.hex === color.hex && source.x === color.x && source.y === color.y)));
+});
+
+test('distinct selection returns fewer colors if the image only offers repeated glass without known thickness variation', () => {
+  const candidates = [
+    candidate([20, 90, 170], 'blue', 0.7),
+    candidate([90, 150, 210], 'blue', 0.3),
+  ];
+  for (const variationFor of [undefined, () => null, () => NaN, () => 120, () => 100]) {
+    const selected = selectDistinctPalette(candidates, { count:6, keyFor:color => color.glass, variationFor });
+    assert.equal(selected.length, 1);
+    assert.deepEqual(selected[0].rgb, candidates[0].rgb);
+    assert.equal(selected[0].weight, 1);
+  }
+});
+
+test('thickness fallback needs a ten-point measured gap and a visibly different source shade', () => {
+  const candidates = [
+    candidate([15, 50, 105], 'blue', 0.4, 90),
+    candidate([45, 100, 170], 'blue', 0.25, 81),
+    candidate([85, 140, 210], 'blue', 0.2, 80),
+    candidate([130, 180, 230], 'blue', 0.1, 70),
+    candidate([86, 141, 211], 'blue', 0.05, 40),
+  ];
+  const selected = selectDistinctPalette(candidates, {
+    count:6, keyFor:color => color.glass, variationFor:color => color.thickness,
+  });
+  assert.deepEqual(new Set(selected.map(color => color.thickness)), new Set([90, 80, 70]));
+  for (let first = 0; first < selected.length; first += 1) {
+    for (let second = first + 1; second < selected.length; second += 1) {
+      assert.ok(Math.abs(selected[first].thickness - selected[second].thickness) >= 10);
+      assert.ok(deltaE2000(selected[first].lab, selected[second].lab) >= 5);
+    }
+  }
+  assert.ok(Math.abs(selected.reduce((sum, color) => sum + color.weight, 0) - 1) < 1e-12);
+});
+
+test('near-identical source swatches are avoided even when their glass IDs differ or matching is unavailable', () => {
+  const candidates = [
+    candidate([20, 90, 170], 'blue-one', 0.5),
+    candidate([21, 91, 170], 'blue-two', 0.3),
+    candidate([220, 120, 35], 'orange', 0.2),
+  ];
+  for (const keyFor of [color => color.glass, () => null, () => undefined]) {
+    const selected = selectDistinctPalette(candidates, { count:6, keyFor });
+    assert.equal(selected.length, 2);
+    assert.deepEqual(selected.map(color => color.rgb), [candidates[0].rgb, candidates[2].rgb]);
+  }
+});
+
+test('manual glass and colors stay protected in both distinct and thickness passes without mutation', () => {
+  const candidates = [
+    candidate([20, 90, 170], 'blue', 0.4, 90),
+    candidate([90, 150, 210], 'blue', 0.3, 50),
+    candidate([60, 130, 45], 'green', 0.2, 80),
+    candidate([220, 120, 35], 'orange', 0.1, 75),
+  ];
+  const manual = [{ rgb:[219, 120, 35], id:'manual-orange', manual:true }];
+  const excludedKeys = new Set(['blue']);
+  const before = structuredClone({ candidates, manual });
+  for (const seed of [undefined, 0x879abdef, 0xffffffff]) {
+    const selected = selectDistinctPalette(candidates, {
+      count:6, keyFor:color => color.glass, variationFor:color => color.thickness,
+      excludedKeys, excludedColors:manual, seed,
+    });
+    assert.deepEqual(selected.map(color => color.glass), ['green']);
+    assert.equal(selected[0].weight, 1);
+    selected[0].rgb[0] = 0;
+  }
+  assert.deepEqual({ candidates, manual }, before);
+  assert.deepEqual([...excludedKeys], ['blue']);
+});
+
+test('the larger distinct candidate pool replaces repeated matches with other supported source colors', () => {
+  const blue = [[20, 90, 170], [35, 125, 200], [80, 155, 215]];
+  const green = [60, 130, 45], orange = [220, 120, 35], purple = [150, 50, 170];
+  const groups = new Map([
+    ...blue.map(rgb => [rgbToHex(rgb), 'blue']),
+    [rgbToHex(green), 'green'], [rgbToHex(orange), 'orange'], [rgbToHex(purple), 'purple'],
+  ]);
+  const image = pixels([
+    ...blue.map(rgb => ({ rgb, count:300 })),
+    { rgb:green, count:200 }, { rgb:orange, count:150 }, { rgb:purple, count:100 },
+    { rgb:[255, 0, 0], count:1 },
+  ]);
+  const seen = new Set();
+  const options = {
+    count:3, prominence:true,
+    distinctKey:color => { seen.add(color.hex); return groups.get(color.hex); },
+    excludedKeys:['blue'],
+  };
+  const palette = extractPalette(image, options);
+  assert.equal(seen.size, 6, 'the bounded pool must look beyond the requested three swatches');
+  assert.equal(palette.length, 3);
+  assert.deepEqual(palette.map(color => groups.get(color.hex)), ['green', 'orange', 'purple']);
+  assert.ok(!seen.has('#FF0000'), 'a rare outlier must not be reintroduced just to fill the palette');
+  for (const color of palette) {
+    const offset = Math.floor(color.x * image.width) * 4;
+    assert.deepEqual([...image.data.slice(offset, offset + 3)], color.rgb);
+  }
+  const fewer = extractPalette(image, { ...options, excludedColors:[{ rgb:green }] });
+  assert.equal(fewer.length, 2);
+});
+
+test('source-supported measured glass thicknesses fill remaining slots after distinct products', () => {
+  const shades = [[15, 50, 105], [60, 110, 180], [130, 170, 220]];
+  const green = [25, 90, 40];
+  const blueProduct = { ...product('blue', shades.map(rgb => sample(rgb))), type:'Transparent', thicknessReference:sample(shades[0]) };
+  const greenProduct = { ...product('green', [sample(green)]), type:'Transparent', thicknessReference:sample(green) };
+  const catalog = [blueProduct, greenProduct];
+  const image = pixels([
+    ...shades.map((rgb, index) => ({ rgb, count:500 - index * 150 })),
+    { rgb:green, count:150 },
+  ]);
+  const matched = color => matchCatalog(color, catalog)[0];
+  const options = {
+    prominence:true, distinctKey:color => matched(color).product.id,
+    variationValue:color => { const match = matched(color); return Math.round(sampleThickness(match.sample, match.product)); },
+  };
+  const distinct = extractPalette(image, { ...options, count:2 });
+  assert.deepEqual(new Set(distinct.map(color => matched(color).product.id)), new Set(['blue', 'green']));
+  const varied = extractPalette(image, { ...options, count:4 });
+  assert.equal(varied.length, 4);
+  const blueThicknesses = varied.filter(color => matched(color).product.id === 'blue').map(options.variationValue).sort((a, b) => a - b);
+  assert.equal(blueThicknesses.length, 3);
+  assert.ok(blueThicknesses.every((value, index) => !index || value - blueThicknesses[index - 1] >= 10));
+  assert.ok(Math.abs(varied.reduce((sum, color) => sum + color.weight, 0) - 1) < 1e-12);
+  assert.ok(varied.every(color => [...shades, green].some(rgb => rgbToHex(rgb) === color.hex)));
+});
+
+test('seeded distinct/thickness selection keeps the prominent theme and source coordinates', () => {
+  const { image, blue, green } = texturedTheme();
+  const keyFor = color => blue.has(color.hex) ? 'blue' : green.has(color.hex) ? 'green' : 'outlier';
+  const variation = color => keyFor(color) === 'blue' ? 100 - (color.rgb[0] - 25) * 2.5 : 100 - (color.rgb[0] - 50) * 2;
+  const signatures = new Set();
+  for (const seed of [1, 0x879abdef, 0xffffffff, 0x213bafb7, 0x6c9ef173]) {
+    const options = { count:6, prominence:true, seed, distinctKey:keyFor, variationValue:variation };
+    const palette = extractPalette(image, options);
+    assert.deepEqual(extractPalette(image, options), palette);
+    assert.deepEqual(new Set(palette.map(keyFor)), new Set(['blue', 'green']));
+    assert.ok(palette.length >= 2 && palette.length <= 6);
+    for (let first = 0; first < palette.length; first += 1) {
+      const color = palette[first], offset = Math.floor(color.x * image.width) * 4;
+      assert.deepEqual([...image.data.slice(offset, offset + 3)], color.rgb);
+      for (let second = first + 1; second < palette.length; second += 1) {
+        assert.ok(deltaE2000(color.lab, palette[second].lab) >= 5);
+        if (keyFor(color) === keyFor(palette[second])) assert.ok(Math.abs(variation(color) - variation(palette[second])) >= 10);
+      }
+    }
+    signatures.add(palette.map(color => color.hex).sort().join(','));
+  }
+  assert.ok(signatures.size >= 3);
 });
 
 test('same grayscale lightness but different hue is never treated as a match', () => {
@@ -261,7 +612,7 @@ test('every automatic dot identifies its actual image color, including disjoint 
     {rgb: [255, 255, 255], count: 10},
   ]);
   image.width = 10; image.height = 10;
-  const palette = extractPalette(image, {count: 5});
+  const palette = extractPalette(image, {count: 5, excludeBlack: false});
   assert.equal(palette.length, 5);
   for (const dot of palette) {
     assert.ok(dot.x > 0 && dot.x < 1 && dot.y > 0 && dot.y < 1);

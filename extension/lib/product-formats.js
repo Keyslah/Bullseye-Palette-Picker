@@ -61,13 +61,14 @@ export function productForForm(baseProduct, index, form = 'medium') {
   };
 }
 
-function purchasable(variant) {
-  return Boolean(variant?.available && variant?.sku && variant?.id);
+function selectable(variant) {
+  return Boolean(variant?.sku && variant?.id);
 }
 
 export function defaultFormatVariant(product, form = product?.form || 'medium', preferredId, preferredJarSize = '5lb') {
   const normalized = normalizeForm(form);
-  const variants = (product?.variants || []).filter(variant => (!variant.form || normalizeForm(variant.form) === normalized) && purchasable(variant));
+  // A real saved/preferred package remains the user's choice when out of stock.
+  const variants = (product?.variants || []).filter(variant => (!variant.form || normalizeForm(variant.form) === normalized) && selectable(variant));
   if (product?.form && normalizeForm(product.form) !== normalized) return null;
   const preferred = variants.find(variant => String(variant.id) === String(preferredId));
   if (preferred) return preferred;

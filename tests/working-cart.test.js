@@ -50,6 +50,26 @@ test('active cart roundtrip retains named identity, exact variants and unsaved d
   assert.equal((await module.loadWorkingCart()).items[0].quantity,1);
 });
 
+test('unavailable glass remains in the working cart through additions, quantity edits and saving',async t=>{
+  storage(t);const module=await fresh();
+  const unavailable={...pink,form:'fine',sku:'001215-0001-F-P005',available:false};
+  await module.addWorkingCartItems([unavailable]);
+  await module.addWorkingCartItems([{...unavailable,quantity:3},black]);
+  const before=await module.loadWorkingCart();
+  const selected=before.items.find(item=>item.variantId===unavailable.variantId);
+  assert.equal(selected.quantity,5);
+  assert.equal(selected.available,false);
+  const after=structuredClone(before);after.items.find(item=>item.variantId===unavailable.variantId).quantity=7;
+  const edited=await module.patchWorkingCart(before,after);
+  await module.saveWorkingCart({...edited,id:'saved-unavailable-cart',dirty:false});
+  const retained=(await module.loadWorkingCart()).items.find(item=>item.variantId===unavailable.variantId);
+  assert.equal(retained.quantity,7);
+  assert.equal(retained.available,false);
+  assert.equal(retained.form,'fine');
+  assert.equal(retained.sku,unavailable.sku);
+  assert.equal(retained.title,unavailable.title);
+});
+
 test('separate tabs serialize deliberate Add to Cart actions without losing or duplicating additions', async t=>{
   storage(t);const first=await fresh(),second=await fresh();
   await Promise.all([first.addWorkingCartItems([black]),second.addWorkingCartItems([pink]),first.addWorkingCartItems([black]),second.addWorkingCartItems([black])]);

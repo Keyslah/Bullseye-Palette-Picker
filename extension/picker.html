@@ -43,11 +43,11 @@
     </header>
     <section class="palette-panel" id="palette-panel" aria-label="Editable palette">
       <div class="palette-flow">
-        <label class="full-palette-control"><input id="show-full-palette" type="checkbox" checked>Show full palette</label>
         <div class="palette-chips" id="palette-chips" aria-label="Palette colors"></div>
         <span id="target-count" class="visually-hidden"></span>
         <div class="palette-tools"><button class="text-button" id="remix-palette" type="button">Remix</button><button class="text-button" id="add-custom-color" type="button">+ Color</button></div>
         <button class="text-button" id="open-color-editor" type="button">Edit color</button><button class="text-button" id="show-alternatives" type="button">Alternatives</button>
+        <label class="full-palette-control prominence-control" title="Use the image’s prominent color theme for new samples and Remix. Manually added colors stay yours."><input id="prominence" type="checkbox" checked>Prominence</label>
         <div class="alternatives-heading" id="alternatives-heading" hidden><span id="alternatives-label" class="visually-hidden"></span><button class="text-button" id="back-to-palette" type="button">Back to matches</button></div>
         <p class="thickness-reference" id="thickness-reference">100% thickness = 6 mm solid glass, 16 mm fine frit *Rough estimate</p>
       </div>

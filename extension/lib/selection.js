@@ -6,6 +6,7 @@
 const uniqueStrings = values => [...new Set((Array.isArray(values) ? values : []).filter(value => typeof value === 'string'))];
 const productFromKey = key => String(key).slice(0, String(key).lastIndexOf(':'));
 const eligible = variant => Boolean(variant?.available && variant?.sku && variant?.id);
+const selectable = variant => Boolean(variant?.sku && variant?.id);
 
 export function availableVariant(product, preferredId) {
   const variants = product?.variants || [];
@@ -68,7 +69,8 @@ export function reconcileSelection(previous, suggestions, cart, {freeze = false}
     const key = freeze ? priorKey : item?.key;
     if (key) nextKeys[targetId] = key;
     if (!item || excludedTargets.has(targetId) || excludedProducts.has(String(item.productId))) continue;
-    if (!freeze && !eligible({id:item.variantId, available:item.available, sku:item.sku})) continue;
+    // Stock affects sending to the store, not keeping a palette selection.
+    if (!freeze && !selectable({id:item.variantId, sku:item.sku})) continue;
     const existing = itemsByKey.get(item.key);
     const priorItem = itemsByKey.get(priorKey);
     const quantity = existing?.quantity ?? (priorItem?.productId === item.productId ? priorItem.quantity : item.quantity);

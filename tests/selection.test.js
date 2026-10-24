@@ -86,11 +86,27 @@ test('both material filters off freeze surviving target jars and do not manufact
   assert.deepEqual(keys(result),['green:1']);
 });
 
-test('an unavailable explicit alternative stays represented without blocking other default selections', () => {
+test('an unavailable explicit alternative stays checked alongside other default selections', () => {
   const unavailable=item('pink',1,1,false),red=item('red');
   const result=start([suggestion('a',unavailable),suggestion('b',red)]);
-  assert.deepEqual(keys(result),['red:1']);
+  assert.deepEqual(keys(result),['pink:1','red:1']);
   assert.equal(result.selection.targetKeys.a,unavailable.key);
+});
+
+test('stock loss retains exact selected variant and quantity through uncheck, recheck and restore', () => {
+  let result=start([suggestion('a',item('pink',2,4))]);
+  const soldOut=item('pink',2,1,false),suggestions=[suggestion('a',soldOut)];
+  result=reconcileSelection(result.selection,suggestions,result.cart);
+  assert.deepEqual(result.cart,[{...soldOut,quantity:4}]);
+  const stored=JSON.parse(JSON.stringify(result));
+  result=reconcileSelection(restoreSelection(stored.selection,suggestions,stored.cart),suggestions,stored.cart);
+  assert.deepEqual(result.cart,stored.cart);
+  result.selection=setItemSelected(result.selection,soldOut.key,false);
+  result=reconcileSelection(result.selection,suggestions,[]);
+  assert.deepEqual(result.cart,[]);
+  result.selection=setItemSelected(result.selection,soldOut.key,true);
+  result=reconcileSelection(result.selection,suggestions,[{...soldOut,quantity:7}]);
+  assert.deepEqual(result.cart,[{...soldOut,quantity:7}]);
 });
 
 test('legacy empty workspaces get defaults once while a deliberately empty v1 palette stays empty', () => {

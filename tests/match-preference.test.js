@@ -69,7 +69,7 @@ test('near-black photo casts no longer choose blue or gray instead of regular Bl
 test('actual image-extracted black and near-black colors select regular Black in every form',()=>{
   const colors=['#000000','#101010','#202020','#303030','#202729','#1C1721'];
   const pixels=new Uint8ClampedArray(colors.flatMap(hex=>[...hexToRgb(hex),255]));
-  const targets=extractPalette({width:colors.length,height:1,data:pixels},{count:colors.length});
+  const targets=extractPalette({width:colors.length,height:1,data:pixels},{count:colors.length,excludeBlack:false});
   assert.equal(targets.length,colors.length);
   for (const form of ['powder','fine','medium','coarse','sheets']) {
     for (const target of targets) {

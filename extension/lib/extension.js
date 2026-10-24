@@ -105,7 +105,7 @@ export async function readBullseyeCart() {
 }
 export async function openCartPage(mode = 'working') {
   const destination = `picker.html?workspace=1&cart=1&mode=${mode === 'list' ? 'list' : 'working'}`;
-  if (hasExtension()) return chrome.tabs.create({url:chrome.runtime.getURL(destination)});
+  if (hasExtension()) return chrome.tabs.create({url:chrome.runtime.getURL(destination),active:true});
   window.open(new URL(destination, location.href).href,'_blank','noopener');
 }
 export async function loadState() {
@@ -152,7 +152,7 @@ export async function openWorkspace() {
     if (Number.isInteger(active?.id) && active.url && !active.url.startsWith('chrome-extension:')) {
       await chrome.storage.session.set({sourceTabId: active.id, sourceWindowId: active.windowId});
     }
-    return chrome.tabs.create({url: chrome.runtime.getURL('picker.html?workspace=1')});
+    return chrome.tabs.create({url: chrome.runtime.getURL('picker.html?workspace=1'), active:true});
   }
   window.open(new URL('picker.html?workspace=1', location.href).href, '_blank', 'noopener');
 }

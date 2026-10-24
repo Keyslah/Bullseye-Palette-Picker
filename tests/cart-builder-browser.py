@@ -1,7 +1,9 @@
 """Purpose: test the separate Add Color window, exact cart variants and explicit Send.
 Setup: npm run package; Playwright Chromium and Pillow. Downloaded public image fixtures.
 Writes: disposable Chromium profile and test-results screenshots/report only.
-Constraints: shopping is entirely mocked; no real account or live cart mutation.
+Constraints: account checks and cart mutations are mocked in a disposable profile.
+Chrome-created result GET pages may initialize before routing attaches. No user's
+account or cart is accessed; extension-page errors remain a strict acceptance check.
 """
 from pathlib import Path
 from urllib.parse import urlparse
@@ -96,7 +98,9 @@ def check_preview(page,row,variant,name):
 try:
   with tempfile.TemporaryDirectory() as folder,sync_playwright() as pw:
     proxy=os.environ.get('HTTPS_PROXY') or os.environ.get('HTTP_PROXY')
-    context=pw.chromium.launch_persistent_context(folder,channel='chromium',headless=True,viewport={'width':1440,'height':900},proxy={'server':proxy} if proxy else None,ignore_https_errors=bool(proxy),args=[f'--disable-extensions-except={EXT}',f'--load-extension={EXT}'])
+    # Chrome-created result tabs can navigate before Playwright applies its per-target TLS override.
+    # Trust this disposable fixture proxy from launch; the extension's certificate handling is unchanged.
+    context=pw.chromium.launch_persistent_context(folder,channel='chromium',headless=True,viewport={'width':1440,'height':900},proxy={'server':proxy} if proxy else None,ignore_https_errors=bool(proxy),args=[f'--disable-extensions-except={EXT}',f'--load-extension={EXT}',*(['--ignore-certificate-errors'] if proxy else [])])
     context.route('https://shop.bullseyeglass.com/**',fulfill);context.route('https://cdn.shopify.com/**',fulfill)
     worker=context.service_workers[0] if context.service_workers else context.wait_for_event('serviceworker')
     worker.evaluate("()=>{globalThis.fetch=async()=>{throw new Error('No external worker requests in this isolated test.');};}")
@@ -144,9 +148,16 @@ try:
     done('The cart holds different grades/sizes independently and row changes retain quantity')
     open_add(page)
     page.locator('#cart-add-size').select_option('5lb')
-    if not exact(page,'000137','coarse','5lb'):expect(result.get_by_role('button',name='Add French Vanilla to saved cart',exact=True)).to_be_disabled()
+    requested=exact(page,'000137','coarse','5lb')
+    add_requested=result.get_by_role('button',name='Add French Vanilla to saved cart',exact=True)
+    if not requested:
+        expect(add_requested).to_be_disabled()
+    else:
+        expect(add_requested).to_be_enabled()
+        expect(result).to_have_attribute('data-variant-id',str(requested['id']))
+        if not requested['available']:expect(result.locator('.unavailable-note')).to_have_text('* unavailable')
     expect(page.locator('#saved-cart-items .saved-cart-item')).to_have_count(2)
-    done('Unavailable requested packages do not silently add another size')
+    done('Real unavailable packages remain selectable with a label; missing packages never substitute another size')
     page.locator('#cart-add-form').select_option('sheets');key=sheet_key(page,'000137');page.locator('#cart-add-size').select_option(key)
     sheet=exact(page,'000137','sheets',key);assert sheet
     check_preview(page,result,sheet,'Sheets')
@@ -239,4 +250,4 @@ except Exception as error:
     except Exception:pass
     raise
 finally:
-    (OUT/'cart-builder-report.json').write_text(json.dumps({'passed':checks,'count':len(checks),'failure':failure,'browserErrors':errors,'storeMode':'Synthetic fixture only. No real account or cart accessed.'},indent=2))
+    (OUT/'cart-builder-report.json').write_text(json.dumps({'passed':checks,'count':len(checks),'failure':failure,'browserErrors':errors,'storeMode':'Account checks and cart mutations use synthetic fixtures in a disposable profile. New result GET pages may initialize before routing attaches. No user account or cart accessed.'},indent=2))

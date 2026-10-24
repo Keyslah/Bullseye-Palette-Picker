@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {itemForm, normalizeItemForms} from '../extension/lib/item-forms.js';
 import {productForForm} from '../extension/lib/product-formats.js';
-import {switchedCartVariant, cartSizeKey, cartSizeLabel} from '../extension/lib/cart-options.js';
+import {switchedCartVariant, cartSizeKey, cartSizeLabel, cartSelectable} from '../extension/lib/cart-options.js';
 
 const catalog=JSON.parse(fs.readFileSync(new URL('../extension/data/catalog.json',import.meta.url)));
 const formats=JSON.parse(fs.readFileSync(new URL('../extension/data/product-formats.json',import.meta.url)));
@@ -44,11 +44,11 @@ test('each frit form retains the chosen jar weight using an actual corresponding
     for(const form of ['powder','fine','medium','coarse']){
       const product=productForForm(base,formats,form);
       const next=switchedCartVariant(product,form,previous);
-      if(!product.variants.some(variant=>variant.available))assert.equal(next,null);
+      if(!product.variants.some(cartSelectable))assert.equal(next,null);
       else {
         assert.ok(product.variants.some(variant=>variant.id===next.id && variant.sku===next.sku));
         assert.equal(next.form,form);
-        if(product.variants.some(variant=>variant.available && cartSizeKey(variant)==='1lb'))assert.equal(cartSizeKey(next),'1lb');
+        if(product.variants.some(variant=>cartSelectable(variant) && cartSizeKey(variant)==='1lb'))assert.equal(cartSizeKey(next),'1lb');
       }
     }
   }

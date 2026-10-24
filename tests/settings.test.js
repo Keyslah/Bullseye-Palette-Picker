@@ -23,7 +23,7 @@ function memoryStorage(initial = {}) {
 
 test('default settings use medium frit and 5 lb jars without sharing mutable objects', () => {
   assert.deepEqual(normalizeSettings(), {
-    version:1, format:'medium', preferredJarSize:'5lb', glassTypes:{transparent:true,opalescent:true}, paletteCount:6,imageSize:'larger',includeTints:false,showFullPalette:true,
+    version:1, format:'medium', preferredJarSize:'5lb', glassTypes:{transparent:true,opalescent:true}, paletteCount:6,imageSize:'larger',includeTints:false,showFullPalette:true,prominence:true,
   });
   const first = normalizeSettings(), second = normalizeSettings();
   first.glassTypes.transparent = false;
@@ -39,6 +39,8 @@ test('settings retain every supported format, jar preference, and deliberate mat
   assert.deepEqual(normalizeSettings({glassTypes:{transparent:false}}).glassTypes, {transparent:false,opalescent:true});
   for (const imageSize of ['fit','larger','full']) assert.equal(normalizeSettings({imageSize}).imageSize, imageSize);
   for (const paletteCount of [2,12]) assert.equal(normalizeSettings({paletteCount}).paletteCount, paletteCount);
+  assert.equal(normalizeSettings({prominence:false}).prominence,false);
+  assert.equal(normalizeSettings({prominence:true}).prominence,true);
 });
 
 test('invalid explicit preferences are rejected instead of silently changing the saved choice', () => {
@@ -50,6 +52,7 @@ test('invalid explicit preferences are rejected instead of silently changing the
   for (const type of ['transparent','opalescent']) assert.throws(() => normalizeSettings({glassTypes:{[type]:'false'}}), /on or off/);
   for (const paletteCount of [0,1,13,2.5,'6',Infinity,null]) assert.throws(() => normalizeSettings({paletteCount}), /2 and 12/);
   assert.throws(() => normalizeSettings({imageSize:'small'}), /image size/);
+  for(const prominence of [0,1,'false',null])assert.throws(()=>normalizeSettings({prominence}),/on or off/);
 });
 
 test('Chrome preference reads distinguish absence, normalize a partial record, and do not write', async t => {
@@ -113,11 +116,12 @@ test('preview preferences roundtrip in their own key without touching workspace 
   const preview = memoryStorage({bullseyeProjectV1:'{"photo":"keep"}'});
   replaceGlobal(t, 'localStorage', preview);
   assert.equal(await loadSettings(), null);
-  await saveSettings({format:'sheets',preferredJarSize:'5oz',imageSize:'full'});
+  await saveSettings({format:'sheets',preferredJarSize:'5oz',imageSize:'full',prominence:false});
   const saved = await loadSettings();
   assert.equal(saved.format, 'sheets');
   assert.equal(saved.preferredJarSize, '5oz');
   assert.equal(saved.imageSize, 'full');
+  assert.equal(saved.prominence, false);
   assert.equal(preview.values.get('bullseyeProjectV1'), '{"photo":"keep"}');
   assert.deepEqual(preview.calls, [['get',SETTINGS_KEY],['set',SETTINGS_KEY],['get',SETTINGS_KEY]]);
 });

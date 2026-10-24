@@ -1,0 +1,73 @@
+# Purpose: verify unavailable choices, prominence sampling and separate browser tabs, then release v0.6.8.
+# Setup: the v0.6.8 development branch; browser checks use disposable profiles and store fixtures.
+# Writes: test artifacts; main/tag/release only after successful checks and the publish marker.
+# Constraints: no real customer session or live cart mutations; no force push.
+name: Palette prominence and unavailable cart verification
+on:
+  push:
+    branches: [fix/palette-prominence-v0.6.8]
+permissions:
+  contents: write
+concurrency:
+  group: palette-prominence-v068
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install verification tools
+        run: |
+          python -m pip install -r requirements-dev.txt playwright
+          python -m playwright install --with-deps chromium
+      - name: Regression and package checks
+        run: |
+          npm test
+          npm run check
+          npm run package
+          python scripts/verify-package.py
+      - name: Native workspace, unavailable carts, prominence and navigation verification
+        run: |
+          python tests/v061-browser.py
+          python tests/v063-layout-browser.py
+          python tests/v065-matching-browser.py
+          python tests/v067-alternatives-browser.py
+          python tests/v067-cart-browser.py
+          python tests/cart-edit-races-browser.py
+          python tests/v068-unavailable-browser.py
+          python tests/v068-prominence-browser.py
+          python tests/v068-reorder-browser.py
+          python tests/v068-navigation-browser.py
+          python tests/personal-data-browser.py
+          python scripts/verify-package.py
+      - name: Preserve screenshots and installable ZIP
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: palette-prominence-v068
+          path: |
+            dist/
+            test-results/
+      - name: Publish verified v0.6.8
+        if: hashFiles('.github/v068/PUBLISH') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(node -p "require('./extension/manifest.json').version")" = 0.6.8
+          python scripts/verify-package.py
+          git diff --exit-code
+          git fetch origin main
+          git merge-base --is-ancestor origin/main HEAD
+          git push origin HEAD:main
+          gh release create v0.6.8 dist/Bullseye-Palette-Picker-v0.6.8.zip --target "$(git rev-parse HEAD)" --title 'Bullseye Palette Picker v0.6.8' --notes-file docs/release-v0.6.8.md
+          gh release download v0.6.8 --pattern Bullseye-Palette-Picker-v0.6.8.zip --dir test-results/published
+          python scripts/verify-package.py test-results/published/Bullseye-Palette-Picker-v0.6.8.zip
