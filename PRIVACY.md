@@ -2,6 +2,10 @@
 
 Bullseye Palette Picker processes image pixels and compares colors inside your browser. It has no analytics, advertising, remote image-analysis service, or developer-operated server.
 
+## Chrome Web Store User Data Policy
+
+The use of information received by Bullseye Palette Picker adheres to the [Chrome Web Store User Data Policy](https://developer.chrome.com/docs/webstore/program-policies/policies), including the [Limited Use](https://developer.chrome.com/docs/webstore/program-policies/limited-use) requirements. Data is used only for the extension's single purpose: matching colors from images you choose to Bullseye glass and preparing your selected Bullseye cart. It is not sold, not used or transferred for unrelated purposes such as advertising, and not used to determine creditworthiness or for lending.
+
 ## Stored data
 
 The current workspace is automatically saved in `chrome.storage.local` under `bullseyeProjectV1`. The workspace includes the reduced source image (at most 1,100 pixels on its longest side), its display name and available source URL, palette colors and point positions, selected purchase format, preferred jar size, exact package choices, quantities, and which suggestions you unchecked or added manually. Material filters, tint inclusion, and image size are also retained. The cart-only page does not overwrite this photo workspace. These selection preferences keep your edits intact when automatic suggestions update. A handoff timestamp prevents a previously handled image from overwriting a reopened edited palette.
