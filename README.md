@@ -1,89 +1,10 @@
 # Bullseye Palette Picker
 
-## v0.6.8: unavailable choices and prominent colors
-
-Unavailable glass stays selectable, checked and saveable. **Add to Cart**, working-cart edits and named cart saves keep the exact form, size and quantity; **\* unavailable** appears beside the name on the main page and cart workspace. Sending reports unavailable rows without discarding them.
-
-**Cart** and **Full page** open new tabs. Website cart results also open separately, preserving the source page, its history and unsaved input.
-
-**Prominence**, checked by default beside Alternatives, uses the image’s broad color theme for initial sampling and Remix. Uncheck it for wider accent coverage on the next sample. Toggling it does not change the existing palette. Remix preserves manual colors, edited dots and explicitly checked extra glass. Automatic samples skip black; manual Black choices and existing saved palettes remain supported. See [v0.6.8 release notes](docs/release-v0.6.8.md).
-
-Drag palette colors or their main match-card grips to reorder them vertically or horizontally. Swatches, matching cards and dot numbers follow the order, which is retained by the workspace and named palettes. The obsolete full-palette checkbox is removed.
-
-Initial samples and Remix prefer different glass colors. When more colors are needed, they can reuse a color at a clearly different photo-based thickness percentage, while avoiding near-identical repeats and preserving manual choices.
-
-## v0.6.7: a reusable cart and personal-data retention
-
-**Add to Cart** adds the checked glass and quantities to your working cart. The **Cart** button at the top right shows the total item quantity and opens that cart. Edits are kept automatically, including when the cart page is closed or the extension is updated in place. The main page has one Sign in button; sending happens from the cart workspace.
-
-**Send cart to Bullseye** remains available after each successful send. Each deliberate click adds the displayed quantities again. **Empty Bullseye cart** clears the website cart after confirmation and keeps your local cart. **Add Colors** sits beside Cart items and opens the separate color-selection window.
-
-Alternatives has independent Transparent, Opalescent and Tints filters. Browsing alternatives leaves the main filters unchanged; choosing a color changes only that palette target.
-
-Updates retain the existing extension identity, storage keys, saved settings, palettes, photos and carts. A failed workspace read stops startup before it can save defaults. **Settings → Back up my data / Restore my data** transfers everything to another folder or computer. See [v0.6.7 release notes](docs/release-v0.6.7.md).
-
-## v0.6.6: Black matching and a focused cart workspace
-
-**Black and near-black neutral colors select regular Black**, including with only Transparent enabled. This fixes dark neutral targets that could still choose Aventurine Blue despite Black being available. Visibly colored dark targets, explicit glass choices, and the selected form's real photo samples retain their behavior.
-
-The cart workspace shows your cart items. **Add Color** opens a separate window containing the color catalog, search, material filters, grade, and package or sheet options. A large **Send to Bullseye Website Cart** button sits at the very top and sends the current cart through the existing transfer flow. See the [v0.6.6 release notes](docs/release-v0.6.6.md).
-
-## v0.6.5: regular Black and purple matching
-
-**Regular Black remains available with Transparent selected**, including when Opalescent is off, in matching, All glass, Alternatives, and the cart builder. Other opalescent colors still follow their filter.
-
-Clearly purple targets now favor a nearby purple hue from the selected form's actual photograph when the full-color calculation would otherwise choose a more saturated blue. The reported Fine target `#6A12DE` now selects **Gold Purple**. Blue targets, explicit saved glass choices, the Orange Striker preference, photo samples, and thickness calculations retain their behavior. See the [v0.6.5 release notes](docs/release-v0.6.5.md).
-
-## v0.6.4: visible thickness reference and Settings placement
-
-The main palette bar immediately shows **100% thickness = 6 mm solid glass, 16 mm fine frit \*Rough estimate**. It stays visible without opening a popup and wraps within narrower panels. **Settings** is directly between **Sign in** and **Transparent** in the compact toolbar. The same settings controls, per-form photographs, matching, and saved-work behavior remain. See the [v0.6.4 release notes](docs/release-v0.6.4.md).
-
-## v0.6.3: sample the selected frit photograph
-
-Powder, Fine, Medium and Coarse each use their own actual Bullseye photograph for full-color matching, percentage estimates, clickable sample swatches, and the small sample-location circle. Click the enlarged photograph to inspect a nearby valid glass sample. The photo, swatches, circle and percentage update together when the form changes; no Medium coordinates are placed on another photograph. Jar weights share the same frit-form photograph.
-
-Each glass color retains its shared reference scale. Photographs are not independently stretched from 0% to 100%: Aquamarine Blue's sampled ranges are Powder 20–100%, Fine 18–100%, Medium 35–100%, and Coarse 45–100%. These are approximate photo-color guides. The viewer identifies fired spreads, unfired frit dishes and cast wedges.
-
-**Sign in** sits beside **Refresh** at the top-left. Each color's compact purchase dropdown now has **Form**, **Package size** and **Quantity**, with actual frit variants or sheet dimensions/thicknesses. Individual form choices persist independently of the global default. Alternatives remains a separate popup, with wrapping cards, properly sized rows, vertical scrolling and unclipped purchase popovers.
-
-The existing source image, edited colors, dots, named palettes/settings/carts and shopping safeguards remain. Saved glass choices are retained when the new photo samples are adopted. See the [release notes](docs/release-v0.6.3.md) and [exact-photo sampling record](docs/form-sampling.md).
-
-## v0.6.1 update
-
-Landscape glass photographs now have their information below them. All match cards fit across the available width or wrap to another row without sideways scrolling. Each name has a plain selection checkbox. Purchase controls show the frit grade or actual sheet thickness as well as size. Alternatives opens in a separate searchable popup without replacing the main palette. Light Orange Striker is preferred over an automatic Carnelian choice; explicitly selected Carnelian remains available and saved.
-
-**Right-click a photo, choose matching Bullseye glass, click Add to Cart, then open Cart to send it to Bullseye.**
-
-Version **0.6.0** selects the suggested glass as soon as a palette loads. Choose **Sheets, Powder, Fine, Medium, or Coarse** at the top, save your preferred settings, and keep multiple named carts that you can edit, duplicate, and send directly to Bullseye. Frit starts with an available **5 lb. jar**, with another available size used when necessary.
-
-The color guide contains **141 colors — 75 transparent and 66 in the opalescent group —** with **22,499 measured matching/swatches samples across 564 frit photographs**, plus spatial points for photo inspection. The original 5,484-sample Medium catalog remains unchanged as the shared reference. The purchase catalog maps those colors to **2,088 actual Bullseye variants**, including standard sheets for 137 colors. Clear is excluded from automatic color matching and remains available in the cart builder. Independent **Transparent** and **Opalescent** buttons let you search either group or both. See [product-format coverage and sources](docs/product-formats.md).
-
-**Pinterest fix:** the right-click command also appears on photo links and their hover overlays. It reads the visible photo inside the clicked link, using its displayed image source. No additional permissions are required.
+Bullseye Palette Picker is a Chrome extension that helps you find Bullseye glass colors that match an image.
 
 ![Bullseye Palette Picker: a large portrait image beside its editable palette and compact glass list](https://raw.githubusercontent.com/Keyslah/Bullseye-Palette-Picker/main/docs/picker-preview.png)
 
 Product reference photography © Bullseye Glass Co.
-
-
-## New in v0.6.0
-
-The workspace puts the source photo and glass comparison first. Buttons share one compact, left-to-right wrapping toolbar rather than separate rows for settings, image controls, cart actions, and filters.
-
-**Top controls.** Refresh, Sign in, Settings, Transparent, Opalescent, and Tints start the toolbar together. Load palettes, Save palette, Add to Cart, search, and navigation share its remaining space. The top-right Cart button shows the working-cart quantity and opens its workspace, which contains Save cart, Saved Carts and Send cart to Bullseye. Settings contains the glass form, default jar size, named Save settings, and Load settings. Image contains import/capture controls and Fit / Larger / Full width. Account and the information menu hold account status and application information. The thickness reference is always visible on the palette bar.
-
-**Palette strip.** An uninterrupted sequence of swatches identifies your colors. Color hex values and the editor live behind Edit color rather than occupying every swatch and another full row. Numbered dots still identify sampled image locations.
-
-**Portrait and square photos.** The vertical glass list is to the left of the source photo, even in the narrower side panel. Each card's name, thickness estimate, and purchase control are on the left; its glass photograph is on the right, nearest the source image. Larger is the starting image size and fills the available portrait column. The previous v5 workspace's Fit view changes to Larger once on upgrade, without modifying its image, colors, or dots. Explicitly loading a saved palette or settings preset still restores its chosen view.
-
-**Landscape photos.** Glass cards form a horizontal comparison strip directly beneath the larger image. Extra cards wrap to the available width, with their information below their photographs.
-
-**Compact product cards.** A single purchase dropdown contains form, package/sheet size, quantity, and price; the checkbox remains beside the glass name. The main card no longer repeats SKUs and long detail text. Click the glass photograph for the large reference view, product code, sampled colors, full purchase information, and Use for this color / Alternatives controls.
-
-**French Vanilla and coral alternatives.** Explicit Alternatives and glass search include both neutral and chromatic product families while continuing to ignore background gaps in product photographs. French Vanilla is no longer completely excluded from a pale cream target by the old neutral/chromatic cutoff. Sunset Coral stays available in alternatives. Coral Orange Tint is included when Tints is on. All are still sorted by measured full-color difference; automatic suggestions retain the existing stricter neutral/chromatic eligibility. A deliberately chosen alternative persists through reloads and palette saving.
-
-Refresh still resets settings/view without resampling the photo. Remix separately creates a new sampled palette. Named settings, named palettes, the full cart page, and read-only website-cart copying remain available. Tints remain off by default.
-
-**Cart boundary:** Copy my Bullseye cart reads a local draft without modifying website quantities. Send is additive, not a replacement of the website cart. The v5 cart-copy limits remain: ordinary USD items, quantities 1 to 999, and only supported catalog glass can be sent by this tool. No action completes checkout.
 
 ## Install or update in Chrome
 
@@ -248,3 +169,87 @@ Open **Add Colors** beside Cart items to choose more glass. Its **Grade** and **
 Clear is a separate cart filter for Clear Transparent, Clear Transparent Tekta, and Crystal Clear Transparent. These are cart-only products and do not dilute the photo-matching palette.
 
 Click any photo in the cart editor, Add Colors results or saved-cart preview for a large image. The image follows the selected frit grade or sheet product. Variant-assigned photos take priority when provided; otherwise the photo is shared by that product's package sizes. More images from that listing can be browsed in the preview. Remote photos require an internet connection. No photo-sampling data is changed.
+
+## Release notes
+
+### v0.6.8: unavailable choices and prominent colors
+
+Unavailable glass stays selectable, checked and saveable. **Add to Cart**, working-cart edits and named cart saves keep the exact form, size and quantity; **\* unavailable** appears beside the name on the main page and cart workspace. Sending reports unavailable rows without discarding them.
+
+**Cart** and **Full page** open new tabs. Website cart results also open separately, preserving the source page, its history and unsaved input.
+
+**Prominence**, checked by default beside Alternatives, uses the image’s broad color theme for initial sampling and Remix. Uncheck it for wider accent coverage on the next sample. Toggling it does not change the existing palette. Remix preserves manual colors, edited dots and explicitly checked extra glass. Automatic samples skip black; manual Black choices and existing saved palettes remain supported. See [v0.6.8 release notes](docs/release-v0.6.8.md).
+
+Drag palette colors or their main match-card grips to reorder them vertically or horizontally. Swatches, matching cards and dot numbers follow the order, which is retained by the workspace and named palettes. The obsolete full-palette checkbox is removed.
+
+Initial samples and Remix prefer different glass colors. When more colors are needed, they can reuse a color at a clearly different photo-based thickness percentage, while avoiding near-identical repeats and preserving manual choices.
+
+### v0.6.7: a reusable cart and personal-data retention
+
+**Add to Cart** adds the checked glass and quantities to your working cart. The **Cart** button at the top right shows the total item quantity and opens that cart. Edits are kept automatically, including when the cart page is closed or the extension is updated in place. The main page has one Sign in button; sending happens from the cart workspace.
+
+**Send cart to Bullseye** remains available after each successful send. Each deliberate click adds the displayed quantities again. **Empty Bullseye cart** clears the website cart after confirmation and keeps your local cart. **Add Colors** sits beside Cart items and opens the separate color-selection window.
+
+Alternatives has independent Transparent, Opalescent and Tints filters. Browsing alternatives leaves the main filters unchanged; choosing a color changes only that palette target.
+
+Updates retain the existing extension identity, storage keys, saved settings, palettes, photos and carts. A failed workspace read stops startup before it can save defaults. **Settings → Back up my data / Restore my data** transfers everything to another folder or computer. See [v0.6.7 release notes](docs/release-v0.6.7.md).
+
+### v0.6.6: Black matching and a focused cart workspace
+
+**Black and near-black neutral colors select regular Black**, including with only Transparent enabled. This fixes dark neutral targets that could still choose Aventurine Blue despite Black being available. Visibly colored dark targets, explicit glass choices, and the selected form's real photo samples retain their behavior.
+
+The cart workspace shows your cart items. **Add Color** opens a separate window containing the color catalog, search, material filters, grade, and package or sheet options. A large **Send to Bullseye Website Cart** button sits at the very top and sends the current cart through the existing transfer flow. See the [v0.6.6 release notes](docs/release-v0.6.6.md).
+
+### v0.6.5: regular Black and purple matching
+
+**Regular Black remains available with Transparent selected**, including when Opalescent is off, in matching, All glass, Alternatives, and the cart builder. Other opalescent colors still follow their filter.
+
+Clearly purple targets now favor a nearby purple hue from the selected form's actual photograph when the full-color calculation would otherwise choose a more saturated blue. The reported Fine target `#6A12DE` now selects **Gold Purple**. Blue targets, explicit saved glass choices, the Orange Striker preference, photo samples, and thickness calculations retain their behavior. See the [v0.6.5 release notes](docs/release-v0.6.5.md).
+
+### v0.6.4: visible thickness reference and Settings placement
+
+The main palette bar immediately shows **100% thickness = 6 mm solid glass, 16 mm fine frit \*Rough estimate**. It stays visible without opening a popup and wraps within narrower panels. **Settings** is directly between **Sign in** and **Transparent** in the compact toolbar. The same settings controls, per-form photographs, matching, and saved-work behavior remain. See the [v0.6.4 release notes](docs/release-v0.6.4.md).
+
+### v0.6.3: sample the selected frit photograph
+
+Powder, Fine, Medium and Coarse each use their own actual Bullseye photograph for full-color matching, percentage estimates, clickable sample swatches, and the small sample-location circle. Click the enlarged photograph to inspect a nearby valid glass sample. The photo, swatches, circle and percentage update together when the form changes; no Medium coordinates are placed on another photograph. Jar weights share the same frit-form photograph.
+
+Each glass color retains its shared reference scale. Photographs are not independently stretched from 0% to 100%: Aquamarine Blue's sampled ranges are Powder 20–100%, Fine 18–100%, Medium 35–100%, and Coarse 45–100%. These are approximate photo-color guides. The viewer identifies fired spreads, unfired frit dishes and cast wedges.
+
+**Sign in** sits beside **Refresh** at the top-left. Each color's compact purchase dropdown now has **Form**, **Package size** and **Quantity**, with actual frit variants or sheet dimensions/thicknesses. Individual form choices persist independently of the global default. Alternatives remains a separate popup, with wrapping cards, properly sized rows, vertical scrolling and unclipped purchase popovers.
+
+The existing source image, edited colors, dots, named palettes/settings/carts and shopping safeguards remain. Saved glass choices are retained when the new photo samples are adopted. See the [release notes](docs/release-v0.6.3.md) and [exact-photo sampling record](docs/form-sampling.md).
+
+### v0.6.1 update
+
+Landscape glass photographs now have their information below them. All match cards fit across the available width or wrap to another row without sideways scrolling. Each name has a plain selection checkbox. Purchase controls show the frit grade or actual sheet thickness as well as size. Alternatives opens in a separate searchable popup without replacing the main palette. Light Orange Striker is preferred over an automatic Carnelian choice; explicitly selected Carnelian remains available and saved.
+
+**Right-click a photo, choose matching Bullseye glass, click Add to Cart, then open Cart to send it to Bullseye.**
+
+Version **0.6.0** selects the suggested glass as soon as a palette loads. Choose **Sheets, Powder, Fine, Medium, or Coarse** at the top, save your preferred settings, and keep multiple named carts that you can edit, duplicate, and send directly to Bullseye. Frit starts with an available **5 lb. jar**, with another available size used when necessary.
+
+The color guide contains **141 colors — 75 transparent and 66 in the opalescent group —** with **22,499 measured matching/swatches samples across 564 frit photographs**, plus spatial points for photo inspection. The original 5,484-sample Medium catalog remains unchanged as the shared reference. The purchase catalog maps those colors to **2,088 actual Bullseye variants**, including standard sheets for 137 colors. Clear is excluded from automatic color matching and remains available in the cart builder. Independent **Transparent** and **Opalescent** buttons let you search either group or both. See [product-format coverage and sources](docs/product-formats.md).
+
+**Pinterest fix:** the right-click command also appears on photo links and their hover overlays. It reads the visible photo inside the clicked link, using its displayed image source. No additional permissions are required.
+
+
+
+### New in v0.6.0
+
+The workspace puts the source photo and glass comparison first. Buttons share one compact, left-to-right wrapping toolbar rather than separate rows for settings, image controls, cart actions, and filters.
+
+**Top controls.** Refresh, Sign in, Settings, Transparent, Opalescent, and Tints start the toolbar together. Load palettes, Save palette, Add to Cart, search, and navigation share its remaining space. The top-right Cart button shows the working-cart quantity and opens its workspace, which contains Save cart, Saved Carts and Send cart to Bullseye. Settings contains the glass form, default jar size, named Save settings, and Load settings. Image contains import/capture controls and Fit / Larger / Full width. Account and the information menu hold account status and application information. The thickness reference is always visible on the palette bar.
+
+**Palette strip.** An uninterrupted sequence of swatches identifies your colors. Color hex values and the editor live behind Edit color rather than occupying every swatch and another full row. Numbered dots still identify sampled image locations.
+
+**Portrait and square photos.** The vertical glass list is to the left of the source photo, even in the narrower side panel. Each card's name, thickness estimate, and purchase control are on the left; its glass photograph is on the right, nearest the source image. Larger is the starting image size and fills the available portrait column. The previous v5 workspace's Fit view changes to Larger once on upgrade, without modifying its image, colors, or dots. Explicitly loading a saved palette or settings preset still restores its chosen view.
+
+**Landscape photos.** Glass cards form a horizontal comparison strip directly beneath the larger image. Extra cards wrap to the available width, with their information below their photographs.
+
+**Compact product cards.** A single purchase dropdown contains form, package/sheet size, quantity, and price; the checkbox remains beside the glass name. The main card no longer repeats SKUs and long detail text. Click the glass photograph for the large reference view, product code, sampled colors, full purchase information, and Use for this color / Alternatives controls.
+
+**French Vanilla and coral alternatives.** Explicit Alternatives and glass search include both neutral and chromatic product families while continuing to ignore background gaps in product photographs. French Vanilla is no longer completely excluded from a pale cream target by the old neutral/chromatic cutoff. Sunset Coral stays available in alternatives. Coral Orange Tint is included when Tints is on. All are still sorted by measured full-color difference; automatic suggestions retain the existing stricter neutral/chromatic eligibility. A deliberately chosen alternative persists through reloads and palette saving.
+
+Refresh still resets settings/view without resampling the photo. Remix separately creates a new sampled palette. Named settings, named palettes, the full cart page, and read-only website-cart copying remain available. Tints remain off by default.
+
+**Cart boundary:** Copy my Bullseye cart reads a local draft without modifying website quantities. Send is additive, not a replacement of the website cart. The v5 cart-copy limits remain: ordinary USD items, quantities 1 to 999, and only supported catalog glass can be sent by this tool. No action completes checkout.
